@@ -1,5 +1,6 @@
 import {
   envelopeSchema,
+  usageProviders,
   type UsageEnvelope,
   type Usage,
 } from "../../../../packages/contracts/src/index";
@@ -38,12 +39,16 @@ export function createUsageIngestor(
         if (existing) {
           existing.receivedAt = receivedAt;
           existing.lastSuccessAt = receivedAt;
+          return { state, result: "duplicate" as const };
         }
-        return { state, result: "duplicate" as const };
+        // A previously accepted source can become preferred again. Restore its
+        // unchanged snapshot rather than keeping another source on screen.
       }
       state.usageSequences[key] = envelope;
       const existing = state.dashboard.usage.find(
-        (u) => u.provider === envelope.payload.provider,
+        (u) =>
+          u.provider === envelope.payload.provider &&
+          u.sourceAlias === authorizedAlias,
       );
       const payload = envelope.payload;
       const value =
@@ -59,10 +64,18 @@ export function createUsageIngestor(
         (u) => u.provider !== payload.provider,
       );
       state.dashboard.usage.push(value);
-      state.dashboard.usage.sort((a, b) =>
-        a.provider.localeCompare(b.provider),
+      state.dashboard.usage.sort(
+        (a, b) =>
+          usageProviders.indexOf(a.provider) -
+          usageProviders.indexOf(b.provider),
       );
-      return { state, result: "accepted" as const };
+      return {
+        state,
+        result:
+          previous?.sequence === envelope.sequence
+            ? ("duplicate" as const)
+            : ("accepted" as const),
+      };
     });
   };
 }

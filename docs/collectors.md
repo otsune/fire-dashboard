@@ -2,6 +2,8 @@
 
 収集元PCへの導入と認証接続は未実施です。アダプターの固定データ試験のみ完了しています。プロンプト、回答、作業パス、メール、トークン、生のstdinは保存・送信しません。送信対象は許可された区分、率、リセット予定、状態、エイリアス、時刻だけです。
 
+Antigravity・OpenCode Go・Hermes／Nousは[追加サービスの収集手順](provider-usage.md)を参照してください。
+
 ## Claude Code
 
 公式仕様を2026-10-02に確認しました。[statusline仕様](https://code.claude.com/docs/en/statusline)のrate_limits.five_hourとseven_dayのみ読み、spend_limitは使いません。used_percentageは0〜100、resets_atはepoch秒です。公式ページではPro/MaxまたはGatewayにより項目の有無が異なり、最初のAPI応答前は欠損する場合があります。表示を更新するためのAI呼び出しは行いません。

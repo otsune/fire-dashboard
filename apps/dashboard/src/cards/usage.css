@@ -1,0 +1,30 @@
+/* Provider cards keep their content inside either dashboard layout. */
+.usage-card {
+  overflow-wrap: anywhere;
+}
+.usage-card .card-heading {
+  flex-wrap: wrap;
+}
+.usage-balance {
+  margin-top: 18px;
+}
+.usage-balance h3 {
+  font-size: 12px;
+  font-weight: 400;
+  color: #859e8c;
+}
+.usage-balance dl {
+  margin: 8px 0;
+}
+.usage-balance dl > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  justify-content: space-between;
+  margin-top: 8px;
+  font-size: 12px;
+}
+.usage-balance dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}

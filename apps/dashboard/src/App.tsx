@@ -8,6 +8,7 @@ import {
 } from "../../../packages/contracts/src/index";
 import { WeatherCard } from "./cards/WeatherCard";
 import { UsageCard } from "./cards/UsageCard";
+import { AdditionalUsageCards } from "./cards/AdditionalUsageCards";
 import { RssCard } from "./cards/RssCard";
 import { fetchDashboard } from "./data/client";
 import { loadDashboard, mergeDashboard, saveDashboard } from "./data/cache";
@@ -224,6 +225,11 @@ export function App() {
                 now={cardNow}
               />
             ))}
+            <AdditionalUsageCards
+              usage={data.usage}
+              timeZone={settings.timeZone}
+              now={cardNow}
+            />
             <RssCard
               feeds={data.rss}
               autoRotate={settings.rssAutoRotate}

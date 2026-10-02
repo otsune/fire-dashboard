@@ -22,6 +22,8 @@ export function deriveStatus(
   if ("buckets" in value) {
     if (value.receivedAt && age(value.receivedAt) > 300000)
       return status("取得元に未接続", true);
+    if (value.errorCode === "rate_limited" && value.status === "error")
+      return status("取得制限中", true);
     if (value.status === "error")
       return status(
         value.errorCode === "auth" ? "認証を確認" : "取得エラー",
@@ -30,11 +32,13 @@ export function deriveStatus(
     if (
       value.buckets.some((b) =>
         b.windows.some((w) => w.resetsAt && Date.parse(w.resetsAt) <= now),
-      )
+      ) ||
+      (value.balance?.renewsAt && Date.parse(value.balance.renewsAt) <= now)
     )
       return status("更新待ち", true);
     if (value.sourceObservedAt && age(value.sourceObservedAt) > 300000)
       return status("更新遅延", true);
+    if (value.errorCode === "rate_limited") return status("利用制限中", true);
     if (value.sourceObservedAt === null)
       return status("元データの鮮度不明", true);
   } else {

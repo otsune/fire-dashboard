@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { providerSchema } from "../../../packages/contracts/src/index";
 export const configSchema = z.object({
   weather: z
     .object({
@@ -22,10 +23,14 @@ export const configSchema = z.object({
     .max(32)
     .default([]),
   preferredSources: z
-    .object({
-      claude: z.string().max(64).optional(),
-      codex: z.string().max(64).optional(),
-    })
+    .partialRecord(
+      providerSchema,
+      z
+        .string()
+        .min(1)
+        .max(64)
+        .regex(/^[a-zA-Z0-9_-]+$/),
+    )
     .default({}),
 });
 export type Config = z.infer<typeof configSchema>;
