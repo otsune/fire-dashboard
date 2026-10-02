@@ -1,0 +1,46 @@
+{
+  "name": "fire-dashboard",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "apps/*",
+    "services/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "build": "vite build --config apps/dashboard/vite.config.ts && node scripts/build-sw.mjs",
+    "dev": "vite --config apps/dashboard/vite.config.ts --host 127.0.0.1",
+    "preview": "vite preview --config apps/dashboard/vite.config.ts --host 127.0.0.1",
+    "start:api": "tsx services/aggregator/src/start.ts",
+    "test:e2e": "playwright test"
+  },
+  "dependencies": {
+    "fast-xml-parser": "5.11.2",
+    "fastify": "5.12.5",
+    "ipaddr.js": "2.5.0",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "zod": "4.6.5"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0",
+    "@testing-library/jest-dom": "7.0.1",
+    "@testing-library/react": "16.3.3",
+    "@testing-library/user-event": "14.6.7",
+    "@types/node": "26.6.4",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@vitejs/plugin-react": "6.1.1",
+    "dseg": "0.46.0",
+    "fake-indexeddb": "6.2.5",
+    "jsdom": "30.1.1",
+    "prettier": "3.9.9",
+    "tsx": "4.23.15",
+    "typescript": "7.0.2",
+    "vite": "8.3.2",
+    "vitest": "5.0.3"
+  }
+}

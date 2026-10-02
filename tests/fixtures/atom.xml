@@ -1,0 +1,1 @@
+<feed xmlns="http://www.w3.org/2005/Atom"><title>Atom fixture</title><entry><id>atom-one</id><title>Atomの見出し</title><link rel="alternate" href="https://example.com/atom"/><updated>2026-10-02T00:00:00Z</updated></entry></feed>
