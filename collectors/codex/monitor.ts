@@ -6,15 +6,18 @@ export function startCodexCollector(options: {
   path: string;
   sourceAlias: string;
   send: (value: UsageEnvelope) => Promise<void>;
+  executable?: string;
   read?: () => Promise<Usage>;
-  onError?: (category: "read" | "storage" | "send") => void;
+  onError?: (category: "read" | "storage" | "send" | "cleanup") => void;
 }) {
   let stopped = false,
     timer: ReturnType<typeof setTimeout> | undefined;
   const tick = async () => {
     let value: Usage;
     try {
-      value = await (options.read ?? readCodexLimits)();
+      value = await (options.read
+        ? options.read()
+        : readCodexLimits({ executable: options.executable }));
     } catch {
       options.onError?.("read");
       if (!stopped) timer = setTimeout(() => void tick(), 60000);
@@ -26,6 +29,7 @@ export function startCodexCollector(options: {
         value,
         options.path,
         options.sourceAlias,
+        { onCleanupError: () => options.onError?.("cleanup") },
       );
     } catch {
       options.onError?.("storage");
