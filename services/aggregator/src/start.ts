@@ -3,7 +3,7 @@ import { pathToFileURL } from "node:url";
 import { resolve } from "node:path";
 import { createServer } from "./server";
 import { createFileStore } from "./store";
-import { configSchema } from "./config";
+import { configSchema, parsePort } from "./config";
 import { startSources } from "./sources";
 import type { Authorize, SourceAlias } from "./auth";
 async function main() {
@@ -40,7 +40,8 @@ async function main() {
     allowedOrigins: [origin],
     preferredSources: config.preferredSources,
   });
-  await app.listen({ host: "127.0.0.1", port: 8787 });
+  const port = parsePort(process.env.FIRE_PORT);
+  await app.listen({ host: "127.0.0.1", port });
   const stopSources = startSources(config, store);
   let closing = false;
   const stop = async () => {
@@ -51,7 +52,7 @@ async function main() {
   };
   process.on("SIGINT", () => void stop());
   process.on("SIGTERM", () => void stop());
-  process.stdout.write("Fire Dashboard API listening on loopback port 8787\n");
+  process.stdout.write(`Fire Dashboard API listening on loopback port ${port}\n`);
 }
 void main().catch(() => {
   process.stderr.write(

@@ -7,8 +7,18 @@ import {
 import type { Store } from "../store";
 export function createUsageIngestor(
   store: Store,
-  preferredSources: Partial<Record<Usage["provider"], string>>,
+  preferredSources: Partial<
+    Record<Usage["provider"], string | readonly string[]>
+  >,
 ) {
+  // Limits are account-wide, so every listed PC observes the same windows;
+  // any of them may report and the freshest observation is displayed.
+  const allowed = (provider: Usage["provider"], alias: string) => {
+    const listed = preferredSources[provider];
+    return typeof listed === "string"
+      ? listed === alias
+      : !!listed?.includes(alias);
+  };
   return async function ingestUsage(
     input: UsageEnvelope,
     receivedAt: string,
@@ -17,7 +27,7 @@ export function createUsageIngestor(
     const envelope = envelopeSchema.parse(input);
     if (
       envelope.sourceAlias !== authorizedAlias ||
-      preferredSources[envelope.payload.provider] !== authorizedAlias
+      !allowed(envelope.payload.provider, authorizedAlias)
     )
       throw Error("source_denied");
     return store.update((state) => {
@@ -62,8 +72,27 @@ export function createUsageIngestor(
                 lastSuccessAt:
                   !duplicate && payload.status === "ok" ? receivedAt : null,
               };
+      // Save every source's effective value before choosing what to display,
+      // so a source that is not on screen keeps its own last good data.
       state.usageSequences[key] = envelope;
       state.usageValues[key] = value;
+      const result = duplicate ? ("duplicate" as const) : ("accepted" as const);
+      // One entry per provider is displayed, from whichever PC reported it.
+      const shown = state.dashboard.usage.find(
+        (u) => u.provider === payload.provider,
+      );
+      // Another PC's failure must not hide a working PC's numbers, and an
+      // older capture (e.g. a PC waking from sleep) must not replace a newer one.
+      // A PC removed from the configuration no longer holds the display.
+      if (
+        shown &&
+        (shown.lastSuccessAt || shown.status === "ok") &&
+        shown.sourceAlias !== authorizedAlias &&
+        allowed(payload.provider, shown.sourceAlias) &&
+        (value.status !== "ok" ||
+          observedAt(value, receivedAt) < observedAt(shown, receivedAt))
+      )
+        return { state, result };
       state.dashboard.usage = state.dashboard.usage.filter(
         (u) => u.provider !== payload.provider,
       );
@@ -73,15 +102,18 @@ export function createUsageIngestor(
           usageProviders.indexOf(a.provider) -
           usageProviders.indexOf(b.provider),
       );
-      return {
-        state,
-        result:
-          previous?.sequence === envelope.sequence
-            ? ("duplicate" as const)
-            : ("accepted" as const),
-      };
+      return { state, result };
     });
   };
+}
+/** Collector clocks may run ahead; a capture never counts as newer than its receipt. */
+function observedAt(
+  u: Pick<Usage, "capturedAt" | "receivedAt">,
+  fallback: string,
+): number {
+  const received = Date.parse(u.receivedAt ?? fallback);
+  const captured = u.capturedAt ? Date.parse(u.capturedAt) : NaN;
+  return Number.isFinite(captured) ? Math.min(captured, received) : received;
 }
 export function createRateLimiter() {
   const buckets = new Map<string, { tokens: number; at: number }>();
