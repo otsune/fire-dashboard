@@ -56,7 +56,7 @@ test("five provider cards preserve missing, quota and balance semantics at table
   await expect(page.locator(".usage-card")).toHaveCount(usageProviders.length);
   await expect(page.locator(".usage-card progress")).toHaveCount(2);
   const nous = page.locator(".usage-card").filter({
-    has: page.getByRole("heading", { name: "Hermes / Nous 利用状況" }),
+    has: page.getByRole("heading", { name: /Hermes \/ Nous.*利用状況/ }),
   });
   await expect(nous).toContainText("$37.00");
   await expect(nous.locator("progress")).toHaveCount(0);
@@ -66,6 +66,19 @@ test("five provider cards preserve missing, quota and balance semantics at table
     [360, 800],
   ]) {
     await page.setViewportSize({ width, height });
+    const usage = await page.locator(".usage-grid").boundingBox();
+    const rss = await page.locator(".rss-card").boundingBox();
+    const last = await page.locator(".usage-card").last().boundingBox();
+    expect(usage && rss && last).toBeTruthy();
+    if (!usage || !rss || !last) throw new Error("Missing provider layout");
+    if (width >= 1000) {
+      expect(rss.x).toBeGreaterThanOrEqual(usage.x + usage.width);
+      expect(Math.abs(rss.y - usage.y)).toBeLessThan(1);
+    } else {
+      expect(rss.y).toBeGreaterThanOrEqual(usage.y + usage.height);
+    }
+    // With five visible providers the last card fills the two-column usage row.
+    expect(Math.abs(last.width - usage.width)).toBeLessThan(1);
     expect(
       await page.evaluate(
         () => document.documentElement.scrollWidth <= innerWidth,
@@ -80,4 +93,21 @@ test("five provider cards preserve missing, quota and balance semantics at table
     await page.getByRole("button", { name: "時計に戻る" }).click();
     await expect(page.locator(".usage-card")).toHaveCount(5);
   }
+});
+
+test("unconfigured extra providers do not displace the desktop RSS column", async ({
+  page,
+}) => {
+  await page.route("**/api/v1/dashboard", (route) =>
+    route.fulfill({ json: emptyDashboard() }),
+  );
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto("/");
+  await expect(page.locator(".usage-card")).toHaveCount(2);
+  const usage = await page.locator(".usage-grid").boundingBox();
+  const rss = await page.locator(".rss-card").boundingBox();
+  expect(usage && rss).toBeTruthy();
+  if (!usage || !rss) throw new Error("Missing default provider layout");
+  expect(rss.x).toBeGreaterThanOrEqual(usage.x + usage.width);
+  expect(Math.abs(rss.y - usage.y)).toBeLessThan(1);
 });

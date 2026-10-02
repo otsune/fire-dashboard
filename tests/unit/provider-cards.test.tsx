@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import React from "react";
 import { it, expect, afterEach, vi } from "vitest";
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import { emptyUsage, usageSchema } from "../../packages/contracts/src/index";
 import { UsageCard } from "../../apps/dashboard/src/cards/UsageCard";
 import { App } from "../../apps/dashboard/src/App";
@@ -70,7 +70,7 @@ it("shows separate USD balances without manufacturing quota bars", () => {
   expect(screen.queryByRole("progressbar")).toBeNull();
   expect(screen.queryByText("収集処理が未設定です")).toBeNull();
 });
-it("shows five cards even when an older API snapshot contains only legacy providers", async () => {
+it("keeps unconfigured extra providers out of an older two-provider dashboard", async () => {
   const { emptyDashboard } = await import("../../packages/contracts/src/index");
   const legacy = {
     ...emptyDashboard(),
@@ -87,19 +87,45 @@ it("shows five cards even when an older API snapshot contains only legacy provid
   );
   render(<App />);
   await screen.findByText("集約サービス接続済み");
-  for (const label of [
-    "Claude",
-    "Codex",
-    "Antigravity",
-    "OpenCode Go",
-    "Hermes / Nous",
-  ]) {
-    const heading = screen.getByRole("heading", { name: new RegExp(label) });
+  expect(document.querySelectorAll(".usage-card")).toHaveLength(2);
+  for (const label of ["Claude", "Codex"])
     expect(
-      within(heading.closest("section")!).queryByRole("progressbar"),
+      screen.getByRole("heading", { name: new RegExp(label) }),
+    ).toBeInTheDocument();
+  for (const label of ["Antigravity", "OpenCode Go", "Hermes / Nous"])
+    expect(
+      screen.queryByRole("heading", { name: new RegExp(label) }),
     ).toBeNull();
-  }
 });
+it("groups all active usage cards separately from the RSS column", async () => {
+  const { emptyDashboard } = await import("../../packages/contracts/src/index");
+  const data = emptyDashboard();
+  data.usage = data.usage.map((value) => ({
+    ...value,
+    status: "missing",
+    sourceAlias: "pc",
+  }));
+  vi.stubGlobal(
+    "fetch",
+    async (url: string) =>
+      new Response(
+        JSON.stringify(
+          url.includes("manifest") ? { hours: {}, chime: null } : data,
+        ),
+      ),
+  );
+  render(<App />);
+  await screen.findByText("集約サービス接続済み");
+  const usage = screen.getByRole("region", { name: "AI利用状況" });
+  expect(usage.querySelectorAll(".usage-card")).toHaveLength(5);
+  const rss = screen
+    .getByRole("heading", { name: "ニュース RSS" })
+    .closest("section")!;
+  expect(usage.parentElement).toHaveClass("provider-layout");
+  expect(rss.parentElement).toBe(usage.parentElement);
+  expect(usage).not.toContainElement(rss);
+});
+
 it("marks an elapsed balance renewal as waiting without resetting USD values", async () => {
   const { deriveStatus } = await import("../../apps/dashboard/src/data/status");
   const value = usageSchema.parse({

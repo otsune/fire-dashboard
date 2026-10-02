@@ -146,8 +146,9 @@ export async function fetchOpenCodeGo(options: GoFetchOptions): Promise<Usage> {
         await response.body?.cancel();
         if (blocked) return failure(capturedAt, "blocked");
         if (response.status === 401) return failure(capturedAt, "auth");
-        if (response.status === 403)
-          return failure(capturedAt, "unsupported", "unsupported");
+        // A bare 403 may be an auth, proxy or temporary entitlement failure;
+        // it cannot establish permanent lack of support. Keep last-known usage.
+        if (response.status === 403) return failure(capturedAt, "auth");
         if (response.status === 429) return failure(capturedAt, "rate_limited");
         return failure(capturedAt, "network");
       }

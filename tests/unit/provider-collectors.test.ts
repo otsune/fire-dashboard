@@ -242,7 +242,7 @@ describe("OpenCode Go collector", () => {
   });
   it.each([
     [401, "error", "auth"],
-    [403, "unsupported", "unsupported"],
+    [403, "error", "auth"],
     [429, "error", "rate_limited"],
     [500, "error", "network"],
     [302, "error", "blocked"],
@@ -260,6 +260,24 @@ describe("OpenCode Go collector", () => {
         buckets: [],
         sourceObservedAt: null,
       });
+      noPrivate(value);
+    },
+  );
+  it.each([
+    JSON.stringify({ error: { type: "AuthError", message: "SECRET" } }),
+    JSON.stringify({ error: { type: "EntitlementError", message: "SECRET" } }),
+    "<html>SECRET access denied by WAF</html>",
+  ])(
+    "treats a forbidden response conservatively and discards its body",
+    async (body) => {
+      const response = new Response(body, { status: 403 });
+      const value = await fetchOpenCodeGo({
+        capturedAt: at,
+        apiKey: "synthetic-key",
+        fetch: async () => response,
+      });
+      expect(value).toMatchObject({ status: "error", errorCode: "auth" });
+      expect((await response.body!.getReader().read()).done).toBe(true);
       noPrivate(value);
     },
   );

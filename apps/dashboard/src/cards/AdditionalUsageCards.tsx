@@ -1,5 +1,4 @@
 import {
-  emptyUsage,
   usageProviders,
   type Usage,
 } from "../../../../packages/contracts/src/index";
@@ -16,15 +15,21 @@ export function AdditionalUsageCards({
   timeZone: string;
   now: number;
 }) {
-  return additionalProviders.map((provider) => (
-    <UsageCard
-      key={provider}
-      value={
-        usage.find((value) => value.provider === provider) ??
-        emptyUsage(provider)
-      }
-      timeZone={timeZone}
-      now={now}
-    />
-  ));
+  return additionalProviders.flatMap((provider) => {
+    const value = usage.find((entry) => entry.provider === provider);
+    if (
+      !value ||
+      (value.status === "unconfigured" &&
+        !value.sourceAlias &&
+        !value.capturedAt &&
+        !value.receivedAt &&
+        !value.sourceObservedAt &&
+        value.buckets.length === 0 &&
+        !value.balance)
+    )
+      return [];
+    return [
+      <UsageCard key={provider} value={value} timeZone={timeZone} now={now} />,
+    ];
+  });
 }
