@@ -204,15 +204,13 @@ export function App() {
         />
       ) : (
         <>
-          <div className="top-grid">
-            <Clock settings={settings} />
+          <Clock settings={settings} />
+          <div className="bottom-grid">
             <WeatherCard
               value={data.weather}
               timeZone={settings.timeZone}
               now={cardNow}
             />
-          </div>
-          <div className="bottom-grid">
             {(["claude", "codex"] as const).map((provider) => (
               <UsageCard
                 key={provider}

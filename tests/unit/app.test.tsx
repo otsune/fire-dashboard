@@ -31,6 +31,12 @@ it("integrates unconfigured cards, settings round-trip and disabled absent audio
   render(<App />);
   expect(screen.getByText("地域未設定")).toBeInTheDocument();
   expect(screen.getByText("フィード未登録")).toBeInTheDocument();
+  const clock = screen.getByRole("region", { name: "時計" });
+  expect(clock.parentElement).toHaveClass("dashboard");
+  const cards = clock.nextElementSibling;
+  expect(cards).toHaveClass("bottom-grid");
+  expect(cards).toContainElement(screen.getByText("地域未設定"));
+  expect(cards).toContainElement(screen.getByText("フィード未登録"));
   await waitFor(() =>
     expect(screen.getByText("集約サービス接続済み")).toBeInTheDocument(),
   );

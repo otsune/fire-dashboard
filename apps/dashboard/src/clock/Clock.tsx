@@ -40,16 +40,31 @@ export function Clock({
         LOCAL TIME{" "}
         <span className="zone">{settings.timeZone.replaceAll("_", " ")}</span>
       </div>
-      <div className="clock-face">
-        <span className="dayperiod">{part("dayPeriod")}</span>
-        <span className="digits" data-testid="clock-time">
-          {part("hour")}:{part("minute")}
-        </span>
-        <span className="seconds" data-testid="clock-seconds">
-          {part("second")}
+      <div
+        className="clock-face"
+        role="timer"
+        aria-live="off"
+        aria-label={`${part("dayPeriod")}${part("hour")}時${part("minute")}分${part("second")}秒 ${settings.timeZone}`}
+      >
+        <span className="digits" data-testid="clock-time" aria-hidden="true">
+          <span className="clock-hours">{part("hour")}</span>
+          <span className="clock-separator">:</span>
+          <span className="clock-minutes">{part("minute")}</span>
         </span>
       </div>
-      <div className="clock-date">{date}</div>
+      <div className="clock-details">
+        <span className="dayperiod" aria-hidden="true">
+          {part("dayPeriod")}
+        </span>
+        <span
+          className="seconds"
+          data-testid="clock-seconds"
+          aria-hidden="true"
+        >
+          {part("second")}
+        </span>
+        <span className="clock-date">{date}</span>
+      </div>
       <div className="clock-caption">今日も、自分のペースで。</div>
     </section>
   );
