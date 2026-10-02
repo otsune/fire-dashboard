@@ -8,7 +8,7 @@ export function startCodexCollector(options: {
   send: (value: UsageEnvelope) => Promise<void>;
   executable?: string;
   read?: () => Promise<Usage>;
-  onError?: (category: "read" | "storage" | "send") => void;
+  onError?: (category: "read" | "storage" | "send" | "cleanup") => void;
 }) {
   let stopped = false,
     timer: ReturnType<typeof setTimeout> | undefined;
@@ -29,6 +29,7 @@ export function startCodexCollector(options: {
         value,
         options.path,
         options.sourceAlias,
+        { onCleanupError: () => options.onError?.("cleanup") },
       );
     } catch {
       options.onError?.("storage");

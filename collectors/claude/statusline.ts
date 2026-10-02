@@ -6,8 +6,14 @@ export async function captureClaude(
   capturedAt: string,
   path: string,
   sourceAlias: string,
+  options: { onCleanupError?: () => void } = {},
 ) {
-  return captureSnapshot(extractClaude(stdin, capturedAt), path, sourceAlias);
+  return captureSnapshot(
+    extractClaude(stdin, capturedAt),
+    path,
+    sourceAlias,
+    options,
+  );
 }
 async function main() {
   const path = process.env.FIRE_SNAPSHOT_PATH,
@@ -18,7 +24,18 @@ async function main() {
     input += chunk;
     if (Buffer.byteLength(input) > 1024 * 1024) throw Error("too_large");
   }
-  await captureClaude(JSON.parse(input), new Date().toISOString(), path, alias);
+  await captureClaude(
+    JSON.parse(input),
+    new Date().toISOString(),
+    path,
+    alias,
+    {
+      onCleanupError: () =>
+        process.stderr.write(
+          "Fire Dashboard: snapshot lock cleanup deferred\n",
+        ),
+    },
+  );
 }
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href)
   void main().catch(() => {

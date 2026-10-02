@@ -12,6 +12,7 @@ export async function captureSnapshot(
   payload: Usage,
   path: string,
   sourceAlias: string,
+  options: { onCleanupError?: () => void } = {},
 ): Promise<UsageEnvelope> {
   await mkdir(dirname(path), { recursive: true });
   const release = await acquireSnapshotLock(path);
@@ -44,6 +45,15 @@ export async function captureSnapshot(
     await atomicJson(path, value);
     return value;
   } finally {
-    await release();
+    // A cleanup failure must not turn a saved snapshot into a failed capture,
+    // skip its send, or replace the original read/write error. The lock helper
+    // records a deferred release where possible; ambiguous locks fail closed.
+    await release().catch(() => {
+      try {
+        options.onCleanupError?.();
+      } catch {
+        /* Diagnostics cannot change the capture outcome. */
+      }
+    });
   }
 }
