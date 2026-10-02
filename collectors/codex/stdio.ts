@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { posix, win32 } from "node:path";
 import { createInterface } from "node:readline";
 import { normalizeCodex } from "./adapter";
 import { emptyUsage, type Usage } from "../../packages/contracts/src/index";
@@ -11,8 +12,32 @@ export type RpcTransport = {
   ) => () => void;
   close: () => void;
 };
-function transport(): RpcTransport {
-  const child = spawn("codex", ["app-server"], {
+export function validateCodexExecutable(
+  executable: string | undefined,
+  platform: NodeJS.Platform = process.platform,
+): string {
+  const paths = platform === "win32" ? win32 : posix;
+  if (
+    !executable ||
+    executable.includes("\0") ||
+    !paths.isAbsolute(executable) ||
+    // A Windows root-relative path (e.g. \codex.exe) depends on the current drive.
+    (platform === "win32" && paths.parse(executable).root.length <= 1)
+  ) {
+    throw new Error(
+      "Set FIRE_CODEX_EXECUTABLE to an absolute Codex executable path",
+    );
+  }
+  if (platform === "win32" && /\.(?:cmd|bat)[ .]*$/i.test(executable)) {
+    throw new Error(
+      "Codex .cmd/.bat shell shims are not supported; use the executable directly",
+    );
+  }
+  return executable;
+}
+
+function transport(executable: string): RpcTransport {
+  const child = spawn(executable, ["app-server"], {
     stdio: ["pipe", "pipe", "ignore"],
     shell: false,
   });
@@ -120,6 +145,14 @@ export async function readLimitsWithTransport(
     }
   });
 }
-export async function readCodexLimits(): Promise<Usage> {
-  return readLimitsWithTransport(transport(), new Date().toISOString());
+export async function readCodexLimits(
+  options: { executable?: string } = {},
+): Promise<Usage> {
+  const executable = validateCodexExecutable(
+    options.executable ?? process.env.FIRE_CODEX_EXECUTABLE,
+  );
+  return readLimitsWithTransport(
+    transport(executable),
+    new Date().toISOString(),
+  );
 }

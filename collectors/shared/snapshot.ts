@@ -1,4 +1,4 @@
-import { mkdir, readFile, rmdir } from "node:fs/promises";
+import { mkdir, readFile } from "node:fs/promises";
 import { dirname } from "node:path";
 import { randomUUID } from "node:crypto";
 import {
@@ -7,14 +7,14 @@ import {
   type UsageEnvelope,
 } from "../../packages/contracts/src/index";
 import { atomicJson } from "../../services/aggregator/src/store";
+import { acquireSnapshotLock } from "./snapshot-lock";
 export async function captureSnapshot(
   payload: Usage,
   path: string,
   sourceAlias: string,
 ): Promise<UsageEnvelope> {
   await mkdir(dirname(path), { recursive: true });
-  const lock = path + ".lock";
-  await mkdir(lock);
+  const release = await acquireSnapshotLock(path);
   try {
     let previous: UsageEnvelope | null = null;
     try {
@@ -44,6 +44,6 @@ export async function captureSnapshot(
     await atomicJson(path, value);
     return value;
   } finally {
-    await rmdir(lock);
+    await release();
   }
 }

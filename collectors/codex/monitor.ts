@@ -6,6 +6,7 @@ export function startCodexCollector(options: {
   path: string;
   sourceAlias: string;
   send: (value: UsageEnvelope) => Promise<void>;
+  executable?: string;
   read?: () => Promise<Usage>;
   onError?: (category: "read" | "storage" | "send") => void;
 }) {
@@ -14,7 +15,9 @@ export function startCodexCollector(options: {
   const tick = async () => {
     let value: Usage;
     try {
-      value = await (options.read ?? readCodexLimits)();
+      value = await (options.read
+        ? options.read()
+        : readCodexLimits({ executable: options.executable }));
     } catch {
       options.onError?.("read");
       if (!stopped) timer = setTimeout(() => void tick(), 60000);
