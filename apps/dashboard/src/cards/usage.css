@@ -1,0 +1,65 @@
+/* Provider cards keep their content inside either dashboard layout. */
+.usage-card {
+  overflow-wrap: anywhere;
+}
+.usage-card .card-heading {
+  flex-wrap: wrap;
+}
+.usage-balance {
+  margin-top: 18px;
+}
+.usage-balance h3 {
+  font-size: 12px;
+  font-weight: 400;
+  color: #859e8c;
+}
+.usage-balance dl {
+  margin: 8px 0;
+}
+.usage-balance dl > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  justify-content: space-between;
+  margin-top: 8px;
+  font-size: 12px;
+}
+.usage-balance dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Keep the usage area separate from the wider RSS column. */
+.bottom-grid.provider-layout {
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1.35fr);
+  align-items: start;
+}
+.provider-layout > .usage-grid {
+  display: grid;
+  grid-column: 1;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+  min-width: 0;
+}
+.provider-layout > .rss-card {
+  grid-column: 2;
+  grid-row: 1;
+}
+.usage-grid > .usage-card:last-child:nth-child(odd) {
+  grid-column: 1 / -1;
+}
+@media (max-width: 999px) {
+  .bottom-grid.provider-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .provider-layout > .rss-card {
+    grid-column: 1;
+    grid-row: 2;
+  }
+}
+@media (max-width: 600px) {
+  .provider-layout > .usage-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 14px;
+  }
+}

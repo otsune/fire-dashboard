@@ -1,4 +1,13 @@
 import { z } from "zod";
+export const usageProviders = [
+  "claude",
+  "codex",
+  "antigravity",
+  "opencode_go",
+  "hermes_nous",
+] as const;
+export const providerSchema = z.enum(usageProviders);
+export type UsageProvider = z.infer<typeof providerSchema>;
 const text = z.string().max(2048);
 export const instant = z.string().datetime({ offset: false }).nullable();
 const pct = z.number().finite().min(0).max(100).nullable();
@@ -89,8 +98,18 @@ export const windowSchema = z.object({
   windowMinutes: z.number().int().positive().max(5256000).nullable(),
   resetsAt: instant,
 });
+const amount = z.number().finite().nonnegative().nullable();
+export const balanceSchema = z.object({
+  currency: z.literal("USD"),
+  subscriptionRemaining: amount,
+  purchasedRemaining: amount,
+  totalRemaining: amount,
+  monthlyAllowance: amount,
+  renewsAt: instant,
+});
 export const usageSchema = commonSchema.extend({
-  provider: z.enum(["claude", "codex"]),
+  provider: providerSchema,
+  balance: balanceSchema.optional(),
   sourceAlias: z
     .string()
     .max(64)
@@ -159,7 +178,7 @@ export function emptyDashboard(): Dashboard {
     schemaVersion: 1,
     weather: emptyWeather(),
     rss: [],
-    usage: [emptyUsage("claude"), emptyUsage("codex")],
+    usage: usageProviders.map(emptyUsage),
   };
 }
 function skew<T extends Common>(v: T): T {
@@ -197,20 +216,24 @@ export function parseDashboard(input: unknown): Dashboard {
             errorCode: "invalid_data",
           };
     }),
-    usage: root.usage.map((v, i) => {
+    usage: root.usage.flatMap((v, i): Usage[] => {
       const u = usageSchema.safeParse(v);
-      return u.success
-        ? skew(u.data)
-        : {
-            ...emptyUsage(
-              (v as { provider?: string })?.provider === "codex"
-                ? "codex"
-                : "claude",
-            ),
-            status: "error",
-            errorCode: "invalid_data",
-            sourceAlias: `invalid-${i}`,
-          };
+      if (u.success) return [skew(u.data)];
+      const provider = providerSchema.safeParse(
+        typeof v === "object" && v !== null
+          ? (v as { provider?: unknown }).provider
+          : undefined,
+      );
+      // Unknown data cannot be attributed to one of the known accounts.
+      if (!provider.success) return [];
+      return [
+        {
+          ...emptyUsage(provider.data),
+          status: "error",
+          errorCode: "invalid_data",
+          sourceAlias: `invalid-${i}`,
+        },
+      ];
     }),
   };
 }

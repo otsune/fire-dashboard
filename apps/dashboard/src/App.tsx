@@ -8,6 +8,7 @@ import {
 } from "../../../packages/contracts/src/index";
 import { WeatherCard } from "./cards/WeatherCard";
 import { UsageCard } from "./cards/UsageCard";
+import { AdditionalUsageCards } from "./cards/AdditionalUsageCards";
 import { RssCard } from "./cards/RssCard";
 import { fetchDashboard } from "./data/client";
 import { loadDashboard, mergeDashboard, saveDashboard } from "./data/cache";
@@ -212,18 +213,25 @@ export function App() {
               now={cardNow}
             />
           </div>
-          <div className="bottom-grid">
-            {(["claude", "codex"] as const).map((provider) => (
-              <UsageCard
-                key={provider}
-                value={
-                  data.usage.find((u) => u.provider === provider) ??
-                  emptyDashboard().usage.find((u) => u.provider === provider)!
-                }
+          <div className="bottom-grid provider-layout">
+            <section className="usage-grid" aria-label="AI利用状況">
+              {(["claude", "codex"] as const).map((provider) => (
+                <UsageCard
+                  key={provider}
+                  value={
+                    data.usage.find((u) => u.provider === provider) ??
+                    emptyDashboard().usage.find((u) => u.provider === provider)!
+                  }
+                  timeZone={settings.timeZone}
+                  now={cardNow}
+                />
+              ))}
+              <AdditionalUsageCards
+                usage={data.usage}
                 timeZone={settings.timeZone}
                 now={cardNow}
               />
-            ))}
+            </section>
             <RssCard
               feeds={data.rss}
               autoRotate={settings.rssAutoRotate}
