@@ -125,8 +125,8 @@ export function createWeatherSettings(options: {
         throw Error("storage_unavailable");
       }
       // Persistence is authoritative even if a local scheduler cannot be started.
-      // A stale job is separately revision-guarded; later reconciliation/restart
-      // always reads the canonical settings rather than the submitted selection.
+      // The source independently retries canonical reconciliation; stale jobs
+      // remain revision-guarded until the saved settings can be activated.
       await options.onSaved?.().catch(() => {});
       return structuredClone(saved);
     },

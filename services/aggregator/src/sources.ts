@@ -27,6 +27,11 @@ export function createWeatherSource(
     activeRevision: string | null = null,
     stopActive: (() => void) | undefined;
   let queue: Promise<void> = Promise.resolve();
+  let retryTimer: ReturnType<typeof setTimeout> | undefined;
+  const clearRetry = () => {
+    if (retryTimer !== undefined) clearTimeout(retryTimer);
+    retryTimer = undefined;
+  };
   function start(settings: WeatherSettingsState) {
     const selected = settings.selection!;
     const url = jmaForecastUrl(selected.office);
@@ -116,17 +121,27 @@ export function createWeatherSource(
         if (settings.revision === activeRevision) return;
         stopActive?.();
         stopActive = undefined;
-        activeRevision = settings.revision;
         if (settings.selection) stopActive = start(settings);
+        activeRevision = settings.revision;
       });
+      clearRetry();
     });
-    queue = work.catch(() => {});
+    queue = work.catch(() => {
+      // A committed save may have no weather job to drive recovery. Retry the
+      // canonical read independently, with one timer and no overlapping work.
+      if (!stopped && retryTimer === undefined)
+        retryTimer = setTimeout(() => {
+          retryTimer = undefined;
+          void reconcile().catch(() => {});
+        }, 60000);
+    });
     return work;
   };
   return {
     reconcile,
     stop: () => {
       stopped = true;
+      clearRetry();
       stopActive?.();
       stopActive = undefined;
     },
