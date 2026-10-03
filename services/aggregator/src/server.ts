@@ -12,7 +12,9 @@ export function createServer(options: {
   authorize: Authorize;
   sourceAlias?: SourceAlias;
   allowedOrigins?: string[];
-  preferredSources?: Partial<Record<Usage["provider"], string>>;
+  preferredSources?: Partial<
+    Record<Usage["provider"], string | readonly string[]>
+  >;
 }) {
   if (typeof options.authorize !== "function")
     throw Error("authorization_required");

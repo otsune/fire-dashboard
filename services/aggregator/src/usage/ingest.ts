@@ -7,8 +7,18 @@ import {
 import type { Store } from "../store";
 export function createUsageIngestor(
   store: Store,
-  preferredSources: Partial<Record<Usage["provider"], string>>,
+  preferredSources: Partial<
+    Record<Usage["provider"], string | readonly string[]>
+  >,
 ) {
+  // Limits are account-wide, so every listed PC observes the same windows;
+  // any of them may report and the freshest observation is displayed.
+  const allowed = (provider: Usage["provider"], alias: string) => {
+    const listed = preferredSources[provider];
+    return typeof listed === "string"
+      ? listed === alias
+      : !!listed?.includes(alias);
+  };
   return async function ingestUsage(
     input: UsageEnvelope,
     receivedAt: string,
@@ -17,7 +27,7 @@ export function createUsageIngestor(
     const envelope = envelopeSchema.parse(input);
     if (
       envelope.sourceAlias !== authorizedAlias ||
-      preferredSources[envelope.payload.provider] !== authorizedAlias
+      !allowed(envelope.payload.provider, authorizedAlias)
     )
       throw Error("source_denied");
     return store.update((state) => {
@@ -62,8 +72,46 @@ export function createUsageIngestor(
                 lastSuccessAt:
                   !duplicate && payload.status === "ok" ? receivedAt : null,
               };
+      // Save every source's effective value before choosing what to display,
+      // so a source that is not on screen keeps its own last good data.
+      // The comparison time is fixed when a snapshot is first received; a
+      // heartbeat only updates receivedAt and must not make old data "newer".
+      // New data is always clamped to the server's receipt, never to a
+      // client-supplied receivedAt. Legacy state without a pinned time falls
+      // back to this source's previous receipt as stored by the server.
+      const observed =
+        (duplicate && state.usageObservedAt[key]) ||
+        new Date(
+          duplicate && existing
+            ? observedAt(existing.capturedAt, existing.receivedAt ?? receivedAt)
+            : observedAt(payload.capturedAt, receivedAt),
+        ).toISOString();
       state.usageSequences[key] = envelope;
       state.usageValues[key] = value;
+      state.usageObservedAt[key] = observed;
+      const result = duplicate ? ("duplicate" as const) : ("accepted" as const);
+      // One entry per provider is displayed, from whichever PC reported it.
+      const shown = state.dashboard.usage.find(
+        (u) => u.provider === payload.provider,
+      );
+      // Another PC's failure must not hide a working PC's numbers, and an
+      // older capture (e.g. a PC waking from sleep) must not replace a newer
+      // one. A working PC's numbers do replace another PC's failure.
+      // A PC removed from the configuration no longer holds the display.
+      if (
+        shown &&
+        (shown.lastSuccessAt || shown.status === "ok") &&
+        shown.sourceAlias !== authorizedAlias &&
+        allowed(payload.provider, shown.sourceAlias) &&
+        (value.status !== "ok" ||
+          (shown.status === "ok" &&
+            Date.parse(observed) <
+              (Date.parse(
+                state.usageObservedAt[`${shown.provider}:${shown.sourceAlias}`],
+              ) ||
+                observedAt(shown.capturedAt, shown.receivedAt ?? receivedAt))))
+      )
+        return { state, result };
       state.dashboard.usage = state.dashboard.usage.filter(
         (u) => u.provider !== payload.provider,
       );
@@ -73,15 +121,18 @@ export function createUsageIngestor(
           usageProviders.indexOf(a.provider) -
           usageProviders.indexOf(b.provider),
       );
-      return {
-        state,
-        result:
-          previous?.sequence === envelope.sequence
-            ? ("duplicate" as const)
-            : ("accepted" as const),
-      };
+      return { state, result };
     });
   };
+}
+/**
+ * Collector clocks may run ahead; a capture never counts as newer than its
+ * receipt. `receipt` must be a server-side time, never a client field.
+ */
+function observedAt(capturedAt: string | null, receipt: string): number {
+  const received = Date.parse(receipt);
+  const captured = capturedAt ? Date.parse(capturedAt) : NaN;
+  return Number.isFinite(captured) ? Math.min(captured, received) : received;
 }
 export function createRateLimiter() {
   const buckets = new Map<string, { tokens: number; at: number }>();
