@@ -37,7 +37,7 @@ it("lease excludes a different live owner and releases explicitly", async () => 
   await releaseLease("b");
 });
 it("does not enable missing assets", async () => {
-  const c = createAudioController(() => parseSettings({}), {
+  const c = createAudioController(() => parseSettings({ hour12: true }), {
     hours: {},
     chime: null,
   });
@@ -48,12 +48,16 @@ it("does not enable missing assets", async () => {
 it("does not call a play refusal enabled and never retries a claimed failure", async () => {
   let fail = false,
     plays = 0;
-  const c = createAudioController(() => parseSettings({}), manifest, {
-    play: async () => {
-      plays++;
-      if (fail) throw Error("NotAllowedError");
+  const c = createAudioController(
+    () => parseSettings({ hour12: true }),
+    manifest,
+    {
+      play: async () => {
+        plays++;
+        if (fail) throw Error("NotAllowedError");
+      },
     },
-  });
+  );
   expect(await c.enable()).toBe(true);
   fail = true;
   const d = { key: `failed-${n}`, hour: 10, reason: "boundary" };
@@ -64,11 +68,15 @@ it("does not call a play refusal enabled and never retries a claimed failure", a
   c.dispose();
 });
 it("initial play failure requires a fresh tap", async () => {
-  const c = createAudioController(() => parseSettings({}), manifest, {
-    play: async () => {
-      throw Error("damaged");
+  const c = createAudioController(
+    () => parseSettings({ hour12: true }),
+    manifest,
+    {
+      play: async () => {
+        throw Error("damaged");
+      },
     },
-  });
+  );
   expect(await c.enable()).toBe(false);
   expect(c.state().message).toContain("再生できません");
   c.dispose();
@@ -77,7 +85,7 @@ it("serializes chime before voice and applies volume endpoints", async () => {
   const seen: { url: string; volume: number }[] = [];
   let volume = 0;
   const c = createAudioController(
-    () => parseSettings({ audioMode: "both", volume }),
+    () => parseSettings({ audioMode: "both", volume, hour12: true }),
     manifest,
     {
       play: async (url, v) => {
@@ -99,12 +107,16 @@ it("serializes chime before voice and applies volume endpoints", async () => {
   c.dispose();
 });
 it("fails closed if persistent claims cannot be written", async () => {
-  const c = createAudioController(() => parseSettings({}), manifest, {
-    play: async () => {},
-    claim: async () => {
-      throw Error("quota");
+  const c = createAudioController(
+    () => parseSettings({ hour12: true }),
+    manifest,
+    {
+      play: async () => {},
+      claim: async () => {
+        throw Error("quota");
+      },
     },
-  });
+  );
   await c.enable();
   await c.announce({ key: "quota", hour: 1, reason: "boundary" });
   expect(c.state().enabled).toBe(false);
@@ -114,24 +126,28 @@ it("fails closed if persistent claims cannot be written", async () => {
 it("repeated enable actions cannot overlap playback", async () => {
   let active = 0,
     max = 0;
-  const c = createAudioController(() => parseSettings({}), manifest, {
-    play: async (_url, _v, signal) => {
-      active++;
-      max = Math.max(max, active);
-      await new Promise<void>((resolve) => {
-        const timer = setTimeout(resolve, 20);
-        signal.addEventListener(
-          "abort",
-          () => {
-            clearTimeout(timer);
-            resolve();
-          },
-          { once: true },
-        );
-      });
-      active--;
+  const c = createAudioController(
+    () => parseSettings({ hour12: true }),
+    manifest,
+    {
+      play: async (_url, _v, signal) => {
+        active++;
+        max = Math.max(max, active);
+        await new Promise<void>((resolve) => {
+          const timer = setTimeout(resolve, 20);
+          signal.addEventListener(
+            "abort",
+            () => {
+              clearTimeout(timer);
+              resolve();
+            },
+            { once: true },
+          );
+        });
+        active--;
+      },
     },
-  });
+  );
   await Promise.all([c.enable(), c.enable()]);
   expect(max).toBe(1);
   c.dispose();

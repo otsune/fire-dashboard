@@ -11,4 +11,7 @@ private-audio/
 ayana-hourly-private*/
 ayana-hourly-private*.zip
 hour-??.mp3
+hour-??.wav
+gemini-hourly*/
+gemini-hourly*.zip
 apps/dashboard/public/audio/private/

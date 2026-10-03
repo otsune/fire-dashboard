@@ -9,8 +9,49 @@ import {
   type AudioAsset,
 } from "../apps/dashboard/src/audio/manifest";
 
+export type PrivateAudioFormat = "12h" | "24h";
+type PrivateAudioSources = Partial<Record<PrivateAudioFormat, string>>;
 type PrivateAudio = { hour: string; asset: AudioAsset; bytes: Buffer }[];
 const root = fileURLToPath(new URL("..", import.meta.url));
+const formats: PrivateAudioFormat[] = ["12h", "24h"];
+const usage =
+  "Usage: npm run build:private-audio -- /path/to/12h/audio OR --12h /path/to/12h/audio [--24h /path/to/24h/audio] OR --24h /path/to/24h/audio";
+
+/** One legacy positional source means 12h; named flags select each set explicitly. */
+export function parsePrivateAudioArgs(args: string[]): PrivateAudioSources {
+  if (args.length === 1 && args[0].trim() && !args[0].startsWith("-")) {
+    return { "12h": args[0] };
+  }
+  if (args.length === 0) throw Error(usage);
+  const sources: PrivateAudioSources = {};
+  for (let index = 0; index < args.length; index += 2) {
+    const flag = args[index];
+    if (flag !== "--12h" && flag !== "--24h") {
+      throw Error(`Unknown argument ${flag}. ${usage}`);
+    }
+    const format: PrivateAudioFormat = flag === "--12h" ? "12h" : "24h";
+    if (sources[format] !== undefined) {
+      throw Error(`Duplicate ${format} source. ${usage}`);
+    }
+    const source = args[index + 1];
+    if (!source?.trim() || source.startsWith("-")) {
+      throw Error(`Missing source for ${flag}. ${usage}`);
+    }
+    sources[format] = source;
+  }
+  return sources;
+}
+
+function privateFilename(hour: string, asset: AudioAsset): string {
+  const prefix = `/audio/hour-${hour}`;
+  if (
+    !/^(0\d|1\d|2[0-3])$/.test(hour) ||
+    (asset.url !== `${prefix}.mp3` && asset.url !== `${prefix}.wav`)
+  ) {
+    throw Error(`Hour ${hour} must reference ${prefix}.mp3 or ${prefix}.wav`);
+  }
+  return asset.url.slice("/audio/".length);
+}
 
 async function readRegularFile(
   path: string,
@@ -37,10 +78,7 @@ export async function readPrivateAudio(source: string): Promise<PrivateAudio> {
   for (let hour = 0; hour < 24; hour++) {
     const key = String(hour).padStart(2, "0");
     const asset = manifest.hours[key];
-    const filename = `hour-${key}.mp3`;
-    if (asset.url !== `/audio/${filename}`) {
-      throw Error(`Hour ${key} must reference /audio/${filename}`);
-    }
+    const filename = privateFilename(key, asset);
     clips.push({
       hour: key,
       asset,
@@ -54,18 +92,21 @@ export async function readPrivateAudio(source: string): Promise<PrivateAudio> {
 export async function installPrivateAudio(
   clips: PrivateAudio,
   output: string,
+  format: PrivateAudioFormat = "12h",
 ): Promise<void> {
   const manifest = parseManifest(
     JSON.parse(await readFile(join(output, "manifest.json"), "utf8")),
   );
   if (!modeReady(manifest, "chime"))
     throw Error("Built distribution is missing its chime");
-  await mkdir(join(output, "private"), { recursive: true });
+  const subdirectory = format === "24h" ? "private/24h" : "private";
+  const hours = format === "24h" ? (manifest.hours24 ??= {}) : manifest.hours;
+  await mkdir(join(output, subdirectory), { recursive: true });
   for (const clip of clips) {
-    const filename = `hour-${clip.hour}.mp3`;
-    await writeFile(join(output, "private", filename), clip.bytes);
-    manifest.hours[clip.hour] = {
-      url: `/audio/private/${filename}`,
+    const filename = privateFilename(clip.hour, clip.asset);
+    await writeFile(join(output, subdirectory, filename), clip.bytes);
+    hours[clip.hour] = {
+      url: `/audio/${subdirectory}/${filename}`,
       license: clip.asset.license,
     };
   }
@@ -75,29 +116,51 @@ export async function installPrivateAudio(
   );
 }
 
+/** Rejects all repository sources and reads both complete sets before any build. */
+export async function preparePrivateAudio(
+  sources: PrivateAudioSources,
+): Promise<Partial<Record<PrivateAudioFormat, PrivateAudio>>> {
+  const repository = await realpath(root);
+  const resolved: PrivateAudioSources = {};
+  for (const format of formats) {
+    const source = sources[format];
+    if (source === undefined) continue;
+    const path = await realpath(resolve(source));
+    const inside = relative(repository, path);
+    if (
+      inside === "" ||
+      (inside.split(sep)[0] !== ".." && !isAbsolute(inside))
+    ) {
+      throw Error("Audio source must be outside the repository");
+    }
+    resolved[format] = path;
+  }
+  const bundles: Partial<Record<PrivateAudioFormat, PrivateAudio>> = {};
+  for (const format of formats) {
+    const source = resolved[format];
+    if (source !== undefined) bundles[format] = await readPrivateAudio(source);
+  }
+  return bundles;
+}
+
 async function main(): Promise<void> {
-  if (process.argv.length !== 3) {
-    throw Error(
-      "Usage: npm run build:private-audio -- /path/to/ayana-hourly-private/audio",
-    );
-  }
-  const source = await realpath(resolve(process.argv[2]));
+  const sources = parsePrivateAudioArgs(process.argv.slice(2));
   const dist = resolve(root, "apps/dashboard/dist");
-  const inside = relative(await realpath(root), source);
-  if (inside === "" || (inside.split(sep)[0] !== ".." && !isAbsolute(inside))) {
-    throw Error("Audio source must be outside the repository");
-  }
   // Validate and read everything before Vite clears the previous output.
-  const clips = await readPrivateAudio(source);
+  const bundles = await preparePrivateAudio(sources);
   await build({ configFile: resolve(root, "apps/dashboard/vite.config.ts") });
-  await installPrivateAudio(clips, join(dist, "audio"));
+  for (const format of formats) {
+    const clips = bundles[format];
+    if (clips !== undefined)
+      await installPrivateAudio(clips, join(dist, "audio"), format);
+  }
   // Private clips and their manifest must participate in the versioned offline cache.
   execFileSync(process.execPath, [resolve(root, "scripts/build-sw.mjs")], {
     cwd: root,
     stdio: "inherit",
   });
   console.log(
-    "Private build ready: 24 hourly clips + bundled chime. Keep this dist private; deploy only to your authorized home server. Sound still requires a tap.",
+    `Private build ready: ${formats.filter((format) => bundles[format]).join(" + ")} hourly clips + bundled chime. Keep this dist private; deploy only to your authorized home server. Sound still requires a tap.`,
   );
 }
 

@@ -76,6 +76,38 @@ export function createAudioController(
     channel.onmessage = (e) => {
       if (e.data === "stop-preview" && active === "preview") void stop();
     };
+  function ready() {
+    const s = settings();
+    return modeReady(manifest, s.audioMode, s.hour12);
+  }
+  function unavailableMessage() {
+    const s = settings();
+    if (s.audioMode === "off") return "時報は無音";
+    if (
+      (s.audioMode === "voice" || s.audioMode === "both") &&
+      !modeReady(manifest, "voice", s.hour12)
+    )
+      return `${s.hour12 ? 12 : 24}時間表記の音声が未設定`;
+    return "チャイム未設定";
+  }
+  async function settingsChanged() {
+    const wasEnabled = enabled;
+    const stopped = stop();
+    const ticket = generation;
+    if (!ready()) {
+      enabled = false;
+      message = unavailableMessage();
+    }
+    await stopped;
+    // A later tap, disable, or settings change owns the new state.
+    if (ticket !== generation) return;
+    enabled = wasEnabled && ready();
+    message = ready()
+      ? enabled
+        ? "音声有効"
+        : "音声無効"
+      : unavailableMessage();
+  }
   function run(
     hour: number,
     kind: "hourly" | "preview",
@@ -134,7 +166,9 @@ export function createAudioController(
           }
           if (s.audioMode === "voice" || s.audioMode === "both")
             await play(
-              manifest.hours[String(hour).padStart(2, "0")].url,
+              (s.hour12 ? manifest.hours : manifest.hours24!)[
+                String(hour).padStart(2, "0")
+              ].url,
               s.volume,
               controller.signal,
             );
@@ -153,9 +187,9 @@ export function createAudioController(
     return job;
   }
   async function enable() {
-    if (!modeReady(manifest, settings().audioMode)) {
+    if (!ready()) {
       enabled = false;
-      message = settings().audioMode === "off" ? "時報は無音" : "音源未設定";
+      message = unavailableMessage();
       return false;
     }
     try {
@@ -169,7 +203,7 @@ export function createAudioController(
     }
   }
   async function preview(hour: number) {
-    if (!modeReady(manifest, settings().audioMode)) return;
+    if (!ready()) return;
     try {
       await run(hour, "preview");
     } catch {
@@ -197,7 +231,7 @@ export function createAudioController(
         elapsed <= deadline - startedWall &&
         Math.abs(wall - startedWall - elapsed) <= 2000 &&
         JSON.stringify(settings()) === signature &&
-        modeReady(manifest, settings().audioMode) &&
+        ready() &&
         !isQuiet(wall, settings())
       );
     };
@@ -226,15 +260,16 @@ export function createAudioController(
     preview,
     announce,
     stop,
+    settingsChanged,
     disable: () => {
       enabled = false;
       message = "音声無効";
       void stop();
     },
     state: () => ({
-      enabled,
-      message,
-      ready: modeReady(manifest, settings().audioMode),
+      enabled: enabled && ready(),
+      message: ready() ? message : unavailableMessage(),
+      ready: ready(),
     }),
     dispose: () => {
       enabled = false;

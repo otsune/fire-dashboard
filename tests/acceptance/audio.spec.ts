@@ -6,7 +6,8 @@ test("production controller claims one hour across two tabs and reload", async (
   await context.route("**/audio/manifest.json", (route) =>
     route.fulfill({
       json: {
-        hours: Object.fromEntries(
+        hours: {},
+        hours24: Object.fromEntries(
           Array.from({ length: 24 }, (_, h) => [
             String(h).padStart(2, "0"),
             { url: `/audio/${h}.mp3`, license: "acceptance fixture only" },
