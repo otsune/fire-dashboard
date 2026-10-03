@@ -31,35 +31,39 @@ export function createUsageIngestor(
           JSON.stringify(envelope.payload) !== JSON.stringify(previous.payload)
         )
           throw Error("snapshot_conflict");
-        const existing = state.dashboard.usage.find(
-          (u) =>
-            u.provider === envelope.payload.provider &&
-            u.sourceAlias === authorizedAlias,
-        );
-        if (existing) {
-          existing.receivedAt = receivedAt;
-          existing.lastSuccessAt = receivedAt;
-          return { state, result: "duplicate" as const };
-        }
-        // A previously accepted source can become preferred again. Restore its
-        // unchanged snapshot rather than keeping another source on screen.
       }
-      state.usageSequences[key] = envelope;
-      const existing = state.dashboard.usage.find(
-        (u) =>
-          u.provider === envelope.payload.provider &&
-          u.sourceAlias === authorizedAlias,
-      );
       const payload = envelope.payload;
-      const value =
-        existing?.lastSuccessAt && payload.status === "error"
-          ? {
-              ...existing,
-              status: payload.status,
-              errorCode: payload.errorCode,
-              receivedAt,
-            }
-          : { ...payload, receivedAt, lastSuccessAt: receivedAt };
+      const duplicate = previous?.sequence === envelope.sequence;
+      const existing = state.usageValues[key];
+      // Keep the raw envelope unchanged for sequence/conflict checks. The
+      // effective value also holds data inherited from this source's success.
+      // Legacy successful values may have no known receipt/success time.
+      // Retain their available data through subsequent errors as well.
+      const hasRetainedData =
+        existing &&
+        (existing.lastSuccessAt ||
+          existing.status === "ok" ||
+          existing.buckets.length > 0 ||
+          existing.balance);
+      const value: Usage =
+        duplicate && existing
+          ? { ...existing, receivedAt }
+          : hasRetainedData && payload.status === "error"
+            ? {
+                ...existing,
+                status: payload.status,
+                errorCode: payload.errorCode,
+                receivedAt,
+              }
+            : {
+                ...payload,
+                receivedAt,
+                // Legacy off-screen envelopes have no trustworthy receipt time.
+                lastSuccessAt:
+                  !duplicate && payload.status === "ok" ? receivedAt : null,
+              };
+      state.usageSequences[key] = envelope;
+      state.usageValues[key] = value;
       state.dashboard.usage = state.dashboard.usage.filter(
         (u) => u.provider !== payload.provider,
       );
