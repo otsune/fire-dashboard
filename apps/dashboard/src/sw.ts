@@ -47,8 +47,20 @@ self.addEventListener("fetch", (event) => {
   event.respondWith(
     (async () => {
       const cache = await caches.open(CACHE);
-      if (event.request.mode === "navigate")
-        return (await cache.match("/index.html")) || fetch(event.request);
+      if (event.request.mode === "navigate") {
+        const shell = await cache.match("/index.html");
+        if (!shell) return fetch(event.request);
+        // Servers such as Go's http.FileServer (tailscale serve) redirect
+        // /index.html to "/", and a redirected response cannot answer a
+        // navigation, so serve an unredirected copy.
+        return shell.redirected
+          ? new Response(shell.body, {
+              status: shell.status,
+              statusText: shell.statusText,
+              headers: shell.headers,
+            })
+          : shell;
+      }
       return (
         (await cache.match(event.request, { ignoreSearch: true })) ||
         fetch(event.request)

@@ -84,3 +84,29 @@ it("never caches authenticated API responses or external content", () => {
     });
   expect(intercepted).toBe(false);
 });
+it("answers navigations with a non-redirected copy of a redirected shell", async () => {
+  // Go's http.FileServer (tailscale serve) redirects /index.html to "/", so
+  // the cached shell can be a redirected response. Browsers reject those for
+  // navigations ("redirected response ... redirect mode is not follow").
+  const w = worker();
+  const shell = new Response("<!doctype html>shell", {
+    status: 200,
+    headers: { "content-type": "text/html" },
+  });
+  Object.defineProperty(shell, "redirected", { value: true });
+  w.stored.set("/index.html", shell);
+  let answered: Promise<Response> | undefined;
+  w.handlers.fetch({
+    request: {
+      url: "https://dashboard.example/",
+      method: "GET",
+      mode: "navigate",
+    },
+    respondWith: (p: Promise<Response>) => (answered = p),
+  });
+  const response = await answered!;
+  expect(response.redirected).toBe(false);
+  expect(response.status).toBe(200);
+  expect(response.headers.get("content-type")).toBe("text/html");
+  expect(await response.text()).toBe("<!doctype html>shell");
+});
