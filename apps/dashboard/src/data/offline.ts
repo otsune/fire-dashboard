@@ -12,8 +12,11 @@ export async function prepareOffline(
   }
   try {
     const registration = await navigator.serviceWorker.register("/sw.js");
+    // A first install also passes through "installed" with registration.waiting
+    // set. It is only an update when an older version controls this page.
     const waiting = () => {
-      if (registration.waiting) onUpdate(registration.waiting);
+      if (registration.waiting && navigator.serviceWorker.controller)
+        onUpdate(registration.waiting);
     };
     waiting();
     registration.addEventListener("updatefound", () => {

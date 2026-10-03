@@ -55,7 +55,8 @@ it("never displays a percentage bar for missing rate", () => {
     />,
   );
   expect(screen.queryByRole("progressbar")).toBeNull();
-  expect(screen.getByText("元データの鮮度不明")).toBeInTheDocument();
+  // Providers that never report an observation time are not flagged stale.
+  expect(screen.getByText("受信済み")).toBeInTheDocument();
 });
 it("distinguishes source disconnect, observation age and clock skew", () => {
   const u = {

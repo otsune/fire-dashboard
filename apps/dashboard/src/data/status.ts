@@ -39,8 +39,10 @@ export function deriveStatus(
     if (value.sourceObservedAt && age(value.sourceObservedAt) > 300000)
       return status("更新遅延", true);
     if (value.errorCode === "rate_limited") return status("利用制限中", true);
-    if (value.sourceObservedAt === null)
-      return status("元データの鮮度不明", true);
+    // Claude and Codex never report when the provider observed the numbers,
+    // so freshness is judged by receipt above; flagging it here would stay on
+    // permanently. Say what is known instead of raising a warning.
+    if (value.sourceObservedAt === null) return status("受信済み");
   } else {
     const maxAge = "periods" in value ? 7200000 : 21600000;
     if (value.lastSuccessAt && age(value.lastSuccessAt) > maxAge)
