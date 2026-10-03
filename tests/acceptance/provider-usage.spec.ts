@@ -54,7 +54,7 @@ test("five provider cards preserve missing, quota and balance semantics at table
   );
   await page.goto("/");
   await expect(page.locator(".usage-card")).toHaveCount(usageProviders.length);
-  await expect(page.locator(".usage-card progress")).toHaveCount(2);
+  await expect(page.locator(".usage-card progress:visible")).toHaveCount(2);
   const nous = page.locator(".usage-card").filter({
     has: page.getByRole("heading", { name: /Hermes \/ Nous.*利用状況/ }),
   });
@@ -62,6 +62,8 @@ test("five provider cards preserve missing, quota and balance semantics at table
   await expect(nous.locator("progress")).toHaveCount(0);
   for (const [width, height] of [
     [1280, 800],
+    [1280, 752],
+    [960, 600],
     [800, 1280],
     [360, 800],
   ]) {
@@ -71,14 +73,23 @@ test("five provider cards preserve missing, quota and balance semantics at table
     const last = await page.locator(".usage-card").last().boundingBox();
     expect(usage && rss && last).toBeTruthy();
     if (!usage || !rss || !last) throw new Error("Missing provider layout");
-    if (width >= 1000) {
-      expect(rss.x).toBeGreaterThanOrEqual(usage.x + usage.width);
-      expect(Math.abs(rss.y - usage.y)).toBeLessThan(1);
+    expect(rss.y).toBeGreaterThanOrEqual(usage.y + usage.height);
+    if (width > height) {
+      for (const card of await page.locator(".usage-card").all()) {
+        const bounds = await card.boundingBox();
+        expect(bounds).not.toBeNull();
+        expect(Math.abs(bounds!.y - usage.y)).toBeLessThan(1);
+      }
+      expect(last.width).toBeLessThan(usage.width / 4);
+      expect(
+        await page.evaluate(
+          () => document.documentElement.scrollHeight <= innerHeight + 1,
+        ),
+      ).toBe(true);
     } else {
-      expect(rss.y).toBeGreaterThanOrEqual(usage.y + usage.height);
+      // Portrait retains a wrapping provider grid, including its final row.
+      expect(Math.abs(last.width - usage.width)).toBeLessThan(1);
     }
-    // With five visible providers the last card fills the two-column usage row.
-    expect(Math.abs(last.width - usage.width)).toBeLessThan(1);
     expect(
       await page.evaluate(
         () => document.documentElement.scrollWidth <= innerWidth,
@@ -95,7 +106,7 @@ test("five provider cards preserve missing, quota and balance semantics at table
   }
 });
 
-test("unconfigured extra providers do not displace the desktop RSS column", async ({
+test("unconfigured extra providers leave two cards above the full-width RSS row", async ({
   page,
 }) => {
   await page.route("**/api/v1/dashboard", (route) =>
@@ -108,6 +119,7 @@ test("unconfigured extra providers do not displace the desktop RSS column", asyn
   const rss = await page.locator(".rss-card").boundingBox();
   expect(usage && rss).toBeTruthy();
   if (!usage || !rss) throw new Error("Missing default provider layout");
-  expect(rss.x).toBeGreaterThanOrEqual(usage.x + usage.width);
-  expect(Math.abs(rss.y - usage.y)).toBeLessThan(1);
+  expect(rss.y).toBeGreaterThanOrEqual(usage.y + usage.height);
+  expect(Math.abs(rss.x - usage.x)).toBeLessThan(1);
+  expect(Math.abs(rss.width - usage.width)).toBeLessThan(1);
 });
