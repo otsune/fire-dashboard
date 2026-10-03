@@ -14,6 +14,8 @@ export type State = {
   dashboard: Dashboard;
   usageSequences: Record<string, UsageEnvelope>;
   usageValues: Record<string, Usage>;
+  /** Per-source comparison time, fixed at a snapshot's first receipt. */
+  usageObservedAt: Record<string, string>;
 };
 export type Store = {
   readSnapshot: () => Promise<Dashboard>;
@@ -72,6 +74,7 @@ export function createMemoryStore(): Store {
     dashboard: emptyDashboard(),
     usageSequences: {},
     usageValues: {},
+    usageObservedAt: {},
   };
   return storeEngine(
     async () => state,
@@ -116,10 +119,21 @@ export function createFileStore(
               lastSuccessAt: null,
             };
         }
+        // Missing or unreadable entries only lose their pinned comparison
+        // time; ingest then falls back to the source's previous receipt.
+        const usageObservedAt: Record<string, string> = {};
+        for (const [key, value] of Object.entries(raw.usageObservedAt ?? {}))
+          if (
+            usageValues[key] &&
+            typeof value === "string" &&
+            Number.isFinite(Date.parse(value))
+          )
+            usageObservedAt[key] = value;
         return {
           dashboard,
           usageSequences: raw.usageSequences ?? {},
           usageValues,
+          usageObservedAt,
         };
       } catch (e) {
         if ((e as NodeJS.ErrnoException).code === "ENOENT")
@@ -127,6 +141,7 @@ export function createFileStore(
             dashboard: emptyDashboard(),
             usageSequences: {},
             usageValues: {},
+            usageObservedAt: {},
           };
         throw Error("storage");
       }

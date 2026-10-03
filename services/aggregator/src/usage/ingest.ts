@@ -74,15 +74,25 @@ export function createUsageIngestor(
               };
       // Save every source's effective value before choosing what to display,
       // so a source that is not on screen keeps its own last good data.
+      // The comparison time is fixed when a snapshot is first received; a
+      // heartbeat only updates receivedAt and must not make old data "newer".
+      // Legacy state without it falls back to this source's previous receipt.
+      const observed =
+        (duplicate && state.usageObservedAt[key]) ||
+        new Date(
+          observedAt(duplicate && existing ? existing : payload, receivedAt),
+        ).toISOString();
       state.usageSequences[key] = envelope;
       state.usageValues[key] = value;
+      state.usageObservedAt[key] = observed;
       const result = duplicate ? ("duplicate" as const) : ("accepted" as const);
       // One entry per provider is displayed, from whichever PC reported it.
       const shown = state.dashboard.usage.find(
         (u) => u.provider === payload.provider,
       );
       // Another PC's failure must not hide a working PC's numbers, and an
-      // older capture (e.g. a PC waking from sleep) must not replace a newer one.
+      // older capture (e.g. a PC waking from sleep) must not replace a newer
+      // one. A working PC's numbers do replace another PC's failure.
       // A PC removed from the configuration no longer holds the display.
       if (
         shown &&
@@ -90,7 +100,11 @@ export function createUsageIngestor(
         shown.sourceAlias !== authorizedAlias &&
         allowed(payload.provider, shown.sourceAlias) &&
         (value.status !== "ok" ||
-          observedAt(value, receivedAt) < observedAt(shown, receivedAt))
+          (shown.status === "ok" &&
+            Date.parse(observed) <
+              (Date.parse(
+                state.usageObservedAt[`${shown.provider}:${shown.sourceAlias}`],
+              ) || observedAt(shown, receivedAt))))
       )
         return { state, result };
       state.dashboard.usage = state.dashboard.usage.filter(

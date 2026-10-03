@@ -1,7 +1,13 @@
 import { describe, it, expect } from "vitest";
 import { createHash } from "node:crypto";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { createUsageIngestor } from "../../services/aggregator/src/usage/ingest";
-import { createMemoryStore } from "../../services/aggregator/src/store";
+import {
+  createFileStore,
+  createMemoryStore,
+} from "../../services/aggregator/src/store";
 import { createServer } from "../../services/aggregator/src/server";
 import { configSchema, parsePort } from "../../services/aggregator/src/config";
 import { createTailscaleAuth } from "../../services/aggregator/src/auth-tailscale";
@@ -104,6 +110,60 @@ describe("multiple collector PCs", () => {
     await ingest(envelope("note", 1, 50, t(60)), t(1), "note");
     await ingest(envelope("desk", 1, 20, t(2)), t(2), "desk");
     expect(await shown(store)).toEqual({ alias: "desk", percent: 20 });
+  });
+  it("pins a future capture's comparison time so heartbeats cannot revive it", async () => {
+    const store = createMemoryStore();
+    const ingest = createUsageIngestor(store, { claude: ["desk", "note"] });
+    await ingest(envelope("note", 1, 50, t(60)), t(1), "note");
+    await ingest(envelope("desk", 1, 20, t(2)), t(2), "desk");
+    expect(await ingest(envelope("note", 1, 50, t(60)), t(3), "note")).toBe(
+      "duplicate",
+    );
+    expect(await shown(store)).toEqual({ alias: "desk", percent: 20 });
+  });
+  it("pins the comparison time of captures without a timestamp", async () => {
+    const store = createMemoryStore();
+    const ingest = createUsageIngestor(store, { claude: ["desk", "note"] });
+    const undated = envelope("note", 1, 50, t(0));
+    undated.payload.capturedAt = null;
+    await ingest(undated, t(1), "note");
+    await ingest(envelope("desk", 1, 20, t(2)), t(2), "desk");
+    await ingest(undated, t(3), "note");
+    expect(await shown(store)).toEqual({ alias: "desk", percent: 20 });
+  });
+  it("keeps pinned comparison times across a restart", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "fire-observed-"));
+    try {
+      const path = join(dir, "state.json");
+      const sources = { claude: ["desk", "note"] };
+      await createUsageIngestor(createFileStore(path), sources)(
+        envelope("note", 1, 50, t(60)),
+        t(1),
+        "note",
+      );
+      await createUsageIngestor(createFileStore(path), sources)(
+        envelope("desk", 1, 20, t(2)),
+        t(2),
+        "desk",
+      );
+      const restarted = createFileStore(path);
+      await createUsageIngestor(restarted, sources)(
+        envelope("note", 1, 50, t(60)),
+        t(3),
+        "note",
+      );
+      expect(await shown(restarted)).toEqual({ alias: "desk", percent: 20 });
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+  it("lets a working PC replace another PC's failure regardless of age", async () => {
+    const store = createMemoryStore();
+    const ingest = createUsageIngestor(store, { claude: ["desk", "note"] });
+    await ingest(envelope("desk", 1, 30, t(5)), t(5), "desk");
+    await ingest(envelope("desk", 2, 0, t(6), "error"), t(6), "desk");
+    await ingest(envelope("note", 1, 35, t(4)), t(7), "note");
+    expect(await shown(store)).toEqual({ alias: "note", percent: 35 });
   });
   it("does not let a heartbeat of an older snapshot take over the display", async () => {
     const store = createMemoryStore();
