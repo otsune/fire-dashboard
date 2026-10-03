@@ -32,6 +32,22 @@ const read = async () => ({
 it("refuses to start without its configuration", () => {
   expect(() => startCodexService({})).toThrow("unconfigured");
 });
+it("refuses to start with an alias the aggregator would reject", async () => {
+  const env = await setup("t".repeat(43));
+  for (const alias of ["gmktec.local", "a b", "x".repeat(65), "パソコン"])
+    expect(() =>
+      startCodexService({ ...env, FIRE_SOURCE_ALIAS: alias }),
+    ).toThrow("invalid_alias");
+  const fetch = vi.fn(async () => new Response("{}", { status: 200 }));
+  vi.stubGlobal("fetch", fetch);
+  const stop = startCodexService(
+    { ...env, FIRE_SOURCE_ALIAS: "gmk_tec-1" },
+    { read, log: () => {} },
+  );
+  // A valid alias gets all the way to sending.
+  await vi.waitFor(() => expect(fetch).toHaveBeenCalledTimes(1));
+  stop();
+});
 it("sends the snapshot with the bearer token read from its file", async () => {
   const env = await setup("t".repeat(43));
   const sent: { url: string; auth: string; body: UsageEnvelope }[] = [];

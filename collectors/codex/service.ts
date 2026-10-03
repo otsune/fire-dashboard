@@ -24,6 +24,9 @@ export function startCodexService(
     endpoint = env.FIRE_ENDPOINT,
     tokenFile = env.FIRE_COLLECTOR_TOKEN_FILE;
   if (!path || !alias || !endpoint || !tokenFile) throw Error("unconfigured");
+  // Same rule as the envelope schema; otherwise every capture would fail
+  // later as a storage error and nothing would ever be sent.
+  if (!/^[a-zA-Z0-9_-]{1,64}$/.test(alias)) throw Error("invalid_alias");
   const send = createHttpSender(new URL(endpoint), async () => {
     const token = (await readFile(tokenFile, "utf8")).trim();
     if (!/^[A-Za-z0-9_-]{32,256}$/.test(token)) throw Error("invalid_token");
@@ -50,7 +53,7 @@ if (
     process.on("SIGTERM", stop);
   } catch {
     process.stderr.write(
-      "Fire Dashboard codex collector: check FIRE_SNAPSHOT_PATH, FIRE_SOURCE_ALIAS, FIRE_ENDPOINT and FIRE_COLLECTOR_TOKEN_FILE\n",
+      "Fire Dashboard codex collector: check FIRE_SNAPSHOT_PATH, FIRE_SOURCE_ALIAS (letters, digits, - or _, 1-64 chars), FIRE_ENDPOINT and FIRE_COLLECTOR_TOKEN_FILE\n",
     );
     process.exitCode = 1;
   }
