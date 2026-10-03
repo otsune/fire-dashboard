@@ -39,6 +39,8 @@ export function deriveStatus(
     if (value.sourceObservedAt && age(value.sourceObservedAt) > 300000)
       return status("更新遅延", true);
     if (value.errorCode === "rate_limited") return status("利用制限中", true);
+    // An explicit stale status wins over the "received" label below.
+    if (value.status === "stale") return status("更新遅延", true);
     // Claude and Codex never report when the provider observed the numbers,
     // so freshness is judged by receipt above; flagging it here would stay on
     // permanently. Say what is known instead of raising a warning.
