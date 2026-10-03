@@ -55,7 +55,48 @@ it("never displays a percentage bar for missing rate", () => {
     />,
   );
   expect(screen.queryByRole("progressbar")).toBeNull();
-  expect(screen.getByText("元データの鮮度不明")).toBeInTheDocument();
+  // Providers that never report an observation time are not flagged stale.
+  expect(screen.getByText("受信済み")).toBeInTheDocument();
+});
+it("keeps an explicit stale status even without an observation time", () => {
+  const fresh = new Date(now).toISOString();
+  const stale = {
+    ...emptyDashboard().usage[0],
+    ...emptyCommon("stale"),
+    receivedAt: fresh,
+    sourceObservedAt: null,
+  };
+  expect(deriveStatus(stale, now)).toEqual({ label: "更新遅延", stale: true });
+  // Also when previous usage is retained alongside the stale status.
+  expect(
+    deriveStatus(
+      {
+        ...stale,
+        lastSuccessAt: fresh,
+        buckets: [
+          {
+            id: "rate_limits",
+            label: "利用上限",
+            windows: [
+              {
+                id: "five_hour",
+                label: "5時間",
+                usedPercent: 40,
+                windowMinutes: 300,
+                resetsAt: new Date(now + 3600000).toISOString(),
+              },
+            ],
+          },
+        ],
+      },
+      now,
+    ),
+  ).toEqual({ label: "更新遅延", stale: true });
+  // An ok value without an observation time is still shown as received.
+  expect(deriveStatus({ ...stale, status: "ok" }, now)).toEqual({
+    label: "受信済み",
+    stale: false,
+  });
 });
 it("distinguishes source disconnect, observation age and clock skew", () => {
   const u = {
