@@ -8,7 +8,9 @@ Antigravity・OpenCode Go・Hermes／Nousは[追加サービスの収集手順](
 
 公式仕様を2026-10-02に確認しました。[statusline仕様](https://code.claude.com/docs/en/statusline)のrate_limits.five_hourとseven_dayのみ読み、spend_limitは使いません。used_percentageは0〜100、resets_atはepoch秒です。公式ページではPro/MaxまたはGatewayにより項目の有無が異なり、最初のAPI応答前は欠損する場合があります。表示を更新するためのAI呼び出しは行いません。
 
-ローカルスクリプトは `FIRE_SNAPSHOT_PATH` と非個人情報の `FIRE_SOURCE_ALIAS` を指定して `npx tsx collectors/claude/statusline.ts` を実行します。stdin JSONから指標だけ選別して原子的に保存し、ネットワークは使いません。既存statuslineがある場合はバックアップしてから併用ラッパーを管理者が作成してください。従来スクリプトの出力はそのまま画面に残し、抽出処理のstdoutを混ぜない構成です。実際の設定ファイルをこのプロジェクトが変更することはありません。
+ローカルスクリプトは `FIRE_SNAPSHOT_PATH` と非個人情報の `FIRE_SOURCE_ALIAS` を指定して実行します。stdin JSONから指標だけ選別して原子的に保存し、ネットワークは使いません。statuslineは再描画のたびに呼ばれるため、`npm run build:collectors` で単一ファイルにまとめた `node dist/collectors/claude-statusline.mjs` を使います(`npx tsx` は Windows で1回1秒以上かかり、まとめたファイルは約0.1秒です)。既存statuslineがある場合はバックアップしてから併用ラッパーを管理者が作成してください。従来スクリプトの出力はそのまま画面に残し、抽出処理は出力を捨ててバックグラウンドで動かします。実際の設定ファイルをこのプロジェクトが変更することはありません。
+
+保存したスナップショットは、常駐の送信プロセス `node dist/collectors/send-snapshot.mjs` が15秒ごとに読んで集約APIへ送ります。環境変数は `FIRE_SNAPSHOT_PATHS`(OSのパス区切りで複数指定可)、`FIRE_ENDPOINT`、`FIRE_COLLECTOR_TOKEN_FILE` です。内容が変わらないスナップショットは、送信側のハートビート(60秒)でだけ再送します。
 
 同じ内容の再描画はsnapshotId、sequence、capturedAtを維持します。真の観測時刻を特定できないためsourceObservedAtはnullです。送信ハートビートで元データを新しい観測と表示しません。別プロセスでJSONを読み、createHttpSenderに渡します。任意のURL、認証ヘッダーや送信秘密をダッシュボードへ渡さないでください。
 
@@ -20,7 +22,7 @@ rateLimitsByLimitIdがある場合は区分ごとに表示し、なければrate
 
 startCodexCollector({path, sourceAlias, send}) は読み取り完了から60秒ごとに再度読みます。初版は短命stdio接続によるポーリングを採用し、account/rateLimits/updatedの常時購読は未実装です。安全な読み取り範囲を保つため、通知購読が必要なら同じインターフェースで別途検証してください。
 
-常駐させる場合は `npx tsx collectors/codex/service.ts` を使います。環境変数は `FIRE_SNAPSHOT_PATH`、`FIRE_SOURCE_ALIAS`(英数字・ハイフン・アンダースコアの1〜64文字。違反すると起動しません)、`FIRE_ENDPOINT`(集約APIの `https://…/api/v1/usage`)、`FIRE_COLLECTOR_TOKEN_FILE`(Bearerトークンを書いたファイル)です。トークンは環境変数やユニットファイルに書かず、送信のたびにファイルから読みます。失敗時は読み取り・保存・送信の区分だけを標準エラーへ出します。`codex` コマンドが PATH 上にあり、ログイン済みである必要があります。ログインが切れていると Codex は `-32603`(取得先の 401)を返し、カードは `invalid_data` のエラーになります。画面のない機械では `codex login --device-auth` で再ログインします。
+常駐させる場合は `npx tsx collectors/codex/service.ts`、または `npm run build:collectors` 後の `node dist/collectors/codex-service.mjs` を使います。環境変数は `FIRE_SNAPSHOT_PATH`、`FIRE_SOURCE_ALIAS`(英数字・ハイフン・アンダースコアの1〜64文字。違反すると起動しません)、`FIRE_ENDPOINT`(集約APIの `https://…/api/v1/usage`)、`FIRE_COLLECTOR_TOKEN_FILE`(Bearerトークンを書いたファイル)です。トークンは環境変数やユニットファイルに書かず、送信のたびにファイルから読みます。失敗時は読み取り・保存・送信の区分だけを標準エラーへ出します。`codex` コマンドが PATH 上にあり、ログイン済みである必要があります。ログインが切れていると Codex は `-32603`(取得先の 401)を返し、カードは `invalid_data` のエラーになります。画面のない機械では `codex login --device-auth` で再ログインします。
 
 ## 送信と保存
 

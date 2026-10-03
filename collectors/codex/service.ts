@@ -4,13 +4,10 @@
  * FIRE_SNAPSHOT_PATH, FIRE_SOURCE_ALIAS: local snapshot and its alias.
  * FIRE_ENDPOINT: HTTPS URL of the aggregator's /api/v1/usage.
  * FIRE_COLLECTOR_TOKEN_FILE: file holding this collector's bearer token.
- * The token is read from a file so it never appears in the process
- * environment or unit files, and is re-read on each send to allow rotation.
  */
-import { readFile } from "node:fs/promises";
 import { pathToFileURL } from "node:url";
 import { startCodexCollector } from "./monitor";
-import { createHttpSender } from "../shared/sender";
+import { bearerFromFile, createHttpSender } from "../shared/sender";
 import type { Usage } from "../../packages/contracts/src/index";
 export function startCodexService(
   env: Record<string, string | undefined>,
@@ -27,11 +24,7 @@ export function startCodexService(
   // Same rule as the envelope schema; otherwise every capture would fail
   // later as a storage error and nothing would ever be sent.
   if (!/^[a-zA-Z0-9_-]{1,64}$/.test(alias)) throw Error("invalid_alias");
-  const send = createHttpSender(new URL(endpoint), async () => {
-    const token = (await readFile(tokenFile, "utf8")).trim();
-    if (!/^[A-Za-z0-9_-]{32,256}$/.test(token)) throw Error("invalid_token");
-    return { authorization: `Bearer ${token}` };
-  });
+  const send = createHttpSender(new URL(endpoint), bearerFromFile(tokenFile));
   const log = deps.log ?? ((line) => process.stderr.write(line + "\n"));
   return startCodexCollector({
     path,
