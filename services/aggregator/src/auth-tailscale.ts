@@ -1,6 +1,6 @@
 import { createHash, timingSafeEqual } from "node:crypto";
 import type { FastifyRequest } from "fastify";
-import type { Authorize, SourceAlias } from "./auth";
+import type { Authorize, AuthorizeAdmin, SourceAlias } from "./auth";
 /**
  * For an API reached only through `tailscale serve` on a tailnet-only port.
  * Readers: the Tailscale-User-Login header that serve sets for tailnet users.
@@ -11,9 +11,15 @@ import type { Authorize, SourceAlias } from "./auth";
  */
 export function createTailscaleAuth(options: {
   readerLogins: readonly string[];
+  adminLogins?: readonly string[];
   collectorTokenHashes: Readonly<Record<string, string>>;
-}): { authorize: Authorize; sourceAlias: SourceAlias } {
+}): {
+  authorize: Authorize;
+  authorizeAdmin: AuthorizeAdmin;
+  sourceAlias: SourceAlias;
+} {
   const readers = new Set(options.readerLogins);
+  const admins = new Set(options.adminLogins ?? []);
   const hashes = Object.entries(options.collectorTokenHashes).map(
     ([alias, hex]) => {
       if (!/^[a-zA-Z0-9_-]{1,64}$/.test(alias) || !/^[0-9a-f]{64}$/.test(hex))
@@ -45,5 +51,13 @@ export function createTailscaleAuth(options: {
         : !request.headers.authorization &&
           readers.has(header(request, "tailscale-user-login") ?? ""),
     sourceAlias: async (request) => collector(request),
+    authorizeAdmin: async (request) => {
+      const login = header(request, "tailscale-user-login") ?? "";
+      return (
+        request.headers.authorization === undefined &&
+        readers.has(login) &&
+        admins.has(login)
+      );
+    },
   };
 }

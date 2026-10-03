@@ -4,10 +4,12 @@ export function WeatherCard({
   value,
   timeZone,
   now,
+  onWeatherSettings,
 }: {
   value: Weather;
   timeZone: string;
   now: number;
+  onWeatherSettings?: () => void;
 }) {
   const status = deriveStatus(value, now);
   const periods = value.periods
@@ -40,6 +42,15 @@ export function WeatherCard({
       ) : (
         <p>有効な予報を待っています</p>
       )}
+      {onWeatherSettings && (
+        <button
+          id="weather-region-opener"
+          className="small-button weather-region-button"
+          onClick={onWeatherSettings}
+        >
+          天気の地域を設定
+        </button>
+      )}
       <details className="card-details">
         <summary>
           {value.regionId === null ? "地域の設定方法" : "予報の詳細"}
@@ -56,15 +67,7 @@ export function WeatherCard({
           </button>
           {value.regionId === null ? (
             <p>
-              集約サービスの設定ファイルで weather
-              の予報地域と気温の代表地点を指定してください。
-              <a
-                href="https://github.com/otsune/fire-dashboard/blob/main/docs/deployment.md"
-                target="_blank"
-                rel="noreferrer"
-              >
-                設定手順
-              </a>
+              「天気の地域を設定」から予報地方と気温の代表地点を選択できます。変更には管理者権限が必要です。
             </p>
           ) : (
             <>

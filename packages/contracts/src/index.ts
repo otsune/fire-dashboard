@@ -55,6 +55,7 @@ const periodSchema = z
   })
   .refine((p) => Date.parse(p.endsAt) > Date.parse(p.startsAt));
 export const weatherSchema = commonSchema.extend({
+  configurationRevision: z.string().min(1).max(128).nullable().default(null),
   provider: text,
   regionId: text.nullable(),
   regionLabel: text.nullable(),
@@ -163,6 +164,7 @@ export function emptyWeather(): Weather {
   return {
     ...emptyCommon(),
     provider: "jma",
+    configurationRevision: null,
     regionId: null,
     regionLabel: null,
     temperatureStationLabel: null,
@@ -290,3 +292,4 @@ export function readSettings(input: unknown): {
 export function parseSettings(input: unknown): AppSettings {
   return readSettings(input).value;
 }
+export * from "./weather-settings";

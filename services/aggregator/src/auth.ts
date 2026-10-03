@@ -4,5 +4,6 @@ export type Authorize = (
   role: "reader" | "collector",
 ) => Promise<boolean>;
 export type SourceAlias = (request: FastifyRequest) => Promise<string | null>;
+export type AuthorizeAdmin = (request: FastifyRequest) => Promise<boolean>;
 /** Integrate a separately approved same-origin session validator. Never accept roles/aliases from request bodies. */
 export const denyAll: Authorize = async () => false;

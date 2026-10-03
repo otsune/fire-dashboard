@@ -1,17 +1,24 @@
 import { useEffect, useRef, useState } from "react";
 import { Clock } from "./clock/Clock";
 import { Settings } from "./settings/Settings";
+import { WeatherSettings } from "./settings/WeatherSettings";
 import { loadSettings, saveSettings } from "./settings/store";
 import {
   emptyDashboard,
   type Dashboard,
+  type Weather,
 } from "../../../packages/contracts/src/index";
 import { WeatherCard } from "./cards/WeatherCard";
 import { UsageCard } from "./cards/UsageCard";
 import { AdditionalUsageCards } from "./cards/AdditionalUsageCards";
 import { RssCard } from "./cards/RssCard";
 import { fetchDashboard } from "./data/client";
-import { loadDashboard, mergeDashboard, saveDashboard } from "./data/cache";
+import {
+  invalidateDashboardCache,
+  loadDashboard,
+  mergeDashboard,
+  saveDashboard,
+} from "./data/cache";
 import { loadManifest } from "./audio/manifest";
 import { createAudioController } from "./audio/controller";
 import { AudioControls } from "./audio/Controls";
@@ -23,6 +30,11 @@ export function App() {
   const [settings, setSettings] = useState(initial.value);
   const [warning, setWarning] = useState(initial.warning);
   const [open, setOpen] = useState(false);
+  const [weatherOpen, setWeatherOpen] = useState(false);
+  const focusTarget = useRef<string | null>(null);
+  const weatherOpener = useRef("weather-region-opener");
+  const requestGeneration = useRef(0);
+  const refreshDashboard = useRef<() => Promise<void>>(async () => {});
   const [data, setData] = useState<Dashboard>(emptyDashboard);
   const [connection, setConnection] = useState("集約サービスに接続中");
   const [cardNow, setCardNow] = useState(Date.now());
@@ -89,26 +101,34 @@ export function App() {
   }, [audio]);
   useEffect(() => {
     let dead = false,
-      busy = false;
+      busyGeneration: number | null = null,
+      hydratedFromNetwork = false;
     let abort: AbortController | null = null;
     async function refresh() {
-      if (busy || dead) return;
-      busy = true;
-      abort = new AbortController();
-      const timeout = setTimeout(() => abort?.abort(), 10000);
+      const capturedGeneration = requestGeneration.current;
+      if (busyGeneration === capturedGeneration || dead) return;
+      abort?.abort();
+      busyGeneration = capturedGeneration;
+      const controller = new AbortController();
+      abort = controller;
+      const timeout = setTimeout(() => controller.abort(), 10000);
+      const active = () =>
+        !dead && capturedGeneration === requestGeneration.current;
       try {
-        const next = await fetchDashboard(abort.signal);
-        if (dead) return;
+        const next = await fetchDashboard(controller.signal);
+        if (!active()) return;
+        hydratedFromNetwork = true;
         current.current = mergeDashboard(current.current, next);
         setData(current.current);
         setConnection("集約サービス接続済み");
         try {
           await saveDashboard(current.current);
         } catch {
-          setWarning("カードを保存できません。通信中の表示は続けます");
+          if (active())
+            setWarning("カードを保存できません。通信中の表示は続けます");
         }
       } catch (error) {
-        if (!dead)
+        if (active())
           setConnection(
             navigator.onLine
               ? (error as Error).message === "auth"
@@ -118,19 +138,27 @@ export function App() {
           );
       } finally {
         clearTimeout(timeout);
-        busy = false;
-        if (!dead) setCardNow(Date.now());
+        if (busyGeneration === capturedGeneration) busyGeneration = null;
+        if (active()) setCardNow(Date.now());
       }
     }
+    refreshDashboard.current = refresh;
+    const cacheGeneration = requestGeneration.current;
     void loadDashboard()
       .then((cached) => {
-        if (!dead && cached) {
+        if (
+          !dead &&
+          cacheGeneration === requestGeneration.current &&
+          !hydratedFromNetwork &&
+          cached
+        ) {
           current.current = cached;
           setData(cached);
         }
       })
       .catch(() => {
-        if (!dead) setWarning("保存済みカードを読み込めません");
+        if (!dead && cacheGeneration === requestGeneration.current)
+          setWarning("保存済みカードを読み込めません");
       })
       .finally(() => void refresh());
     const resume = () => {
@@ -153,6 +181,36 @@ export function App() {
       window.removeEventListener("offline", off);
     };
   }, []);
+  useEffect(() => {
+    if (!weatherOpen && focusTarget.current) {
+      document.getElementById(focusTarget.current)?.focus();
+      focusTarget.current = null;
+    }
+  }, [open, weatherOpen]);
+  const openWeather = (opener: string) => {
+    weatherOpener.current = opener;
+    setWeatherOpen(true);
+  };
+  const closeWeather = () => {
+    focusTarget.current = weatherOpener.current;
+    setWeatherOpen(false);
+  };
+  const closeSettings = () => {
+    focusTarget.current = "general-settings-opener";
+    setOpen(false);
+  };
+  const weatherSaved = (weather: Weather) => {
+    const capturedGeneration = ++requestGeneration.current;
+    invalidateDashboardCache();
+    current.current = { ...current.current, weather };
+    setData(current.current);
+    setCardNow(Date.now());
+    void saveDashboard(current.current).catch(() => {
+      if (capturedGeneration === requestGeneration.current)
+        setWarning("カードを保存できません。通信中の表示は続けます");
+    });
+    void refreshDashboard.current();
+  };
   useEffect(() => {
     void prepareOffline(setOffline, setWaiting);
   }, []);
@@ -181,7 +239,9 @@ export function App() {
     waiting.postMessage("ACTIVATE_UPDATE");
   };
   return (
-    <main className={`dashboard ${open ? "settings-open" : "overview"}`}>
+    <main
+      className={`dashboard ${open || weatherOpen ? "settings-open" : "overview"}`}
+    >
       <header>
         <div className="brand">
           <span className="brand-mark">◷</span> FIRE <span>DASHBOARD</span>
@@ -191,7 +251,12 @@ export function App() {
             <span className="connection-dot" />
             {connection}
           </span>
-          <button aria-label="設定" onClick={() => setOpen((v) => !v)}>
+          <button
+            id="general-settings-opener"
+            aria-label="設定"
+            disabled={weatherOpen}
+            onClick={() => (open ? closeSettings() : setOpen(true))}
+          >
             設定 <span aria-hidden="true">⚙</span>
           </button>
         </div>
@@ -204,10 +269,14 @@ export function App() {
       {waiting && (
         <div className="notice">
           新しい表示の準備ができました{" "}
-          <button onClick={activateUpdate}>更新して再読み込み</button>
+          <button onClick={activateUpdate} disabled={weatherOpen}>
+            更新して再読み込み
+          </button>
         </div>
       )}
-      {open ? (
+      {weatherOpen ? (
+        <WeatherSettings onClose={closeWeather} onSaved={weatherSaved} />
+      ) : open ? (
         <Settings
           value={settings}
           onChange={(v) => {
@@ -215,7 +284,10 @@ export function App() {
             if (!saveSettings(v))
               setWarning("設定を保存できません。この画面では変更を維持します");
           }}
-          onClose={() => setOpen(false)}
+          onClose={closeSettings}
+          onWeatherSettings={() =>
+            openWeather("settings-weather-region-opener")
+          }
         />
       ) : (
         <>
@@ -223,6 +295,7 @@ export function App() {
             <Clock settings={settings} />
             <WeatherCard
               value={data.weather}
+              onWeatherSettings={() => openWeather("weather-region-opener")}
               timeZone={settings.timeZone}
               now={cardNow}
             />

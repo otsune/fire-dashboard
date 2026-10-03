@@ -3,7 +3,55 @@ import {
   type Dashboard,
   type Common,
 } from "../../../../packages/contracts/src/index";
-import { transaction } from "./db";
+import { openDatabase } from "./db";
+let cacheGeneration = 0;
+const writes = new Set<IDBTransaction>();
+export function invalidateDashboardCache(): void {
+  cacheGeneration++;
+  for (const tx of writes) {
+    try {
+      tx.abort();
+    } catch {
+      /* A completed transaction is already immutable. */
+    }
+  }
+}
+async function cacheTransaction<T>(
+  mode: IDBTransactionMode,
+  run: (store: IDBObjectStore, done: (value: T) => void) => void,
+): Promise<T | null> {
+  const generation = cacheGeneration;
+  const db = await openDatabase();
+  if (generation !== cacheGeneration) {
+    db.close();
+    return null;
+  }
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction("cards", mode);
+    if (mode === "readwrite") writes.add(tx);
+    let result: T;
+    const finish = () => {
+      writes.delete(tx);
+      db.close();
+    };
+    tx.oncomplete = () => {
+      finish();
+      resolve(generation === cacheGeneration ? result : null);
+    };
+    tx.onerror = tx.onabort = () => {
+      finish();
+      if (generation !== cacheGeneration) resolve(null);
+      else reject(Error("storage"));
+    };
+    try {
+      run(tx.objectStore("cards"), (value) => {
+        result = value;
+      });
+    } catch {
+      tx.abort();
+    }
+  });
+}
 function mergeCard<T extends Common>(previous: T | undefined, next: T): T {
   return previous &&
     (next.status === "error" || next.status === "stale") &&
@@ -20,7 +68,14 @@ export function mergeDashboard(
   if (!previous) return next;
   return {
     ...next,
-    weather: mergeCard(previous.weather, next.weather),
+    weather:
+      previous.weather.configurationRevision ===
+        next.weather.configurationRevision &&
+      previous.weather.regionId === next.weather.regionId &&
+      previous.weather.temperatureStationLabel ===
+        next.weather.temperatureStationLabel
+        ? mergeCard(previous.weather, next.weather)
+        : next.weather,
     rss: next.rss.map((f) =>
       mergeCard(
         previous.rss.find((p) => p.id === f.id),
@@ -37,9 +92,9 @@ export function mergeDashboard(
     ),
   };
 }
-export function saveDashboard(value: Dashboard): Promise<void> {
+export async function saveDashboard(value: Dashboard): Promise<void> {
   const valid = parseDashboard(value);
-  return transaction("cards", "readwrite", (s, done) => {
+  await cacheTransaction<void>("readwrite", (s, done) => {
     s.put(valid.weather, "weather");
     s.put(valid.rss, "rss");
     s.put(valid.usage, "usage");
@@ -47,7 +102,7 @@ export function saveDashboard(value: Dashboard): Promise<void> {
   });
 }
 export function loadDashboard(): Promise<Dashboard | null> {
-  return transaction("cards", "readonly", (store, done) => {
+  return cacheTransaction<Dashboard | null>("readonly", (store, done) => {
     const requests = ["weather", "rss", "usage"].map((key) => store.get(key));
     let count = 0;
     for (const request of requests) {
