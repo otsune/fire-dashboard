@@ -22,7 +22,7 @@ rateLimitsByLimitIdがある場合は区分ごとに表示し、なければrate
 
 startCodexCollector({path, sourceAlias, send}) は読み取り完了から60秒ごとに再度読みます。初版は短命stdio接続によるポーリングを採用し、account/rateLimits/updatedの常時購読は未実装です。安全な読み取り範囲を保つため、通知購読が必要なら同じインターフェースで別途検証してください。
 
-常駐させる場合は `npx tsx collectors/codex/service.ts`、または `npm run build:collectors` 後の `node dist/collectors/codex-service.mjs` を使います。環境変数は `FIRE_SNAPSHOT_PATH`、`FIRE_SOURCE_ALIAS`(英数字・ハイフン・アンダースコアの1〜64文字。違反すると起動しません)、`FIRE_ENDPOINT`(集約APIの `https://…/api/v1/usage`)、`FIRE_COLLECTOR_TOKEN_FILE`(Bearerトークンを書いたファイル)です。トークンは環境変数やユニットファイルに書かず、送信のたびにファイルから読みます。失敗時は読み取り・保存・送信の区分だけを標準エラーへ出します。`codex` コマンドが PATH 上にあり、ログイン済みである必要があります。ログインが切れていると Codex は `-32603`(取得先の 401)を返し、カードは `invalid_data` のエラーになります。画面のない機械では `codex login --device-auth` で再ログインします。
+常駐させる場合は `npx tsx collectors/codex/service.ts`、または `npm run build:collectors` 後の `node dist/collectors/codex-service.mjs` を使います。環境変数は `FIRE_SNAPSHOT_PATH`、`FIRE_SOURCE_ALIAS`(英数字・ハイフン・アンダースコアの1〜64文字。違反すると起動しません)、`FIRE_ENDPOINT`(集約APIの `https://…/api/v1/usage`)、`FIRE_COLLECTOR_TOKEN_FILE`(Bearerトークンを書いたファイル)、任意の `FIRE_POLL_SECONDS`(読み取り間隔、30〜280秒、既定60秒)です。読み取りのたびに `codex app-server` を起動するため(1回約0.5秒のCPU)、間隔が長いほど軽くなります。ただし読み取りのたびに受信時刻も更新されるので、画面の「取得元に未接続」(受信から5分)を超えない範囲に制限しています。トークンは環境変数やユニットファイルに書かず、送信のたびにファイルから読みます。失敗時は読み取り・保存・送信の区分だけを標準エラーへ出します。`codex` コマンドが PATH 上にあり、ログイン済みである必要があります。ログインが切れていると Codex は `-32603`(取得先の 401)を返し、カードは `invalid_data` のエラーになります。画面のない機械では `codex login --device-auth` で再ログインします。
 
 ## 送信と保存
 

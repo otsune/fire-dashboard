@@ -14,7 +14,7 @@ config.example.jsonの天気・RSS・優先取得元を、実環境の管理者�
 
 環境変数は `FIRE_AUTH_MODULE`（既存の承認済みESM認可モジュールのパス）、`FIRE_PUBLIC_ORIGIN`（HTTPSオリジン）、任意の `FIRE_CONFIG` と `FIRE_STATE_FILE` です。認可モジュールは `authorize(request, role)` と `sourceAlias(request)` を公開します。roleはreader／collector、sourceAliasは認証済み主体からサーバー側で解決してください。リクエスト本文やクライアント指定ヘッダーをそのまま信用する実装にしないでください。
 
-認可された配置後に `npm run start:api` を実行します。待ち受けは127.0.0.1の8787番です。他のサービスと重なる場合は `FIRE_PORT` で変更します。この背後に信頼された同一オリジンのHTTPS配信が必要です。システムサービス登録やリバースプロキシの設定はこの成果物では変更していません。
+認可された配置後に `npm run start:api` を実行します。常駐させる場合は `npm run build:api` で単一ファイルにまとめ、`node dist/aggregator/start.mjs` を使います。`FIRE_AUTH_MODULE` には `dist/aggregator/auth-tailscale.mjs` を指定します。npm や tsx のプロセスが残らないので、常駐中のメモリが減ります。待ち受けは127.0.0.1の8787番です。他のサービスと重なる場合は `FIRE_PORT` で変更します。この背後に信頼された同一オリジンのHTTPS配信が必要です。システムサービス登録やリバースプロキシの設定はこの成果物では変更していません。
 
 `preferredSources` の各値は1つのsourceAliasか、その配列です。利用上限はアカウント単位なので、配列に挙げた全PCから受け付け、最も新しい観測を表示します。比較には収集時刻を使い、受信時刻より未来の収集時刻は受信時刻に丸めます。表示中ではないPCのエラーは、正常な表示値を上書きしません。
 
