@@ -1,6 +1,8 @@
 /*
  * FIRE_AUTH_MODULE entry for a Tailscale serve deployment.
  * FIRE_READER_LOGINS: comma-separated Tailscale logins allowed to view.
+ * FIRE_ADMIN_LOGINS: optional logins explicitly allowed to edit weather, also
+ * required in FIRE_READER_LOGINS. Requires a trusted exclusive Serve boundary.
  * FIRE_COLLECTOR_TOKENS_FILE: JSON {"<sourceAlias>": "<sha256 hex of token>"},
  * kept outside the repository and readable only by the service user.
  */
@@ -14,6 +16,11 @@ const auth = createTailscaleAuth({
     .map((v) => v.trim())
     .filter(Boolean),
   collectorTokenHashes: JSON.parse(await readFile(tokensFile, "utf8")),
+  adminLogins: (process.env.FIRE_ADMIN_LOGINS ?? "")
+    .split(",")
+    .map((v) => v.trim())
+    .filter(Boolean),
 });
 export const authorize = auth.authorize;
 export const sourceAlias = auth.sourceAlias;
+export const authorizeAdmin = auth.authorizeAdmin;

@@ -7,10 +7,12 @@ export function Settings({
   value,
   onChange,
   onClose,
+  onWeatherSettings,
 }: {
   value: AppSettings;
   onChange: (value: AppSettings) => void;
   onClose: () => void;
+  onWeatherSettings?: () => void;
 }) {
   const [warning, setWarning] = useState("");
   const update = (patch: Partial<AppSettings>) => {
@@ -110,8 +112,16 @@ export function Settings({
       </div>
       <div className="settings-note">
         <h2>データの接続</h2>
+        {onWeatherSettings && (
+          <button
+            id="settings-weather-region-opener"
+            onClick={onWeatherSettings}
+          >
+            天気の地域を設定
+          </button>
+        )}
         <p>
-          天気の地域・代表地点とRSSは集約サーバーで設定します。Claude・Codexは利用元PCの読み取り専用収集処理から接続します。
+          天気の地域・代表地点はこの画面から確認・変更できます。変更には管理者権限が必要です。RSSは集約サーバーで設定します。Claude・Codexは利用元PCの読み取り専用収集処理から接続します。
         </p>
         <p>
           音声・チャイムは権利確認済みの音源を追加するまで無効です。前面表示・最初のタップが必要です。

@@ -9,8 +9,12 @@ import {
   type Usage,
   usageSchema,
   envelopeSchema,
+  weatherSettingsStateSchema,
+  type WeatherSettingsState,
 } from "../../../packages/contracts/src/index";
 export type State = {
+  /** Absent only in pre-settings snapshots. Explicit null selection disables weather. */
+  weatherSettings?: WeatherSettingsState;
   dashboard: Dashboard;
   usageSequences: Record<string, UsageEnvelope>;
   usageValues: Record<string, Usage>;
@@ -18,6 +22,10 @@ export type State = {
   usageObservedAt: Record<string, string>;
 };
 export type Store = {
+  /** Serialized read callback; side effects can observe a canonical revision
+   * without racing a following update or rewriting the state file. */
+  inspect: <T>(fn: (value: State) => T) => Promise<T>;
+  readState: () => Promise<State>;
   readSnapshot: () => Promise<Dashboard>;
   writeSnapshot: (value: Dashboard) => Promise<void>;
   update: <T>(fn: (value: State) => { state: State; result: T }) => Promise<T>;
@@ -54,11 +62,15 @@ function storeEngine(
     queue = result.catch(() => {});
     return result;
   }
+  function inspect<T>(fn: (value: State) => T): Promise<T> {
+    const result = queue.then(async () => fn(structuredClone(await load())));
+    queue = result.catch(() => {});
+    return result;
+  }
   return {
-    readSnapshot: async () => {
-      await queue;
-      return structuredClone((await load()).dashboard);
-    },
+    inspect,
+    readState: () => inspect((state) => state),
+    readSnapshot: () => inspect((state) => state.dashboard),
     writeSnapshot: async (value) => {
       const valid = parseDashboard(value);
       await update((state) => ({
@@ -130,6 +142,13 @@ export function createFileStore(
           )
             usageObservedAt[key] = value;
         return {
+          ...(Object.hasOwn(raw, "weatherSettings")
+            ? {
+                weatherSettings: weatherSettingsStateSchema.parse(
+                  raw.weatherSettings,
+                ),
+              }
+            : {}),
           dashboard,
           usageSequences: raw.usageSequences ?? {},
           usageValues,
