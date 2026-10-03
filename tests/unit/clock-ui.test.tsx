@@ -13,7 +13,7 @@ it("shows Tokyo hour and Japanese date", () => {
       now={() => Date.parse("2026-10-02T01:00:00Z")}
     />,
   );
-  expect(screen.getByText("10:00")).toBeInTheDocument();
+  expect(screen.getByTestId("clock-time")).toHaveTextContent("10:00");
   expect(screen.getByText(/10月2日/)).toBeInTheDocument();
 });
 it("supports UTC and 12-hour noon", () => {
@@ -23,7 +23,7 @@ it("supports UTC and 12-hour noon", () => {
       now={() => Date.parse("2026-10-02T12:00:00Z")}
     />,
   );
-  expect(screen.getByText("12:00")).toBeInTheDocument();
+  expect(screen.getByTestId("clock-time")).toHaveTextContent("12:00");
   expect(screen.getByText("午後")).toBeInTheDocument();
 });
 it("supports a zero-padded UTC hour", () => {
@@ -33,7 +33,7 @@ it("supports a zero-padded UTC hour", () => {
       now={() => Date.parse("2026-10-02T01:00:00Z")}
     />,
   );
-  expect(screen.getByText("01:00")).toBeInTheDocument();
+  expect(screen.getByTestId("clock-time")).toHaveTextContent("01:00");
 });
 it("settings changes propagate and return is explicit", () => {
   let volume = 0.3,

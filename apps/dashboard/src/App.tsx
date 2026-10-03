@@ -156,6 +156,20 @@ export function App() {
   useEffect(() => {
     void prepareOffline(setOffline, setWaiting);
   }, []);
+  useEffect(() => {
+    const closeDetails = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      document
+        .querySelectorAll<HTMLDetailsElement>(".card-details[open]")
+        .forEach((details) => {
+          if (details.contains(document.activeElement))
+            details.querySelector<HTMLElement>("summary")?.focus();
+          details.open = false;
+        });
+    };
+    document.addEventListener("keydown", closeDetails);
+    return () => document.removeEventListener("keydown", closeDetails);
+  }, []);
   const activateUpdate = () => {
     if (!waiting) return;
     audio?.disable();
@@ -167,7 +181,7 @@ export function App() {
     waiting.postMessage("ACTIVATE_UPDATE");
   };
   return (
-    <main className="dashboard">
+    <main className={`dashboard ${open ? "settings-open" : "overview"}`}>
       <header>
         <div className="brand">
           <span className="brand-mark">◷</span> FIRE <span>DASHBOARD</span>

@@ -707,3 +707,273 @@ progress::-webkit-progress-value {
     font-size: 9px;
   }
 }
+
+/* One-screen landscape overview. Details remain reachable without growing cards. */
+.card-details {
+  margin-top: auto;
+}
+.card-details > summary {
+  cursor: pointer;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  font-size: 12px;
+  color: #b8d6a2;
+  gap: 6px;
+}
+.card-details > summary::before {
+  content: "+";
+}
+.card-details[open] > summary::before {
+  content: "−";
+}
+summary:focus-visible {
+  outline: 3px solid #b8d6a2;
+  outline-offset: 2px;
+}
+.detail-content {
+  position: fixed;
+  z-index: 20;
+  top: 15%;
+  left: 8%;
+  right: 8%;
+  max-height: 70vh;
+  overflow: auto;
+  overscroll-behavior: contain;
+  background: #172122;
+  border: 2px solid #8fa79b;
+  border-radius: 12px;
+  padding: 20px;
+  box-shadow: 0 12px 40px #0009;
+}
+.detail-content::before {
+  content: "詳細 · Esc でも閉じられます";
+  display: block;
+  font-size: 12px;
+  color: #a6b8b2;
+  margin-bottom: 12px;
+}
+.weather-placeholder {
+  color: #bdcdc5;
+  margin: auto 0;
+}
+.digits {
+  display: flex;
+  align-items: center;
+  letter-spacing: 0;
+  font-variant-numeric: tabular-nums;
+}
+.clock-hours,
+.clock-minutes,
+.clock-separator {
+  flex: none;
+}
+.rss-card .headline-preview {
+  min-width: 0;
+  flex: 1;
+}
+.headline-preview article {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.headline-preview a {
+  color: #ccd9c5;
+}
+.rss-card .card-details {
+  flex: none;
+  margin: 0;
+}
+.rss-card .detail-content article {
+  white-space: normal;
+}
+
+@media (orientation: landscape) and (min-width: 700px) {
+  .dashboard.overview {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    height: 100vh;
+    height: 100dvh;
+    min-height: 0;
+    max-width: none;
+    padding: 10px 16px;
+  }
+  .overview > header {
+    flex: none;
+    margin: 0;
+    min-height: 44px;
+  }
+  .overview .top-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 3fr) minmax(0, 1fr);
+    gap: 12px;
+    flex: 1;
+    min-height: 0;
+  }
+  .overview .top-grid .clock-panel {
+    min-height: 0;
+    padding: 10px 16px;
+  }
+  .overview .clock-face {
+    flex: 1;
+    min-height: 0;
+    margin: 4px 0;
+    align-items: center;
+    gap: 10px;
+  }
+  .overview .top-grid .digits {
+    font-size: 16vw;
+    font-size: min(17vw, calc((100vh - 450px) * 0.72), 340px);
+    font-size: var(
+      --clock-digit-size,
+      min(17vw, calc((100vh - 450px) * 0.72), 340px)
+    );
+    line-height: 1.08;
+  }
+  .overview .top-grid .seconds {
+    align-self: flex-end;
+    margin-bottom: 8px;
+    font-size: clamp(18px, 3vw, 40px);
+  }
+  .overview .clock-date {
+    font-size: clamp(14px, 1.7vw, 24px);
+    line-height: 1.3;
+  }
+  .overview .dayperiod {
+    position: static;
+    align-self: flex-end;
+    margin-bottom: 8px;
+    font-size: 12px;
+  }
+  .overview .dayperiod:empty {
+    display: none;
+  }
+  .overview .card {
+    padding: 8px 12px;
+    border-radius: 12px;
+    min-height: 0;
+  }
+  .overview .card-heading {
+    margin: 0 0 4px;
+    gap: 4px;
+  }
+  .overview .card h2 {
+    font-size: 16px;
+    line-height: 1.35;
+  }
+  .overview .weather-card {
+    justify-content: flex-start;
+  }
+  .overview .weather-card > .forecast {
+    margin: auto 0;
+    padding: 4px 0;
+    border: 0;
+  }
+  .overview .weather-card > .forecast strong {
+    font-size: 16px;
+  }
+  .overview .bottom-grid.provider-layout {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin: 0;
+    flex: none;
+  }
+  .overview .provider-layout > .usage-grid {
+    display: flex;
+    gap: 8px;
+    width: 100%;
+  }
+  .overview .usage-grid > .usage-card {
+    flex: 1;
+    min-width: 0;
+    min-height: 190px;
+  }
+  .overview .usage-grid > .usage-card:last-child:nth-child(odd) {
+    grid-column: auto;
+  }
+  .overview .rss-card {
+    width: 100%;
+    flex-direction: row;
+    gap: 12px;
+    align-items: center;
+    min-height: 52px;
+    padding: 0 12px;
+  }
+  .overview .rss-card h2 {
+    flex: none;
+    font-size: 14px;
+  }
+  .overview .rss-card .provider-sub {
+    display: none;
+  }
+  .overview .rss-card .status {
+    flex: none;
+  }
+  .overview .rss-card > .card-details > summary {
+    font-size: 11px;
+  }
+  .overview .control-strip {
+    flex: none;
+    margin: 0;
+    gap: 8px;
+    flex-wrap: nowrap;
+  }
+  .overview .audio-controls {
+    gap: 6px;
+  }
+  .overview .wake-controls {
+    gap: 6px;
+  }
+  .overview .control-strip button {
+    padding: 4px 8px;
+  }
+  .overview > footer {
+    flex: none;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    gap: 8px;
+    font-size: 10px;
+  }
+  .overview .notice {
+    flex: none;
+    margin: 0;
+    padding: 4px 8px;
+  }
+}
+@media (orientation: portrait) {
+  .top-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .top-grid .digits {
+    flex-direction: column;
+    gap: 0.04em;
+    font-size: 44vw;
+    font-size: min(46vw, 30vh, 440px);
+  }
+  .clock-separator {
+    display: none;
+  }
+  .clock-face {
+    align-items: flex-end;
+  }
+  .top-grid .clock-panel {
+    min-height: 0;
+  }
+  .bottom-grid.provider-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .provider-layout > .rss-card {
+    grid-column: 1;
+    grid-row: 2;
+  }
+  .rss-card {
+    min-height: 0;
+    gap: 8px;
+  }
+  .usage-card {
+    min-height: 0;
+  }
+}

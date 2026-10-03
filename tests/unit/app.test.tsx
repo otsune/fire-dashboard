@@ -44,3 +44,27 @@ it("integrates unconfigured cards, settings round-trip and disabled absent audio
   fireEvent.click(screen.getByRole("button", { name: "設定" }));
   expect(screen.getByRole("checkbox", { name: "12時間表記" })).toBeChecked();
 });
+it("closes an open detail with Escape and restores its summary focus", async () => {
+  vi.stubGlobal(
+    "fetch",
+    async (url: string) =>
+      new Response(
+        JSON.stringify(
+          url.includes("manifest")
+            ? { hours: {}, chime: null }
+            : emptyDashboard(),
+        ),
+      ),
+  );
+  const { container } = render(<App />);
+  await screen.findByText("集約サービス接続済み");
+  const details = container.querySelector<HTMLDetailsElement>(
+    ".weather-card details",
+  )!;
+  details.open = true;
+  const close = details.querySelector<HTMLButtonElement>("button")!;
+  close.focus();
+  fireEvent.keyDown(close, { key: "Escape" });
+  expect(details.open).toBe(false);
+  expect(details.querySelector("summary")).toHaveFocus();
+});
