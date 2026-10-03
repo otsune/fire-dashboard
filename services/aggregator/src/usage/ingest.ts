@@ -76,11 +76,15 @@ export function createUsageIngestor(
       // so a source that is not on screen keeps its own last good data.
       // The comparison time is fixed when a snapshot is first received; a
       // heartbeat only updates receivedAt and must not make old data "newer".
-      // Legacy state without it falls back to this source's previous receipt.
+      // New data is always clamped to the server's receipt, never to a
+      // client-supplied receivedAt. Legacy state without a pinned time falls
+      // back to this source's previous receipt as stored by the server.
       const observed =
         (duplicate && state.usageObservedAt[key]) ||
         new Date(
-          observedAt(duplicate && existing ? existing : payload, receivedAt),
+          duplicate && existing
+            ? observedAt(existing.capturedAt, existing.receivedAt ?? receivedAt)
+            : observedAt(payload.capturedAt, receivedAt),
         ).toISOString();
       state.usageSequences[key] = envelope;
       state.usageValues[key] = value;
@@ -104,7 +108,8 @@ export function createUsageIngestor(
             Date.parse(observed) <
               (Date.parse(
                 state.usageObservedAt[`${shown.provider}:${shown.sourceAlias}`],
-              ) || observedAt(shown, receivedAt))))
+              ) ||
+                observedAt(shown.capturedAt, shown.receivedAt ?? receivedAt))))
       )
         return { state, result };
       state.dashboard.usage = state.dashboard.usage.filter(
@@ -120,13 +125,13 @@ export function createUsageIngestor(
     });
   };
 }
-/** Collector clocks may run ahead; a capture never counts as newer than its receipt. */
-function observedAt(
-  u: Pick<Usage, "capturedAt" | "receivedAt">,
-  fallback: string,
-): number {
-  const received = Date.parse(u.receivedAt ?? fallback);
-  const captured = u.capturedAt ? Date.parse(u.capturedAt) : NaN;
+/**
+ * Collector clocks may run ahead; a capture never counts as newer than its
+ * receipt. `receipt` must be a server-side time, never a client field.
+ */
+function observedAt(capturedAt: string | null, receipt: string): number {
+  const received = Date.parse(receipt);
+  const captured = capturedAt ? Date.parse(capturedAt) : NaN;
   return Number.isFinite(captured) ? Math.min(captured, received) : received;
 }
 export function createRateLimiter() {

@@ -121,6 +121,35 @@ describe("multiple collector PCs", () => {
     );
     expect(await shown(store)).toEqual({ alias: "desk", percent: 20 });
   });
+  it("ignores a client-supplied receivedAt when pinning the comparison time", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "fire-received-"));
+    try {
+      const path = join(dir, "state.json");
+      const sources = { claude: ["desk", "note"] };
+      const forged = envelope("note", 1, 50, t(60));
+      forged.payload.receivedAt = t(600);
+      await createUsageIngestor(createFileStore(path), sources)(
+        forged,
+        t(1),
+        "note",
+      );
+      await createUsageIngestor(createFileStore(path), sources)(
+        envelope("desk", 1, 20, t(2)),
+        t(2),
+        "desk",
+      );
+      expect(await shown(createFileStore(path))).toEqual({
+        alias: "desk",
+        percent: 20,
+      });
+      // After a restart, resending the same forged snapshot changes nothing.
+      const restarted = createFileStore(path);
+      await createUsageIngestor(restarted, sources)(forged, t(3), "note");
+      expect(await shown(restarted)).toEqual({ alias: "desk", percent: 20 });
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
   it("pins the comparison time of captures without a timestamp", async () => {
     const store = createMemoryStore();
     const ingest = createUsageIngestor(store, { claude: ["desk", "note"] });
@@ -286,6 +315,51 @@ describe("Tailscale auth", () => {
       const r = await s.inject({ url: "/api/v1/dashboard", headers });
       expect(r.statusCode).not.toBe(200);
     }
+    await s.close();
+  });
+  it("over HTTP, forged receipt and capture times cannot hold the display", async () => {
+    const noteToken = "n".repeat(43);
+    const s = createServer({
+      store: createMemoryStore(),
+      ...createTailscaleAuth({
+        readerLogins: ["me@example.com"],
+        collectorTokenHashes: {
+          desk: hash,
+          note: createHash("sha256").update(noteToken).digest("hex"),
+        },
+      }),
+      preferredSources: { claude: ["desk", "note"] },
+    });
+    const future = new Date(Date.now() + 3600_000).toISOString();
+    const forged = envelope("note", 1, 50, future);
+    forged.payload.receivedAt = future;
+    const post = (bearer: string, payload: UsageEnvelope) =>
+      s.inject({
+        url: "/api/v1/usage",
+        method: "POST",
+        headers: { authorization: `Bearer ${bearer}` },
+        payload,
+      });
+    const view = async () =>
+      (
+        await s.inject({
+          url: "/api/v1/dashboard",
+          headers: { "tailscale-user-login": "me@example.com" },
+        })
+      )
+        .json()
+        .usage.find((u: { provider: string }) => u.provider === "claude")
+        .sourceAlias;
+    expect((await post(noteToken, forged)).statusCode).toBe(200);
+    await new Promise((r) => setTimeout(r, 5));
+    expect(
+      (await post(token, envelope("desk", 1, 20, new Date().toISOString())))
+        .statusCode,
+    ).toBe(200);
+    expect(await view()).toBe("desk");
+    await new Promise((r) => setTimeout(r, 5));
+    expect((await post(noteToken, forged)).json().status).toBe("duplicate");
+    expect(await view()).toBe("desk");
     await s.close();
   });
   it("derives the collector alias from the token", async () => {
