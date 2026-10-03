@@ -6,10 +6,14 @@ import {
   emptyDashboard,
   type Dashboard,
   type UsageEnvelope,
+  type Usage,
+  usageSchema,
+  envelopeSchema,
 } from "../../../packages/contracts/src/index";
 export type State = {
   dashboard: Dashboard;
   usageSequences: Record<string, UsageEnvelope>;
+  usageValues: Record<string, Usage>;
 };
 export type Store = {
   readSnapshot: () => Promise<Dashboard>;
@@ -64,7 +68,11 @@ function storeEngine(
   };
 }
 export function createMemoryStore(): Store {
-  let state: State = { dashboard: emptyDashboard(), usageSequences: {} };
+  let state: State = {
+    dashboard: emptyDashboard(),
+    usageSequences: {},
+    usageValues: {},
+  };
   return storeEngine(
     async () => state,
     async (v) => {
@@ -80,13 +88,46 @@ export function createFileStore(
     async () => {
       try {
         const raw = JSON.parse(await readFile(path, "utf8"));
+        const dashboard = parseDashboard(raw.dashboard);
+        const usageValues: Record<string, Usage> = {};
+        for (const [key, value] of Object.entries(raw.usageValues ?? {})) {
+          const parsed = usageSchema.parse(value);
+          if (key !== `${parsed.provider}:${parsed.sourceAlias}`)
+            throw Error("storage");
+          usageValues[key] = parsed;
+        }
+        // Old files only retain effective values for the displayed source.
+        // Seed them before an incoming source can replace that display.
+        for (const value of dashboard.usage) {
+          if (value.sourceAlias)
+            usageValues[`${value.provider}:${value.sourceAlias}`] ??= value;
+        }
+        // An off-screen legacy successful envelope still contains usable data,
+        // but its original server receipt/success time was never persisted.
+        for (const [key, value] of Object.entries(raw.usageSequences ?? {})) {
+          if (usageValues[key]) continue;
+          const parsed = envelopeSchema.parse(value);
+          if (key !== `${parsed.payload.provider}:${parsed.sourceAlias}`)
+            throw Error("storage");
+          if (parsed.payload.status === "ok")
+            usageValues[key] = {
+              ...parsed.payload,
+              receivedAt: null,
+              lastSuccessAt: null,
+            };
+        }
         return {
-          dashboard: parseDashboard(raw.dashboard),
+          dashboard,
           usageSequences: raw.usageSequences ?? {},
+          usageValues,
         };
       } catch (e) {
         if ((e as NodeJS.ErrnoException).code === "ENOENT")
-          return { dashboard: emptyDashboard(), usageSequences: {} };
+          return {
+            dashboard: emptyDashboard(),
+            usageSequences: {},
+            usageValues: {},
+          };
         throw Error("storage");
       }
     },
