@@ -1,7 +1,19 @@
+import { readFile } from "node:fs/promises";
 import {
   envelopeSchema,
   type UsageEnvelope,
 } from "../../packages/contracts/src/index";
+/**
+ * Bearer header from a token file. The token never comes from the process
+ * environment or unit files, and is re-read on each send to allow rotation.
+ */
+export function bearerFromFile(tokenFile: string) {
+  return async (): Promise<Record<string, string>> => {
+    const token = (await readFile(tokenFile, "utf8")).trim();
+    if (!/^[A-Za-z0-9_-]{32,256}$/.test(token)) throw Error("invalid_token");
+    return { authorization: `Bearer ${token}` };
+  };
+}
 export function createSender(send: (envelope: UsageEnvelope) => Promise<void>) {
   let lastId: string | null = null,
     lastAt = -Infinity,
