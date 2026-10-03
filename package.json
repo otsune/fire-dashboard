@@ -16,7 +16,8 @@
     "preview": "vite preview --config apps/dashboard/vite.config.ts --host 127.0.0.1",
     "start:api": "tsx services/aggregator/src/start.ts",
     "test:e2e": "playwright test",
-    "build:collectors": "node scripts/build-collectors.mjs"
+    "build:collectors": "node scripts/build-collectors.mjs",
+    "build:api": "node scripts/build-api.mjs"
   },
   "dependencies": {
     "fast-xml-parser": "5.11.2",

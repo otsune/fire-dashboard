@@ -32,6 +32,13 @@ const read = async () => ({
 it("refuses to start without its configuration", () => {
   expect(() => startCodexService({})).toThrow("unconfigured");
 });
+it("refuses to start with a read interval outside 30-280 seconds", async () => {
+  const env = await setup("t".repeat(43));
+  for (const poll of ["29", "281", "0", "1.5", "abc", ""])
+    expect(() =>
+      startCodexService({ ...env, FIRE_POLL_SECONDS: poll }),
+    ).toThrow("invalid_poll_seconds");
+});
 it("refuses to start with an alias the aggregator would reject", async () => {
   const env = await setup("t".repeat(43));
   for (const alias of ["gmktec.local", "a b", "x".repeat(65), "パソコン"])

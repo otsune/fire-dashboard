@@ -8,7 +8,10 @@ export function startCodexCollector(options: {
   send: (value: UsageEnvelope) => Promise<void>;
   read?: () => Promise<Usage>;
   onError?: (category: "read" | "storage" | "send") => void;
+  /** Each read starts a `codex app-server` process; keep this as long as the display allows. */
+  intervalMs?: number;
 }) {
+  const interval = options.intervalMs ?? 60000;
   let stopped = false,
     timer: ReturnType<typeof setTimeout> | undefined;
   const tick = async () => {
@@ -17,7 +20,7 @@ export function startCodexCollector(options: {
       value = await (options.read ?? readCodexLimits)();
     } catch {
       options.onError?.("read");
-      if (!stopped) timer = setTimeout(() => void tick(), 60000);
+      if (!stopped) timer = setTimeout(() => void tick(), interval);
       return;
     }
     let envelope: UsageEnvelope;
@@ -29,7 +32,7 @@ export function startCodexCollector(options: {
       );
     } catch {
       options.onError?.("storage");
-      if (!stopped) timer = setTimeout(() => void tick(), 60000);
+      if (!stopped) timer = setTimeout(() => void tick(), interval);
       return;
     }
     try {
@@ -37,7 +40,7 @@ export function startCodexCollector(options: {
     } catch {
       options.onError?.("send");
     }
-    if (!stopped) timer = setTimeout(() => void tick(), 60000);
+    if (!stopped) timer = setTimeout(() => void tick(), interval);
   };
   void tick();
   return () => {
