@@ -17,6 +17,30 @@ const usd = new Intl.NumberFormat("en-US", {
 function dollars(value: number | null): string {
   return value === null ? "未取得" : usd.format(value);
 }
+function windowLabel(
+  window: Usage["buckets"][number]["windows"][number],
+): string {
+  if (window.windowMinutes === null) return window.label;
+  const days = Math.floor(window.windowMinutes / 1440);
+  const hours = Math.floor((window.windowMinutes % 1440) / 60);
+  const minutes = window.windowMinutes % 60;
+  if (days && !hours && !minutes) return `${days}日間`;
+  return [
+    days ? `${days}日` : "",
+    hours ? `${hours}時間` : "",
+    minutes ? `${minutes}分` : "",
+  ].join("");
+}
+
+function showBucketLabel(value: Usage, label: string): boolean {
+  if (value.buckets.length > 1) return true;
+  const normalized = label.trim().toLowerCase();
+  return (
+    normalized !== "利用上限" &&
+    normalized !== providerPresentation[value.provider].name.toLowerCase()
+  );
+}
+
 function relativeReset(
   iso: string | null,
   now: number,
@@ -94,8 +118,10 @@ export function UsageCard({
             >
               <div className="window-label">
                 <span title={`${bucket.label} · ${window.label}`}>
-                  {value.buckets.length > 1 ? `${bucket.label} · ` : ""}
-                  {window.label}
+                  {showBucketLabel(value, bucket.label)
+                    ? `${bucket.label} · `
+                    : ""}
+                  {windowLabel(window)}
                 </span>
                 <strong className="usage-value">
                   {window.usedPercent === null

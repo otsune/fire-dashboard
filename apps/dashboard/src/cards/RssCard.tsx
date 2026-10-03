@@ -50,10 +50,19 @@ export function RssCard({
   return (
     <section
       className="card rss-card"
-      onFocusCapture={() => setFocused(true)}
+      onFocusCapture={(event) => {
+        // Reading should pause rotation; the explicit pause/resume control must not.
+        setFocused(
+          !!event.target.closest(".headline-preview, .detail-content"),
+        );
+      }}
       onBlurCapture={(event) => {
-        if (!event.currentTarget.contains(event.relatedTarget))
-          setFocused(false);
+        const target = event.relatedTarget;
+        setFocused(
+          target instanceof Element &&
+            event.currentTarget.contains(target) &&
+            !!target.closest(".headline-preview, .detail-content"),
+        );
       }}
     >
       <h2>
