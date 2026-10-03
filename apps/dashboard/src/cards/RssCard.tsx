@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Feed } from "../../../../packages/contracts/src/index";
 import { deriveStatus, formatTime } from "../data/status";
 export function RssCard({
@@ -12,7 +12,45 @@ export function RssCard({
   timeZone: string;
   now: number;
 }) {
-  const [focused, setFocused] = useState(false);
+  const card = useRef<HTMLElement>(null);
+  const articleTrip = useRef<{
+    link: HTMLAnchorElement;
+    departed: boolean;
+  } | null>(null);
+  const returnedLink = useRef<HTMLAnchorElement | null>(null);
+  useEffect(() => {
+    const clearIntent = () => {
+      articleTrip.current = null;
+      returnedLink.current = null;
+    };
+    const leave = () => {
+      // A later, unrelated departure must not inherit a previous return exemption.
+      returnedLink.current = null;
+      if (articleTrip.current?.link.isConnected)
+        articleTrip.current.departed = true;
+      else articleTrip.current = null;
+    };
+    const resume = () => {
+      if (document.hidden || !articleTrip.current?.departed) return;
+      returnedLink.current = articleTrip.current.link.isConnected
+        ? articleTrip.current.link
+        : null;
+      articleTrip.current = null;
+    };
+    const visibility = () => (document.hidden ? leave() : resume());
+    window.addEventListener("blur", leave);
+    window.addEventListener("focus", resume);
+    document.addEventListener("visibilitychange", visibility);
+    document.addEventListener("pointerdown", clearIntent, true);
+    document.addEventListener("keydown", clearIntent, true);
+    return () => {
+      window.removeEventListener("blur", leave);
+      window.removeEventListener("focus", resume);
+      document.removeEventListener("visibilitychange", visibility);
+      document.removeEventListener("pointerdown", clearIntent, true);
+      document.removeEventListener("keydown", clearIntent, true);
+    };
+  }, []);
   const [index, setIndex] = useState(0),
     [paused, setPaused] = useState(false),
     [expanded, setExpanded] = useState(false);
@@ -20,14 +58,20 @@ export function RssCard({
     f.items.map((item) => ({ ...item, feed: f })),
   );
   useEffect(() => {
-    if (!autoRotate || paused || expanded || focused || items.length < 2)
-      return;
-    const timer = setInterval(
-      () => setIndex((i) => (i + 1) % items.length),
-      15000,
-    );
+    if (!autoRotate || paused || expanded || items.length < 2) return;
+    const timer = setInterval(() => {
+      // Read live DOM focus: removing a focused headline need not emit blur.
+      const active = document.activeElement;
+      const reading =
+        active instanceof Element &&
+        card.current?.contains(active) &&
+        !!active.closest(".headline-preview, .detail-content");
+      if (document.hidden || (reading && active !== returnedLink.current))
+        return;
+      setIndex((i) => (i + 1) % items.length);
+    }, 15000);
     return () => clearInterval(timer);
-  }, [autoRotate, paused, expanded, focused, items.length]);
+  }, [autoRotate, paused, expanded, items.length]);
   const headline = (v: (typeof items)[number], detail = false) => (
     <article key={v.feed.id + v.id}>
       {detail && (
@@ -50,19 +94,39 @@ export function RssCard({
   return (
     <section
       className="card rss-card"
+      ref={card}
+      onClick={(event) => {
+        const link =
+          event.target instanceof Element
+            ? event.target.closest<HTMLAnchorElement>(
+                ".headline-preview a[target='_blank']",
+              )
+            : null;
+        if (
+          link &&
+          !event.defaultPrevented &&
+          event.button === 0 &&
+          !event.ctrlKey &&
+          !event.metaKey &&
+          !event.altKey &&
+          !event.shiftKey
+        ) {
+          // Explicit article activation (pointer or keyboard) plus an observed
+          // departure is required; ordinary reading focus never grants this.
+          articleTrip.current = { link, departed: false };
+        }
+      }}
       onFocusCapture={(event) => {
-        // Reading should pause rotation; the explicit pause/resume control must not.
-        setFocused(
-          !!event.target.closest(".headline-preview, .detail-content"),
-        );
+        if (event.target !== returnedLink.current) returnedLink.current = null;
+        if (event.target !== articleTrip.current?.link)
+          articleTrip.current = null;
       }}
       onBlurCapture={(event) => {
-        const target = event.relatedTarget;
-        setFocused(
-          target instanceof Element &&
-            event.currentTarget.contains(target) &&
-            !!target.closest(".headline-preview, .detail-content"),
-        );
+        // A null target can be a window departure, not a new reading target.
+        if (event.relatedTarget && event.relatedTarget !== event.target) {
+          articleTrip.current = null;
+          returnedLink.current = null;
+        }
       }}
     >
       <h2>

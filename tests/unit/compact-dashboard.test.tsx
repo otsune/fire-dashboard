@@ -83,7 +83,7 @@ it("stops headline rotation while a reader focuses the ticker", () => {
     <RssCard feeds={feeds} autoRotate={true} timeZone="UTC" now={now} />,
   );
   const preview = container.querySelector(".headline-preview")!;
-  fireEvent.focus(preview.querySelector("a")!);
+  act(() => preview.querySelector("a")!.focus());
   act(() => vi.advanceTimersByTime(16000));
   expect(preview).toHaveTextContent("記事0");
   vi.useRealTimers();
