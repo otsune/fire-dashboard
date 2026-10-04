@@ -406,6 +406,54 @@ test.describe("Weather shortcut with configured forecast at 960×600", () => {
         page.getByRole("button", { name: "天気の地域を設定", exact: true }),
       ).toBeFocused();
     });
+
+    test(`${longLabels ? "long" : "short"} region keeps a long forecast preview usable and the complete forecast in details`, async ({
+      page,
+    }) => {
+      const forecastSummary =
+        "晴れ時々くもり。昼過ぎから雨で、所により雷を伴い激しく降る。".repeat(
+          12,
+        );
+      await setupSettings(page, {
+        longLabels,
+        configuredForecast: true,
+        forecastSummary,
+      });
+      const card = page.locator(".weather-card");
+      const overview = card.locator(":scope > .forecast");
+      const condition = overview.locator("strong");
+      await expect(condition).toHaveText(forecastSummary);
+      await expectWeatherShortcutContained(page);
+      const conditionBounds = await condition.boundingBox();
+      const lineHeight = await condition.evaluate((element) =>
+        Number.parseFloat(getComputedStyle(element).lineHeight),
+      );
+      expect(conditionBounds!.height).toBeGreaterThanOrEqual(lineHeight - 1);
+      expect(conditionBounds!.height).toBeLessThanOrEqual(lineHeight + 1);
+      for (const field of await overview.locator(":scope > span").all())
+        await expectReadable(page, field);
+      await expect(overview).toContainText("予報気温 19〜27 °C");
+      await expect(overview).toContainText("降水 20%");
+      const details = card.locator("details");
+      await details.locator("summary").click();
+      await expect(details).toHaveJSProperty("open", true);
+      const fullCondition = details.getByText(forecastSummary, { exact: true });
+      await expect(fullCondition).toBeVisible();
+      await expectReadable(page, fullCondition);
+      await expect(details.locator(".forecast")).toHaveCount(4);
+      for (const field of await details
+        .locator(".forecast")
+        .first()
+        .locator(":scope > span")
+        .all())
+        await expectReadable(page, field);
+      await details.getByRole("button", { name: "詳細を閉じる" }).click();
+      await expect(details).toHaveJSProperty("open", false);
+      await expect(details.locator("summary")).toBeFocused();
+      await expectWeatherShortcutContained(page);
+      await openSettings(page, true);
+      await closeSettings(page);
+    });
   }
 });
 

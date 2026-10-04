@@ -49,7 +49,12 @@ type InstrumentedWindow = Window & {
 /** Local, synthetic API only. No account, authorization or collector is changed. */
 export async function setupSettings(
   page: Page,
-  { canEdit = true, longLabels = false, configuredForecast = false } = {},
+  {
+    canEdit = true,
+    longLabels = false,
+    configuredForecast = false,
+    forecastSummary = "晴れ時々くもり",
+  } = {},
 ) {
   await page.clock.setFixedTime(fixtureTime);
   await page.addInitScript(
@@ -105,7 +110,7 @@ export async function setupSettings(
             endsAt: new Date(
               fixtureTime.getTime() + (index + 1) * 6 * 3_600_000,
             ).toISOString(),
-            summary: index === 0 ? "晴れ時々くもり" : `詳細予報 ${index + 1}`,
+            summary: index === 0 ? forecastSummary : `詳細予報 ${index + 1}`,
             weatherCode: "101",
             temperatureMinC: 19,
             temperatureMaxC: 27,
@@ -250,6 +255,11 @@ export async function expectWeatherShortcutContained(page: Page) {
   await expect(button).toBeEnabled();
   const cardBounds = await card.boundingBox();
   const buttonBounds = await button.boundingBox();
+  const summary = card.locator("details > summary");
+  const summaryBounds = await summary.boundingBox();
+  expect(summaryBounds).not.toBeNull();
+  expect(summaryBounds!.height).toBeGreaterThanOrEqual(44);
+  expect(summaryBounds!.width).toBeGreaterThanOrEqual(44);
   expect(cardBounds).not.toBeNull();
   expect(buttonBounds).not.toBeNull();
   expect(buttonBounds!.height).toBeGreaterThanOrEqual(44);
@@ -259,8 +269,9 @@ export async function expectWeatherShortcutContained(page: Page) {
     card.getByRole("heading"),
     card.locator(".status"),
     card.locator(":scope > .forecast, :scope > p"),
+    ...(await card.locator(":scope > .forecast > *").all()),
     button,
-    card.locator("details > summary"),
+    summary,
   ]) {
     await expect(locator).toBeVisible();
     const bounds = await locator.boundingBox();
@@ -274,8 +285,33 @@ export async function expectWeatherShortcutContained(page: Page) {
       cardBounds!.y + cardBounds!.height + 1,
     );
   }
+  const overlapWidth = Math.max(
+    0,
+    Math.min(
+      buttonBounds!.x + buttonBounds!.width,
+      summaryBounds!.x + summaryBounds!.width,
+    ) - Math.max(buttonBounds!.x, summaryBounds!.x),
+  );
+  const overlapHeight = Math.max(
+    0,
+    Math.min(
+      buttonBounds!.y + buttonBounds!.height,
+      summaryBounds!.y + summaryBounds!.height,
+    ) - Math.max(buttonBounds!.y, summaryBounds!.y),
+  );
+  expect(
+    overlapWidth * overlapHeight,
+    "weather controls must not overlap",
+  ).toBe(0);
   const viewport = page.viewportSize()!;
   if (viewport.width > viewport.height) {
+    expect(
+      await card.evaluate((element) => ({
+        width: element.scrollWidth <= element.clientWidth + 1,
+        height: element.scrollHeight <= element.clientHeight + 1,
+      })),
+      "the entire collapsed weather card must fit without hidden overflow",
+    ).toEqual({ width: true, height: true });
     expect(cardBounds!.x).toBeGreaterThanOrEqual(0);
     expect(cardBounds!.y).toBeGreaterThanOrEqual(0);
     expect(cardBounds!.x + cardBounds!.width).toBeLessThanOrEqual(
@@ -306,6 +342,7 @@ export async function expectWeatherShortcutContained(page: Page) {
   }
   // Playwright checks real hit testing; the caller then clicks normally to open.
   await button.click({ trial: true });
+  await summary.click({ trial: true });
 }
 
 export async function closeSettings(page: Page) {
