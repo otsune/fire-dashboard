@@ -17,7 +17,8 @@
     "start:api": "tsx services/aggregator/src/start.ts",
     "test:e2e": "playwright test",
     "build:collectors": "node scripts/build-collectors.mjs",
-    "build:api": "node scripts/build-api.mjs"
+    "build:api": "node scripts/build-api.mjs",
+    "build:private-audio": "node --import tsx scripts/build-private-audio.ts"
   },
   "dependencies": {
     "fast-xml-parser": "5.11.2",

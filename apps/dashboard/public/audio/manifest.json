@@ -1,1 +1,202 @@
-{"hours":{},"chime":null}
+{
+  "hours": {
+    "00": {
+      "url": "/audio/gemini/12h/hour-00.wav",
+      "license": "User-provided Google AI Studio / Gemini TTS output, supplied 2026-10-04 and included with the project owner's approval. Separate from the code license; see /audio/gemini/NOTICE.txt and /audio/gemini/provenance.json for source, applicable terms, and verification limits."
+    },
+    "01": {
+      "url": "/audio/gemini/12h/hour-01.wav",
+      "license": "User-provided Google AI Studio / Gemini TTS output, supplied 2026-10-04 and included with the project owner's approval. Separate from the code license; see /audio/gemini/NOTICE.txt and /audio/gemini/provenance.json for source, applicable terms, and verification limits."
+    },
+    "02": {
+      "url": "/audio/gemini/12h/hour-02.wav",
+      "license": "User-provided Google AI Studio / Gemini TTS output, supplied 2026-10-04 and included with the project owner's approval. Separate from the code license; see /audio/gemini/NOTICE.txt and /audio/gemini/provenance.json for source, applicable terms, and verification limits."
+    },
+    "03": {
+      "url": "/audio/gemini/12h/hour-03.wav",
+      "license": "User-provided Google AI Studio / Gemini TTS output, supplied 2026-10-04 and included with the project owner's approval. Separate from the code license; see /audio/gemini/NOTICE.txt and /audio/gemini/provenance.json for source, applicable terms, and verification limits."
+    },
+    "04": {
+      "url": "/audio/gemini/12h/hour-04.wav",
+      "license": "User-provided Google AI Studio / Gemini TTS output, supplied 2026-10-04 and included with the project owner's approval. Separate from the code license; see /audio/gemini/NOTICE.txt and /audio/gemini/provenance.json for source, applicable terms, and verification limits."
+    },
+    "05": {
+      "url": "/audio/gemini/12h/hour-05.wav",
+      "license": "User-provided Google AI Studio / Gemini TTS output, supplied 2026-10-04 and included with the project owner's approval. Separate from the code license; see /audio/gemini/NOTICE.txt and /audio/gemini/provenance.json for source, applicable terms, and verification limits."
+    },
+    "06": {
+      "url": "/audio/gemini/12h/hour-06.wav",
+      "license": "User-provided Google AI Studio / Gemini TTS output, supplied 2026-10-04 and included with the project owner's approval. Separate from the code license; see /audio/gemini/NOTICE.txt and /audio/gemini/provenance.json for source, applicable terms, and verification limits."
+    },
+    "07": {
+      "url": "/audio/gemini/12h/hour-07.wav",
+      "license": "User-provided Google AI Studio / Gemini TTS output, supplied 2026-10-04 and included with the project owner's approval. Separate from the code license; see /audio/gemini/NOTICE.txt and /audio/gemini/provenance.json for source, applicable terms, and verification limits."
+    },
+    "08": {
+      "url": "/audio/gemini/12h/hour-08.wav",
+      "license": "User-provided Google AI Studio / Gemini TTS output, supplied 2026-10-04 and included with the project owner's approval. Separate from the code license; see /audio/gemini/NOTICE.txt and /audio/gemini/provenance.json for source, applicable terms, and verification limits."
+    },
+    "09": {
+      "url": "/audio/gemini/12h/hour-09.wav",
+      "license": "User-provided Google AI Studio / Gemini TTS output, supplied 2026-10-04 and included with the project owner's approval. Separate from the code license; see /audio/gemini/NOTICE.txt and /audio/gemini/provenance.json for source, applicable terms, and verification limits."
+    },
+    "10": {
+      "url": "/audio/gemini/12h/hour-10.wav",
+      "license": "User-provided Google AI Studio / Gemini TTS output, supplied 2026-10-04 and included with the project owner's approval. Separate from the code license; see /audio/gemini/NOTICE.txt and /audio/gemini/provenance.json for source, applicable terms, and verification limits."
+    },
+    "11": {
+      "url": "/audio/gemini/12h/hour-11.wav",
+      "license": "User-provided Google AI Studio / Gemini TTS output, supplied 2026-10-04 and included with the project owner's approval. Separate from the code license; see /audio/gemini/NOTICE.txt and /audio/gemini/provenance.json for source, applicable terms, and verification limits."
+    },
+    "12": {
+      "url": "/audio/gemini/12h/hour-12.wav",
+      "license": "User-provided Google AI Studio / Gemini TTS output, supplied 2026-10-04 and included with the project owner's approval. Separate from the code license; see /audio/gemini/NOTICE.txt and /audio/gemini/provenance.json for source, applicable terms, and verification limits."
+    },
+    "13": {
+      "url": "/audio/gemini/12h/hour-13.wav",
+      "license": "User-provided Google AI Studio / Gemini TTS output, supplied 2026-10-04 and included with the project owner's approval. Separate from the code license; see /audio/gemini/NOTICE.txt and /audio/gemini/provenance.json for source, applicable terms, and verification limits."
+    },
+    "14": {
+      "url": "/audio/gemini/12h/hour-14.wav",
+      "license": "User-provided Google AI Studio / Gemini TTS output, supplied 2026-10-04 and included with the project owner's approval. Separate from the code license; see /audio/gemini/NOTICE.txt and /audio/gemini/provenance.json for source, applicable terms, and verification limits."
+    },
+    "15": {
+      "url": "/audio/gemini/12h/hour-15.wav",
+      "license": "User-provided Google AI Studio / Gemini TTS output, supplied 2026-10-04 and included with the project owner's approval. Separate from the code license; see /audio/gemini/NOTICE.txt and /audio/gemini/provenance.json for source, applicable terms, and verification limits."
+    },
+    "16": {
+      "url": "/audio/gemini/12h/hour-16.wav",
+      "license": "User-provided Google AI Studio / Gemini TTS output, supplied 2026-10-04 and included with the project owner's approval. Separate from the code license; see /audio/gemini/NOTICE.txt and /audio/gemini/provenance.json for source, applicable terms, and verification limits."
+    },
+    "17": {
+      "url": "/audio/gemini/12h/hour-17.wav",
+      "license": "User-provided Google AI Studio / Gemini TTS output, supplied 2026-10-04 and included with the project owner's approval. Separate from the code license; see /audio/gemini/NOTICE.txt and /audio/gemini/provenance.json for source, applicable terms, and verification limits."
+    },
+    "18": {
+      "url": "/audio/gemini/12h/hour-18.wav",
+      "license": "User-provided Google AI Studio / Gemini TTS output, supplied 2026-10-04 and included with the project owner's approval. Separate from the code license; see /audio/gemini/NOTICE.txt and /audio/gemini/provenance.json for source, applicable terms, and verification limits."
+    },
+    "19": {
+      "url": "/audio/gemini/12h/hour-19.wav",
+      "license": "User-provided Google AI Studio / Gemini TTS output, supplied 2026-10-04 and included with the project owner's approval. Separate from the code license; see /audio/gemini/NOTICE.txt and /audio/gemini/provenance.json for source, applicable terms, and verification limits."
+    },
+    "20": {
+      "url": "/audio/gemini/12h/hour-20.wav",
+      "license": "User-provided Google AI Studio / Gemini TTS output, supplied 2026-10-04 and included with the project owner's approval. Separate from the code license; see /audio/gemini/NOTICE.txt and /audio/gemini/provenance.json for source, applicable terms, and verification limits."
+    },
+    "21": {
+      "url": "/audio/gemini/12h/hour-21.wav",
+      "license": "User-provided Google AI Studio / Gemini TTS output, supplied 2026-10-04 and included with the project owner's approval. Separate from the code license; see /audio/gemini/NOTICE.txt and /audio/gemini/provenance.json for source, applicable terms, and verification limits."
+    },
+    "22": {
+      "url": "/audio/gemini/12h/hour-22.wav",
+      "license": "User-provided Google AI Studio / Gemini TTS output, supplied 2026-10-04 and included with the project owner's approval. Separate from the code license; see /audio/gemini/NOTICE.txt and /audio/gemini/provenance.json for source, applicable terms, and verification limits."
+    },
+    "23": {
+      "url": "/audio/gemini/12h/hour-23.wav",
+      "license": "User-provided Google AI Studio / Gemini TTS output, supplied 2026-10-04 and included with the project owner's approval. Separate from the code license; see /audio/gemini/NOTICE.txt and /audio/gemini/provenance.json for source, applicable terms, and verification limits."
+    }
+  },
+  "chime": {
+    "url": "/audio/chime_Eb5_C5_Eb5_Ab5.wav",
+    "license": "Unlicense; original mathematically synthesized Eb5 C5 Eb5 Ab5 chime. See docs/audio-assets.md for provenance."
+  },
+  "hours24": {
+    "00": {
+      "url": "/audio/gemini/24h/hour-00.wav",
+      "license": "User-provided Google AI Studio / Gemini TTS output, supplied 2026-10-04 and included with the project owner's approval. Separate from the code license; see /audio/gemini/NOTICE.txt and /audio/gemini/provenance.json for source, applicable terms, and verification limits."
+    },
+    "01": {
+      "url": "/audio/gemini/24h/hour-01.wav",
+      "license": "User-provided Google AI Studio / Gemini TTS output, supplied 2026-10-04 and included with the project owner's approval. Separate from the code license; see /audio/gemini/NOTICE.txt and /audio/gemini/provenance.json for source, applicable terms, and verification limits."
+    },
+    "02": {
+      "url": "/audio/gemini/24h/hour-02.wav",
+      "license": "User-provided Google AI Studio / Gemini TTS output, supplied 2026-10-04 and included with the project owner's approval. Separate from the code license; see /audio/gemini/NOTICE.txt and /audio/gemini/provenance.json for source, applicable terms, and verification limits."
+    },
+    "03": {
+      "url": "/audio/gemini/24h/hour-03.wav",
+      "license": "User-provided Google AI Studio / Gemini TTS output, supplied 2026-10-04 and included with the project owner's approval. Separate from the code license; see /audio/gemini/NOTICE.txt and /audio/gemini/provenance.json for source, applicable terms, and verification limits."
+    },
+    "04": {
+      "url": "/audio/gemini/24h/hour-04.wav",
+      "license": "User-provided Google AI Studio / Gemini TTS output, supplied 2026-10-04 and included with the project owner's approval. Separate from the code license; see /audio/gemini/NOTICE.txt and /audio/gemini/provenance.json for source, applicable terms, and verification limits."
+    },
+    "05": {
+      "url": "/audio/gemini/24h/hour-05.wav",
+      "license": "User-provided Google AI Studio / Gemini TTS output, supplied 2026-10-04 and included with the project owner's approval. Separate from the code license; see /audio/gemini/NOTICE.txt and /audio/gemini/provenance.json for source, applicable terms, and verification limits."
+    },
+    "06": {
+      "url": "/audio/gemini/24h/hour-06.wav",
+      "license": "User-provided Google AI Studio / Gemini TTS output, supplied 2026-10-04 and included with the project owner's approval. Separate from the code license; see /audio/gemini/NOTICE.txt and /audio/gemini/provenance.json for source, applicable terms, and verification limits."
+    },
+    "07": {
+      "url": "/audio/gemini/24h/hour-07.wav",
+      "license": "User-provided Google AI Studio / Gemini TTS output, supplied 2026-10-04 and included with the project owner's approval. Separate from the code license; see /audio/gemini/NOTICE.txt and /audio/gemini/provenance.json for source, applicable terms, and verification limits."
+    },
+    "08": {
+      "url": "/audio/gemini/24h/hour-08.wav",
+      "license": "User-provided Google AI Studio / Gemini TTS output, supplied 2026-10-04 and included with the project owner's approval. Separate from the code license; see /audio/gemini/NOTICE.txt and /audio/gemini/provenance.json for source, applicable terms, and verification limits."
+    },
+    "09": {
+      "url": "/audio/gemini/24h/hour-09.wav",
+      "license": "User-provided Google AI Studio / Gemini TTS output, supplied 2026-10-04 and included with the project owner's approval. Separate from the code license; see /audio/gemini/NOTICE.txt and /audio/gemini/provenance.json for source, applicable terms, and verification limits."
+    },
+    "10": {
+      "url": "/audio/gemini/24h/hour-10.wav",
+      "license": "User-provided Google AI Studio / Gemini TTS output, supplied 2026-10-04 and included with the project owner's approval. Separate from the code license; see /audio/gemini/NOTICE.txt and /audio/gemini/provenance.json for source, applicable terms, and verification limits."
+    },
+    "11": {
+      "url": "/audio/gemini/24h/hour-11.wav",
+      "license": "User-provided Google AI Studio / Gemini TTS output, supplied 2026-10-04 and included with the project owner's approval. Separate from the code license; see /audio/gemini/NOTICE.txt and /audio/gemini/provenance.json for source, applicable terms, and verification limits."
+    },
+    "12": {
+      "url": "/audio/gemini/24h/hour-12.wav",
+      "license": "User-provided Google AI Studio / Gemini TTS output, supplied 2026-10-04 and included with the project owner's approval. Separate from the code license; see /audio/gemini/NOTICE.txt and /audio/gemini/provenance.json for source, applicable terms, and verification limits."
+    },
+    "13": {
+      "url": "/audio/gemini/24h/hour-13.wav",
+      "license": "User-provided Google AI Studio / Gemini TTS output, supplied 2026-10-04 and included with the project owner's approval. Separate from the code license; see /audio/gemini/NOTICE.txt and /audio/gemini/provenance.json for source, applicable terms, and verification limits."
+    },
+    "14": {
+      "url": "/audio/gemini/24h/hour-14.wav",
+      "license": "User-provided Google AI Studio / Gemini TTS output, supplied 2026-10-04 and included with the project owner's approval. Separate from the code license; see /audio/gemini/NOTICE.txt and /audio/gemini/provenance.json for source, applicable terms, and verification limits."
+    },
+    "15": {
+      "url": "/audio/gemini/24h/hour-15.wav",
+      "license": "User-provided Google AI Studio / Gemini TTS output, supplied 2026-10-04 and included with the project owner's approval. Separate from the code license; see /audio/gemini/NOTICE.txt and /audio/gemini/provenance.json for source, applicable terms, and verification limits."
+    },
+    "16": {
+      "url": "/audio/gemini/24h/hour-16.wav",
+      "license": "User-provided Google AI Studio / Gemini TTS output, supplied 2026-10-04 and included with the project owner's approval. Separate from the code license; see /audio/gemini/NOTICE.txt and /audio/gemini/provenance.json for source, applicable terms, and verification limits."
+    },
+    "17": {
+      "url": "/audio/gemini/24h/hour-17.wav",
+      "license": "User-provided Google AI Studio / Gemini TTS output, supplied 2026-10-04 and included with the project owner's approval. Separate from the code license; see /audio/gemini/NOTICE.txt and /audio/gemini/provenance.json for source, applicable terms, and verification limits."
+    },
+    "18": {
+      "url": "/audio/gemini/24h/hour-18.wav",
+      "license": "User-provided Google AI Studio / Gemini TTS output, supplied 2026-10-04 and included with the project owner's approval. Separate from the code license; see /audio/gemini/NOTICE.txt and /audio/gemini/provenance.json for source, applicable terms, and verification limits."
+    },
+    "19": {
+      "url": "/audio/gemini/24h/hour-19.wav",
+      "license": "User-provided Google AI Studio / Gemini TTS output, supplied 2026-10-04 and included with the project owner's approval. Separate from the code license; see /audio/gemini/NOTICE.txt and /audio/gemini/provenance.json for source, applicable terms, and verification limits."
+    },
+    "20": {
+      "url": "/audio/gemini/24h/hour-20.wav",
+      "license": "User-provided Google AI Studio / Gemini TTS output, supplied 2026-10-04 and included with the project owner's approval. Separate from the code license; see /audio/gemini/NOTICE.txt and /audio/gemini/provenance.json for source, applicable terms, and verification limits."
+    },
+    "21": {
+      "url": "/audio/gemini/24h/hour-21.wav",
+      "license": "User-provided Google AI Studio / Gemini TTS output, supplied 2026-10-04 and included with the project owner's approval. Separate from the code license; see /audio/gemini/NOTICE.txt and /audio/gemini/provenance.json for source, applicable terms, and verification limits."
+    },
+    "22": {
+      "url": "/audio/gemini/24h/hour-22.wav",
+      "license": "User-provided Google AI Studio / Gemini TTS output, supplied 2026-10-04 and included with the project owner's approval. Separate from the code license; see /audio/gemini/NOTICE.txt and /audio/gemini/provenance.json for source, applicable terms, and verification limits."
+    },
+    "23": {
+      "url": "/audio/gemini/24h/hour-23.wav",
+      "license": "User-provided Google AI Studio / Gemini TTS output, supplied 2026-10-04 and included with the project owner's approval. Separate from the code license; see /audio/gemini/NOTICE.txt and /audio/gemini/provenance.json for source, applicable terms, and verification limits."
+    }
+  }
+}

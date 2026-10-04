@@ -6,7 +6,8 @@ test("production controller claims one hour across two tabs and reload", async (
   await context.route("**/audio/manifest.json", (route) =>
     route.fulfill({
       json: {
-        hours: Object.fromEntries(
+        hours: {},
+        hours24: Object.fromEntries(
           Array.from({ length: 24 }, (_, h) => [
             String(h).padStart(2, "0"),
             { url: `/audio/${h}.mp3`, license: "acceptance fixture only" },
@@ -77,4 +78,42 @@ test("production controller claims one hour across two tabs and reload", async (
     });
   });
   expect(claims).toBe(1);
+});
+
+test("bundled original chime decodes and plays only after an explicit tap", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await expect(
+    page.getByRole("button", { name: "音声を有効にする" }),
+  ).toBeEnabled();
+  await expect(
+    page.getByRole("button", { name: "音声を無効にする" }),
+  ).toHaveCount(0);
+  const decoded = await page.evaluate(async () => {
+    const response = await fetch("/audio/chime_Eb5_C5_Eb5_Ab5.wav");
+    const context = new AudioContext();
+    try {
+      const audio = await context.decodeAudioData(await response.arrayBuffer());
+      return { duration: audio.duration, channels: audio.numberOfChannels };
+    } finally {
+      await context.close();
+    }
+  });
+  expect(decoded.duration).toBeCloseTo(3.2, 2);
+  expect(decoded.channels).toBe(1);
+  await page.getByRole("button", { name: "設定", exact: true }).click();
+  await page.getByLabel("時報の種類").selectOption("chime");
+  await page.getByRole("button", { name: "時計に戻る" }).click();
+  await expect(
+    page.getByRole("button", { name: "音声を有効にする" }),
+  ).toBeEnabled();
+  await page.getByRole("button", { name: "音声を有効にする" }).click();
+  await expect(page.getByText("音声有効", { exact: true })).toBeVisible({
+    timeout: 10000,
+  });
+  await page.reload();
+  await expect(
+    page.getByRole("button", { name: "音声を有効にする" }),
+  ).toBeEnabled();
 });

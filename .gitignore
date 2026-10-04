@@ -5,3 +5,17 @@ test-results/
 .runtime/
 .env*
 !.env.example
+
+# Unapproved external/private voice assets stay out of Git.
+# Only the approved bundled Gemini directories are allowlisted below.
+private-audio/
+ayana-hourly-private*/
+ayana-hourly-private*.zip
+hour-??.mp3
+hour-??.wav
+gemini-hourly*/
+gemini-hourly*.zip
+apps/dashboard/public/audio/private/
+
+!apps/dashboard/public/audio/gemini/12h/hour-??.wav
+!apps/dashboard/public/audio/gemini/24h/hour-??.wav

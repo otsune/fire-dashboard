@@ -38,7 +38,7 @@ it("keeps the clock settings usable when the localStorage property getter throws
   try {
     expect(loadSettings().value.timeZone).toBe("Asia/Tokyo");
     expect(loadSettings().warning).toBeTruthy();
-    expect(saveSettings(parseSettings({}))).toBe(false);
+    expect(saveSettings(parseSettings({ hour12: true }))).toBe(false);
   } finally {
     if (old) Object.defineProperty(globalThis, "localStorage", old);
     else delete (globalThis as { localStorage?: Storage }).localStorage;
@@ -79,7 +79,7 @@ it.each(["disable", "stop", "hidden", "settings", "expired"])(
     let wall = 0,
       mono = 0,
       visible = true;
-    let settings = parseSettings({ timeZone: "UTC" });
+    let settings = parseSettings({ timeZone: "UTC", hour12: true });
     const played: string[] = [];
     const c = createAudioController(() => settings, manifest, {
       play: async (url) => {
@@ -126,7 +126,7 @@ it("rechecks the expiry after waiting for playback arbitration", async () => {
     mono = 0;
   const played: string[] = [];
   const c = createAudioController(
-    () => parseSettings({ timeZone: "UTC" }),
+    () => parseSettings({ timeZone: "UTC", hour12: true }),
     manifest,
     {
       play: async (url) => {
@@ -164,31 +164,39 @@ it("a wall-clock jump cannot steal a live owner lease", async () => {
   });
   let active = 0,
     max = 0;
-  const a = createAudioController(() => parseSettings({}), manifest, {
-    play: async (url, _v, signal) => {
-      if (url === "/audio/0.mp3") return;
-      active++;
-      max = Math.max(max, active);
-      started();
-      await new Promise<void>((resolve) =>
-        signal.addEventListener(
-          "abort",
-          () => {
-            active--;
-            resolve();
-          },
-          { once: true },
-        ),
-      );
+  const a = createAudioController(
+    () => parseSettings({ hour12: true }),
+    manifest,
+    {
+      play: async (url, _v, signal) => {
+        if (url === "/audio/0.mp3") return;
+        active++;
+        max = Math.max(max, active);
+        started();
+        await new Promise<void>((resolve) =>
+          signal.addEventListener(
+            "abort",
+            () => {
+              active--;
+              resolve();
+            },
+            { once: true },
+          ),
+        );
+      },
     },
-  });
-  const b = createAudioController(() => parseSettings({}), manifest, {
-    play: async () => {
-      active++;
-      max = Math.max(max, active);
-      active--;
+  );
+  const b = createAudioController(
+    () => parseSettings({ hour12: true }),
+    manifest,
+    {
+      play: async () => {
+        active++;
+        max = Math.max(max, active);
+        active--;
+      },
     },
-  });
+  );
   try {
     await a.enable();
     const pending = a.preview(10);
@@ -235,11 +243,15 @@ it("recovers an orphan only while holding an exclusive browser lock", async () =
       },
     },
   });
-  const c = createAudioController(() => parseSettings({}), manifest, {
-    play: async () => {
-      expect(locked).toBe(true);
+  const c = createAudioController(
+    () => parseSettings({ hour12: true }),
+    manifest,
+    {
+      play: async () => {
+        expect(locked).toBe(true);
+      },
     },
-  });
+  );
   try {
     expect(await c.enable()).toBe(true);
   } finally {
@@ -258,11 +270,15 @@ it("identifies a live browser lock as busy instead of missing assets", async () 
       ) => callback(null),
     },
   });
-  const c = createAudioController(() => parseSettings({}), manifest, {
-    play: async () => {
-      throw Error("must not play");
+  const c = createAudioController(
+    () => parseSettings({ hour12: true }),
+    manifest,
+    {
+      play: async () => {
+        throw Error("must not play");
+      },
     },
-  });
+  );
   try {
     expect(await c.enable()).toBe(false);
     expect(c.state().message).toContain("別の画面");

@@ -50,8 +50,7 @@ export function App() {
   useEffect(() => {
     settingsRef.current = settings;
     generation.current++;
-    if (settings.audioMode === "off") audio?.disable();
-    else void audio?.stop();
+    void audio?.settingsChanged();
   }, [settings, audio]);
   useEffect(() => {
     let cancelled = false,
