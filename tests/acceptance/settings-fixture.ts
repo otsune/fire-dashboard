@@ -285,6 +285,46 @@ export async function expectWeatherShortcutContained(page: Page) {
       cardBounds!.y + cardBounds!.height + 1,
     );
   }
+  // A long overview condition may be horizontally ellipsized, but its rendered
+  // text must still fit vertically. Element boxes alone cannot detect clipping.
+  for (const field of await card.locator(":scope > .forecast > *").all()) {
+    const issues = await field.evaluate((element) => {
+      const errors: string[] = [];
+      const range = document.createRange();
+      range.selectNodeContents(element);
+      const rects = Array.from(range.getClientRects()).filter(
+        (rect) => rect.width && rect.height,
+      );
+      if (!rects.length) errors.push("no rendered forecast text");
+      const card = element.closest(".weather-card")!.getBoundingClientRect();
+      for (const rect of rects) {
+        if (rect.top < -1 || rect.bottom > innerHeight + 1)
+          errors.push("outside viewport vertically");
+        if (rect.top < card.top - 1 || rect.bottom > card.bottom + 1)
+          errors.push("outside weather card vertically");
+        for (
+          let ancestor: HTMLElement | null = element as HTMLElement;
+          ancestor;
+          ancestor = ancestor.parentElement
+        ) {
+          const style = getComputedStyle(ancestor);
+          const bounds = ancestor.getBoundingClientRect();
+          const top = bounds.top + ancestor.clientTop;
+          if (
+            /(hidden|clip|auto|scroll)/.test(style.overflowY) &&
+            (rect.top < top - 1 ||
+              rect.bottom > top + ancestor.clientHeight + 1)
+          )
+            errors.push(`vertically clipped by ${ancestor.tagName}`);
+        }
+      }
+      return errors;
+    });
+    expect(
+      issues,
+      "forecast text must fit vertically, including its line box",
+    ).toEqual([]);
+  }
   const overlapWidth = Math.max(
     0,
     Math.min(

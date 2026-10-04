@@ -381,6 +381,7 @@ test.describe("Weather shortcut with configured forecast at 960×600", () => {
         "晴れ時々くもり",
       );
       await expectWeatherShortcutContained(page);
+      await expectReadable(page, card.locator(":scope > .forecast"));
       const details = card.locator("details");
       await details.locator("summary").click();
       await expect(details).toHaveJSProperty("open", true);
