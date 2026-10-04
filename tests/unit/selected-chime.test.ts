@@ -8,16 +8,17 @@ import {
 import { createAudioController } from "../../apps/dashboard/src/audio/controller";
 import { parseSettings } from "../../packages/contracts/src/index";
 
-it("bundles only the selected original chime and keeps voice modes unavailable", async () => {
+it("keeps the selected original chime and requires an explicit enable tap", async () => {
   const manifest = parseManifest(
     JSON.parse(
       await readFile("apps/dashboard/public/audio/manifest.json", "utf8"),
     ),
   );
   expect(modeReady(manifest, "chime")).toBe(true);
-  expect(modeReady(manifest, "voice")).toBe(false);
-  expect(modeReady(manifest, "both")).toBe(false);
-  expect(manifest.hours).toEqual({});
+  expect(modeReady(manifest, "voice", true)).toBe(true);
+  expect(modeReady(manifest, "voice", false)).toBe(true);
+  expect(modeReady(manifest, "both", true)).toBe(true);
+  expect(modeReady(manifest, "both", false)).toBe(true);
   expect(manifest.chime?.url).toBe("/audio/chime_Eb5_C5_Eb5_Ab5.wav");
   const wave = await readFile(`apps/dashboard/public${manifest.chime!.url}`);
   expect(createHash("sha256").update(wave).digest("hex")).toBe(

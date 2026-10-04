@@ -440,3 +440,20 @@ it("rejects missing license metadata in the 24h set", async () => {
     preparePrivateAudio({ "12h": source, "24h": nativeSource }),
   ).rejects.toThrow(/license/);
 });
+
+it("overrides only the selected format while retaining the bundled other set", async () => {
+  const bundled = JSON.parse(
+    await readFile("apps/dashboard/public/audio/manifest.json", "utf8"),
+  );
+  expect(modeReady(bundled, "voice", false)).toBe(true);
+  const output = join(root, "dist", "audio");
+  await mkdir(output, { recursive: true });
+  await writeFile(join(output, "manifest.json"), JSON.stringify(bundled));
+  await installPrivateAudio(await readPrivateAudio(source), output, "12h");
+  const deployed = JSON.parse(
+    await readFile(join(output, "manifest.json"), "utf8"),
+  );
+  expect(deployed.hours24).toEqual(bundled.hours24);
+  expect(deployed.chime).toEqual(bundled.chime);
+  expect(deployed.hours["00"].url).toBe("/audio/private/hour-00.mp3");
+});

@@ -86,7 +86,10 @@ test("bundled original chime decodes and plays only after an explicit tap", asyn
   await page.goto("/");
   await expect(
     page.getByRole("button", { name: "音声を有効にする" }),
-  ).toBeDisabled();
+  ).toBeEnabled();
+  await expect(
+    page.getByRole("button", { name: "音声を無効にする" }),
+  ).toHaveCount(0);
   const decoded = await page.evaluate(async () => {
     const response = await fetch("/audio/chime_Eb5_C5_Eb5_Ab5.wav");
     const context = new AudioContext();

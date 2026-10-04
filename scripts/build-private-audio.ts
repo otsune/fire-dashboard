@@ -160,7 +160,7 @@ async function main(): Promise<void> {
     stdio: "inherit",
   });
   console.log(
-    `Private build ready: ${formats.filter((format) => bundles[format]).join(" + ")} hourly clips + bundled chime. Keep this dist private; deploy only to your authorized home server. Sound still requires a tap.`,
+    `Private override build ready: ${formats.filter((format) => bundles[format]).join(" + ")}. Other formats retain bundled audio. Keep this dist private; deploy only to your authorized home server. Sound still requires a tap.`,
   );
 }
 

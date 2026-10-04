@@ -1,0 +1,30 @@
+Gemini TTS hourly audio — source and terms notice
+
+The 48 WAV files in 12h/ and 24h/ were derived from two combined
+Gemini TTS recordings provided by the user from Windows on 2026-10-04.
+They are included with the user's approval for public repository publication.
+The exact model and voice were not independently verified.
+
+Splitting preserves the native PCM segments, including boundary silence,
+without resampling, gain changes, fades, or lossy encoding.
+provenance.json records expected scripts, file hashes, formats and durations.
+Expected scripts are not verified transcripts: speech and hour ordering have
+not been checked by listening or speech recognition. Fire-device playback
+and audio quality remain unverified.
+
+The repository's Unlicense covers its code and original synthesized chime.
+These Gemini-generated recordings are documented separately. This notice
+does not say that Google licenses generated output under the Unlicense,
+and does not grant a new license for the recordings.
+
+Google's Gemini API Additional Terms, "Use of Generated Content", state that
+Google does not claim ownership of generated content. Users remain
+responsible for its use, applicable law, and use by people they share it with.
+Google APIs Terms section 5(e) addresses content permissions, truthful source
+and ownership identification, and retention of rights and attribution notices.
+Applicable third-party rights must be respected. This is a source-and-terms
+record, not a guarantee that every use or redistribution is permitted.
+
+Official terms checked on 2026-10-04:
+https://ai.google.dev/gemini-api/terms
+https://developers.google.com/terms
