@@ -865,6 +865,17 @@ summary:focus-visible {
   .overview .weather-card {
     justify-content: flex-start;
   }
+  .overview .weather-card .card-heading h2 {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+  .overview .weather-card .card-heading .status {
+    flex: none;
+    white-space: nowrap;
+  }
   .overview .weather-card > .forecast {
     margin: auto 0;
     padding: 4px 0;

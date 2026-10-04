@@ -71,6 +71,7 @@ export function WeatherCard({
             </p>
           ) : (
             <>
+              <p className="small">予報地方：{value.regionLabel ?? "未設定"}</p>
               <p className="small">
                 気温地点：{value.temperatureStationLabel ?? "未設定"}
               </p>

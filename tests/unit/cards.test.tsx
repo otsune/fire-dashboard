@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 import React from "react";
 import { it, expect, afterEach } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+import { render, screen, cleanup, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import {
   emptyDashboard,
   emptyCommon,
@@ -21,6 +22,61 @@ it("makes missing weather region explicit", () => {
     />,
   );
   expect(screen.getByText("地域未設定")).toBeInTheDocument();
+});
+it("retains complete weather names and forecasts in openable details", async () => {
+  const regionLabel =
+    "東京地方・多摩西部・伊豆諸島北部を含む長い予報地域の表示確認".repeat(3);
+  const stationLabel =
+    "山間部と離島を含む非常に長い気温代表地点の表示確認".repeat(3);
+  const periods = Array.from({ length: 4 }, (_, index) => ({
+    startsAt: new Date(now + index * 3_600_000).toISOString(),
+    endsAt: new Date(now + (index + 1) * 3_600_000).toISOString(),
+    summary: `予報 ${index + 1}`,
+    weatherCode: null,
+    temperatureMinC: 19,
+    temperatureMaxC: 27,
+    precipitationProbabilityPct: 20,
+  }));
+  const { container } = render(
+    <WeatherCard
+      value={{
+        ...emptyDashboard().weather,
+        regionId: "130010",
+        regionLabel,
+        temperatureStationLabel: stationLabel,
+        periods,
+      }}
+      timeZone="UTC"
+      now={now}
+    />,
+  );
+  expect(screen.getByRole("heading", { name: regionLabel })).toHaveTextContent(
+    regionLabel,
+  );
+  expect(
+    container.querySelector(".weather-card > .forecast"),
+  ).toHaveTextContent("予報 1");
+  const details = container.querySelector("details")!;
+  const summary = details.querySelector("summary")!;
+  const user = userEvent.setup();
+  expect(details).not.toHaveAttribute("open");
+  await user.click(summary);
+  expect(details).toHaveAttribute("open");
+  expect(
+    within(details).getByText(`予報地方：${regionLabel}`, { exact: true }),
+  ).toBeVisible();
+  expect(
+    within(details).getByText(`気温地点：${stationLabel}`, { exact: true }),
+  ).toBeVisible();
+  for (const period of periods)
+    expect(
+      within(details).getByText(period.summary, { exact: true }),
+    ).toBeVisible();
+  await user.click(
+    within(details).getByRole("button", { name: "詳細を閉じる" }),
+  );
+  expect(details).not.toHaveAttribute("open");
+  expect(summary).toHaveFocus();
 });
 it("shows an empty feed without fixture headlines", () => {
   render(

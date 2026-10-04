@@ -49,7 +49,7 @@ type InstrumentedWindow = Window & {
 /** Local, synthetic API only. No account, authorization or collector is changed. */
 export async function setupSettings(
   page: Page,
-  { canEdit = true, longLabels = false } = {},
+  { canEdit = true, longLabels = false, configuredForecast = false } = {},
 ) {
   await page.clock.setFixedTime(fixtureTime);
   await page.addInitScript(
@@ -94,6 +94,25 @@ export async function setupSettings(
         )!.label
       : null,
     status: currentSelection ? ("missing" as const) : ("unconfigured" as const),
+    ...(configuredForecast && currentSelection
+      ? {
+          ...common,
+          issuedAt: fixtureTime.toISOString(),
+          periods: Array.from({ length: 4 }, (_, index) => ({
+            startsAt: new Date(
+              fixtureTime.getTime() + index * 6 * 3_600_000,
+            ).toISOString(),
+            endsAt: new Date(
+              fixtureTime.getTime() + (index + 1) * 6 * 3_600_000,
+            ).toISOString(),
+            summary: index === 0 ? "晴れ時々くもり" : `詳細予報 ${index + 1}`,
+            weatherCode: "101",
+            temperatureMinC: 19,
+            temperatureMaxC: 27,
+            precipitationProbabilityPct: 20,
+          })),
+        }
+      : {}),
   });
   const common = {
     ...emptyCommon("ok"),
@@ -212,6 +231,81 @@ export async function openSettings(page: Page, weather = false) {
       exact: true,
     }),
   ).toBeFocused();
+}
+
+export async function expectWeatherShortcutContained(page: Page) {
+  await page.evaluate(async () => {
+    await document.fonts.ready;
+    await new Promise<void>((resolve) => {
+      requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+    });
+  });
+  const card = page.locator(".weather-card");
+  const button = card.getByRole("button", {
+    name: "天気の地域を設定",
+    exact: true,
+  });
+  await button.scrollIntoViewIfNeeded();
+  await expect(button).toBeVisible();
+  await expect(button).toBeEnabled();
+  const cardBounds = await card.boundingBox();
+  const buttonBounds = await button.boundingBox();
+  expect(cardBounds).not.toBeNull();
+  expect(buttonBounds).not.toBeNull();
+  expect(buttonBounds!.height).toBeGreaterThanOrEqual(44);
+  expect(buttonBounds!.width).toBeGreaterThanOrEqual(44);
+  for (const locator of [
+    card.locator(".card-heading"),
+    card.getByRole("heading"),
+    card.locator(".status"),
+    card.locator(":scope > .forecast, :scope > p"),
+    button,
+    card.locator("details > summary"),
+  ]) {
+    await expect(locator).toBeVisible();
+    const bounds = await locator.boundingBox();
+    expect(bounds).not.toBeNull();
+    expect(bounds!.x).toBeGreaterThanOrEqual(cardBounds!.x - 1);
+    expect(bounds!.y).toBeGreaterThanOrEqual(cardBounds!.y - 1);
+    expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(
+      cardBounds!.x + cardBounds!.width + 1,
+    );
+    expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(
+      cardBounds!.y + cardBounds!.height + 1,
+    );
+  }
+  const viewport = page.viewportSize()!;
+  if (viewport.width > viewport.height) {
+    expect(cardBounds!.x).toBeGreaterThanOrEqual(0);
+    expect(cardBounds!.y).toBeGreaterThanOrEqual(0);
+    expect(cardBounds!.x + cardBounds!.width).toBeLessThanOrEqual(
+      viewport.width + 1,
+    );
+    expect(cardBounds!.y + cardBounds!.height).toBeLessThanOrEqual(
+      viewport.height + 1,
+    );
+    const heading = card.getByRole("heading");
+    const headingBounds = await heading.boundingBox();
+    const lineHeight = await heading.evaluate((element) =>
+      Number.parseFloat(getComputedStyle(element).lineHeight),
+    );
+    expect(headingBounds!.height).toBeLessThanOrEqual(lineHeight + 1);
+    const status = card.locator(".status");
+    const statusBounds = await status.boundingBox();
+    const singleLineHeight = await status.evaluate((element) => {
+      const style = getComputedStyle(element);
+      return [
+        style.lineHeight,
+        style.paddingTop,
+        style.paddingBottom,
+        style.borderTopWidth,
+        style.borderBottomWidth,
+      ].reduce((height, value) => height + Number.parseFloat(value), 0);
+    });
+    expect(statusBounds!.height).toBeLessThanOrEqual(singleLineHeight + 1);
+  }
+  // Playwright checks real hit testing; the caller then clicks normally to open.
+  await button.click({ trial: true });
 }
 
 export async function closeSettings(page: Page) {

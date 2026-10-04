@@ -5,6 +5,7 @@ import {
   expectAudioStillDisabled,
   expectNoHorizontalOverflow,
   expectReadable,
+  expectWeatherShortcutContained,
   fixtureLicense,
   initialSettings,
   longRegion,
@@ -37,6 +38,7 @@ for (const viewport of viewports) {
       await setupSettings(page);
       const url = page.url();
       const historyLength = await page.evaluate(() => history.length);
+      await expectWeatherShortcutContained(page);
       await openSettings(page);
       const nav = page.getByRole("navigation", { name: "設定の区分" });
       await expect(nav.getByRole("button")).toHaveCount(4);
@@ -50,7 +52,7 @@ for (const viewport of viewports) {
         ).toHaveAttribute("aria-current", "page");
         if (name === "天気・地域")
           await expect(
-            page.getByLabel("気温の代表地点", { exact: true }),
+            page.getByRole("combobox", { name: "気温の代表地点", exact: true }),
           ).toBeEnabled();
         await expectNoHorizontalOverflow(page);
         for (const control of await nav.getByRole("button").all()) {
@@ -249,9 +251,10 @@ for (const viewport of viewports) {
     }, testInfo) => {
       const fixture = await setupSettings(page, { longLabels: true });
       const url = page.url();
+      await expectWeatherShortcutContained(page);
       await openSettings(page, true);
       await expect(
-        page.getByLabel("気温の代表地点", { exact: true }),
+        page.getByRole("combobox", { name: "気温の代表地点", exact: true }),
       ).toBeEnabled();
       await expect(page.locator(".weather-current dd").first()).toHaveText(
         longRegion,
@@ -263,7 +266,7 @@ for (const viewport of viewports) {
         longStation,
       );
       await page
-        .getByLabel("気温の代表地点", { exact: true })
+        .getByRole("combobox", { name: "気温の代表地点", exact: true })
         .selectOption("44133");
       const failSave = async (route: import("@playwright/test").Route) => {
         if (route.request().method() !== "PUT") return route.fallback();
@@ -277,7 +280,7 @@ for (const viewport of viewports) {
       await expect(page.getByRole("alert")).toContainText("保存された可能性");
       await expectReadable(page, page.getByRole("alert"));
       await expect(
-        page.getByLabel("気温の代表地点", { exact: true }),
+        page.getByRole("combobox", { name: "気温の代表地点", exact: true }),
       ).toHaveValue("44133");
       await testInfo.attach(
         `long-label-error-${viewport.width}x${viewport.height}`,
@@ -293,10 +296,10 @@ for (const viewport of viewports) {
         .getByRole("button", { name: "現在の設定を再読み込み" })
         .click();
       await expect(
-        page.getByLabel("気温の代表地点", { exact: true }),
+        page.getByRole("combobox", { name: "気温の代表地点", exact: true }),
       ).toHaveValue("44132");
       await page
-        .getByLabel("気温の代表地点", { exact: true })
+        .getByRole("combobox", { name: "気温の代表地点", exact: true })
         .selectOption("44133");
       await page.unroute("**/api/v1/weather-settings", failSave);
       await page.getByRole("button", { name: "保存", exact: true }).click();
@@ -316,7 +319,7 @@ for (const viewport of viewports) {
       ).toBeFocused();
       await openSettings(page, true);
       await expect(
-        page.getByLabel("気温の代表地点", { exact: true }),
+        page.getByRole("combobox", { name: "気温の代表地点", exact: true }),
       ).toHaveValue("44133");
       await closeSettings(page);
       await expectAudioStillDisabled(page);
@@ -333,12 +336,19 @@ for (const viewport of viewports) {
         longLabels: true,
       });
       const url = page.url();
+      await expectWeatherShortcutContained(page);
       await openSettings(page, true);
       await expect(
         page.getByText(/この画面は現在の設定の確認のみ/),
       ).toBeVisible();
       await expectReadable(page, page.locator(".weather-current dd").first());
       await expectReadable(page, page.locator(".weather-current dd").nth(1));
+      await expect(page.locator(".weather-current dd").first()).toHaveText(
+        longRegion,
+      );
+      await expect(page.locator(".weather-current dd").nth(1)).toHaveText(
+        longStation,
+      );
       await expect(page.getByRole("combobox")).toHaveCount(0);
       await expect(
         page.getByRole("button", { name: "保存", exact: true }),
@@ -354,6 +364,50 @@ for (const viewport of viewports) {
     });
   });
 }
+
+test.describe("Weather shortcut with configured forecast at 960×600", () => {
+  test.use({ viewport: { width: 960, height: 600 } });
+  for (const longLabels of [false, true]) {
+    test(`${longLabels ? "long" : "short"} region stays inside the card and opens normally`, async ({
+      page,
+    }) => {
+      await setupSettings(page, { longLabels, configuredForecast: true });
+      const card = page.locator(".weather-card");
+      const regionLabel = longLabels ? longRegion : "東京地方";
+      await expect(
+        card.getByRole("heading", { name: regionLabel, exact: true }),
+      ).toHaveText(regionLabel);
+      await expect(card.locator(":scope > .forecast")).toContainText(
+        "晴れ時々くもり",
+      );
+      await expectWeatherShortcutContained(page);
+      const details = card.locator("details");
+      await details.locator("summary").click();
+      await expect(details).toHaveJSProperty("open", true);
+      await expect(
+        details.getByText(`予報地方：${regionLabel}`, { exact: true }),
+      ).toBeVisible();
+      await expectReadable(
+        page,
+        details.getByText(`予報地方：${regionLabel}`, { exact: true }),
+      );
+      await expect(details.locator(".forecast")).toHaveCount(4);
+      await expect(
+        details.getByText("詳細予報 4", { exact: true }),
+      ).toBeVisible();
+      await details.getByRole("button", { name: "詳細を閉じる" }).click();
+      await expect(details).toHaveJSProperty("open", false);
+      await openSettings(page, true);
+      await expect(page.locator(".weather-current dd").first()).toHaveText(
+        regionLabel,
+      );
+      await closeSettings(page);
+      await expect(
+        page.getByRole("button", { name: "天気の地域を設定", exact: true }),
+      ).toBeFocused();
+    });
+  }
+});
 
 test("native Back/Forward, Escape and dirty guards preserve draft and opener focus", async ({
   page,
@@ -377,7 +431,10 @@ test("native Back/Forward, Escape and dirty guards preserve draft and opener foc
     page.getByRole("button", { name: "設定", exact: true }),
   ).toBeFocused();
   await openSettings(page, true);
-  const station = page.getByLabel("気温の代表地点", { exact: true });
+  const station = page.getByRole("combobox", {
+    name: "気温の代表地点",
+    exact: true,
+  });
   await station.selectOption("44133");
   await station.focus();
   await page.keyboard.press("Escape");

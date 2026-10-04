@@ -12,7 +12,7 @@ test.use({ serviceWorkers: "block" });
 async function openWeather(page: import("@playwright/test").Page) {
   await openSettings(page, true);
   await expect(
-    page.getByLabel("気温の代表地点", { exact: true }),
+    page.getByRole("combobox", { name: "気温の代表地点", exact: true }),
   ).toBeEnabled();
 }
 
@@ -24,27 +24,27 @@ test("admin acknowledgement stays in weather; explicit close and reopen read per
   const url = page.url();
   await openWeather(page);
   await page
-    .getByLabel("気温の代表地点", { exact: true })
+    .getByRole("combobox", { name: "気温の代表地点", exact: true })
     .selectOption("44133");
   await page.getByRole("button", { name: "保存", exact: true }).click();
   await expect(page.getByRole("status")).toHaveText("保存しました");
   await expect(
     page.getByRole("heading", { name: "天気・地域", exact: true }),
   ).toBeVisible();
-  await expect(page.getByLabel("気温の代表地点", { exact: true })).toHaveValue(
-    "44133",
-  );
+  await expect(
+    page.getByRole("combobox", { name: "気温の代表地点", exact: true }),
+  ).toHaveValue("44133");
   await closeSettings(page);
   await expect(
     page.getByRole("button", { name: "天気の地域を設定" }),
   ).toBeFocused();
   await expect(page.getByText("有効な予報を待っています")).toBeVisible();
   await openWeather(page);
-  await expect(page.getByLabel("気温の代表地点", { exact: true })).toHaveValue(
-    "44133",
-  );
+  await expect(
+    page.getByRole("combobox", { name: "気温の代表地点", exact: true }),
+  ).toHaveValue("44133");
   await page
-    .getByLabel("気温の代表地点", { exact: true })
+    .getByRole("combobox", { name: "気温の代表地点", exact: true })
     .selectOption("44132");
   await page.getByRole("button", { name: "保存", exact: true }).click();
   await expect(page.getByRole("status")).toHaveText("保存しました");
@@ -67,15 +67,15 @@ test("keyboard Cancel restores canonical draft in place; Return and Escape resto
     page.getByRole("heading", { name: "天気・地域", exact: true }),
   ).toBeFocused();
   await page
-    .getByLabel("気温の代表地点", { exact: true })
+    .getByRole("combobox", { name: "気温の代表地点", exact: true })
     .selectOption("44133");
   await page.getByRole("button", { name: "キャンセル" }).click();
   await expect(
     page.getByRole("heading", { name: "天気・地域", exact: true }),
   ).toBeVisible();
-  await expect(page.getByLabel("気温の代表地点", { exact: true })).toHaveValue(
-    "44132",
-  );
+  await expect(
+    page.getByRole("combobox", { name: "気温の代表地点", exact: true }),
+  ).toHaveValue("44132");
   await closeSettings(page);
   await expect(direct).toBeFocused();
   await openSettings(page);
@@ -148,9 +148,9 @@ test("revision conflict requires explicit canonical reload and Cancel cannot byp
   await expect(page.getByRole("alert")).toContainText("別の画面");
   expect(writes).toBe(1);
   await page.getByRole("button", { name: "現在の設定を再読み込み" }).click();
-  await expect(page.getByLabel("気温の代表地点", { exact: true })).toHaveValue(
-    "44133",
-  );
+  await expect(
+    page.getByRole("combobox", { name: "気温の代表地点", exact: true }),
+  ).toHaveValue("44133");
   await expect(
     page.getByRole("button", { name: "保存", exact: true }),
   ).toBeEnabled();
@@ -243,7 +243,7 @@ test("lost save response explains possible persistence and prevents blind retry 
   });
   await openWeather(page);
   await page
-    .getByLabel("気温の代表地点", { exact: true })
+    .getByRole("combobox", { name: "気温の代表地点", exact: true })
     .selectOption("44133");
   await page.getByRole("button", { name: "保存", exact: true }).click();
   await expect(page.getByRole("alert")).toContainText("保存された可能性");
@@ -289,7 +289,7 @@ test("permission loss reloads the canonical reader view without a second write o
   });
   await openWeather(page);
   await page
-    .getByLabel("気温の代表地点", { exact: true })
+    .getByRole("combobox", { name: "気温の代表地点", exact: true })
     .selectOption("44133");
   await page.getByRole("button", { name: "保存", exact: true }).click();
   await expect(page.getByRole("alert")).toContainText("管理者権限");

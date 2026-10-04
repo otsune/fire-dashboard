@@ -11,7 +11,9 @@ test("unconfigured dashboard has clock/cards/settings with no invented live data
   await expect(
     page.getByRole("heading", { name: "Claude 利用状況" }),
   ).toBeVisible();
-  await expect(page.getByText("音源未設定", { exact: true })).toBeVisible();
+  await expect(
+    page.getByText("24時間表記の音声が未設定", { exact: true }),
+  ).toBeVisible();
   await expect(
     page.getByRole("button", { name: "音声を有効にする" }),
   ).toBeDisabled();
