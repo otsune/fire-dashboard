@@ -2,6 +2,9 @@ import { test, expect } from "@playwright/test";
 test("unconfigured dashboard has clock/cards/settings with no invented live data", async ({
   page,
 }) => {
+  await page.route("**/audio/manifest.json", (route) =>
+    route.fulfill({ json: { hours: {}, hours24: {}, chime: null } }),
+  );
   await page.goto("/");
   await expect(page.getByText("地域未設定")).toBeVisible();
   await expect(page.getByText("フィード未登録")).toBeVisible();
@@ -12,12 +15,15 @@ test("unconfigured dashboard has clock/cards/settings with no invented live data
   await expect(
     page.getByRole("button", { name: "音声を有効にする" }),
   ).toBeDisabled();
-  await page.getByRole("button", { name: "設定" }).click();
+  await page.getByRole("button", { name: "設定", exact: true }).click();
+  await expect(
+    page.getByRole("heading", { name: "時計・音声", exact: true }),
+  ).toBeFocused();
   await page.getByRole("checkbox", { name: "12時間表記" }).check();
   await page.getByRole("button", { name: "時計に戻る" }).click();
   await expect(page.getByTestId("clock-time")).toBeVisible();
   await page.reload();
-  await page.getByRole("button", { name: "設定" }).click();
+  await page.getByRole("button", { name: "設定", exact: true }).click();
   await expect(
     page.getByRole("checkbox", { name: "12時間表記" }),
   ).toBeChecked();

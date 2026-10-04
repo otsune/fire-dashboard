@@ -100,8 +100,16 @@ test("five provider cards preserve missing, quota and balance semantics at table
         await card.evaluate((el) => el.scrollWidth <= el.clientWidth),
       ).toBe(true);
     }
-    await page.getByRole("button", { name: "設定" }).click();
+    await page.getByRole("button", { name: "設定", exact: true }).click();
+    await expect(
+      page.getByRole("heading", { name: "時計・音声", exact: true }),
+    ).toBeFocused();
+    await page.getByRole("button", { name: "利用状況", exact: true }).click();
+    await expect(page.getByRole("checkbox")).toHaveCount(6);
     await page.getByRole("button", { name: "時計に戻る" }).click();
+    await expect(
+      page.getByRole("button", { name: "設定", exact: true }),
+    ).toBeFocused();
     await expect(page.locator(".usage-card")).toHaveCount(5);
   }
 });

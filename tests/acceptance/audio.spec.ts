@@ -103,6 +103,9 @@ test("bundled original chime decodes and plays only after an explicit tap", asyn
   expect(decoded.duration).toBeCloseTo(3.2, 2);
   expect(decoded.channels).toBe(1);
   await page.getByRole("button", { name: "設定", exact: true }).click();
+  await expect(
+    page.getByRole("heading", { name: "時計・音声", exact: true }),
+  ).toBeFocused();
   await page.getByLabel("時報の種類").selectOption("chime");
   await page.getByRole("button", { name: "時計に戻る" }).click();
   await expect(

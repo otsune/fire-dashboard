@@ -624,6 +624,9 @@ test("settings remain keyboard usable and the dashboard reflows after rotation",
   await showDashboard(page, configuredDashboard(5));
   await tabTo(page, page.getByRole("button", { name: "設定", exact: true }));
   await page.keyboard.press("Enter");
+  await expect(
+    page.getByRole("heading", { name: "時計・音声", exact: true }),
+  ).toBeFocused();
   const hour12 = page.getByRole("checkbox", { name: "12時間表記" });
   await tabTo(page, hour12);
   await page.keyboard.press("Space");

@@ -982,6 +982,16 @@ summary:focus-visible {
   align-self: flex-start;
   margin-top: 8px;
 }
+.provider-layout.usage-hidden {
+  grid-template-columns: minmax(0, 1fr);
+}
+.provider-layout.usage-hidden > .rss-card {
+  grid-column: 1;
+  grid-row: 1;
+}
+.embedded-weather-settings {
+  min-width: 0;
+}
 .weather-settings fieldset {
   min-width: 0;
   margin: 24px 0 16px;
@@ -1024,5 +1034,106 @@ summary:focus-visible {
   }
   .weather-current dd {
     margin-bottom: 12px;
+  }
+}
+
+/* A scrollable, touch-sized settings surface outside the one-screen overview. */
+.unified-settings {
+  min-width: 0;
+}
+.settings-sections {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 24px;
+}
+.settings-sections button {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.settings-sections [aria-current="page"] {
+  background: #34473a;
+  border-color: #b8d6a2;
+  color: #e7efe4;
+}
+.settings-section-content {
+  min-width: 0;
+}
+.settings-subheading {
+  margin-top: 24px;
+}
+.settings-status-list {
+  list-style: none;
+  padding: 0;
+  margin: 16px 0;
+}
+.settings-status-list > li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  min-height: 60px;
+  border-bottom: 1px solid #34443f;
+  padding: 8px 0;
+  overflow-wrap: anywhere;
+}
+.usage-settings-list .check {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 44px;
+}
+.usage-settings-list input {
+  flex: none;
+}
+.settings-help {
+  color: #a6b8b2;
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+.settings-license pre {
+  max-height: 240px;
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: 16px;
+  border: 1px solid #34443f;
+  border-radius: 8px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+}
+.settings-confirmation-backdrop {
+  position: fixed;
+  z-index: 40;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: #0009;
+}
+.settings-confirmation {
+  width: min(540px, 100%);
+  max-height: 100%;
+  overflow: auto;
+  background: #172122;
+  border: 2px solid #b8d6a2;
+  border-radius: 12px;
+  padding: 24px;
+}
+.settings-confirm-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 20px;
+}
+@media (max-width: 700px) {
+  .settings-sections {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .unified-settings .section-heading {
+    gap: 12px;
+    flex-wrap: wrap;
   }
 }

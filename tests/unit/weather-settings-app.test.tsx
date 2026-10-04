@@ -72,6 +72,7 @@ const newWeather = {
   periods: [],
 };
 beforeEach(() => {
+  window.history.replaceState({ dashboard: true }, "");
   vi.mocked(cache.loadDashboard).mockResolvedValue(null);
   vi.mocked(cache.saveDashboard).mockResolvedValue();
   vi.mocked(dashboardClient.fetchDashboard).mockResolvedValue(oldData);
@@ -104,6 +105,7 @@ afterEach(() => {
   cleanup();
   vi.resetAllMocks();
   localStorage.clear();
+  window.history.replaceState({ dashboard: true }, "");
 });
 async function openWeather() {
   fireEvent.click(screen.getByRole("button", { name: "天気の地域を設定" }));
@@ -116,27 +118,34 @@ async function saveStation() {
     target: { value: "44133" },
   });
   fireEvent.click(screen.getByRole("button", { name: "保存" }));
+  await screen.findByText("保存しました");
+  expect(
+    screen.getByRole("heading", { name: "天気・地域" }),
+  ).toBeInTheDocument();
   await waitFor(() =>
-    expect(
-      screen.queryByRole("heading", { name: "天気の地域設定" }),
-    ).toBeNull(),
+    expect(screen.getByRole("button", { name: "時計に戻る" })).toBeEnabled(),
   );
+  fireEvent.click(screen.getByRole("button", { name: "時計に戻る" }));
+  await screen.findByTestId("clock-time");
 }
 it("restores stable opener focus for direct and nested settings lifecycles", async () => {
   render(<App />);
   await openWeather();
   fireEvent.keyDown(document, { key: "Escape" });
-  expect(
-    screen.getByRole("button", { name: "天気の地域を設定" }),
-  ).toHaveFocus();
+  await waitFor(() =>
+    expect(
+      screen.getByRole("button", { name: "天気の地域を設定" }),
+    ).toHaveFocus(),
+  );
   fireEvent.click(screen.getByRole("button", { name: "設定" }));
-  await openWeather();
-  fireEvent.click(screen.getByRole("button", { name: "戻る" }));
-  expect(
-    screen.getByRole("button", { name: "天気の地域を設定" }),
-  ).toHaveFocus();
+  fireEvent.click(screen.getByRole("button", { name: "天気・地域" }));
+  await waitFor(() =>
+    expect(screen.getByLabelText("気温の代表地点")).toBeEnabled(),
+  );
   fireEvent.click(screen.getByRole("button", { name: "時計に戻る" }));
-  expect(screen.getByRole("button", { name: "設定" })).toHaveFocus();
+  await waitFor(() =>
+    expect(screen.getByRole("button", { name: "設定" })).toHaveFocus(),
+  );
 });
 it("applies acknowledged pending weather and ignores an older in-flight poll", async () => {
   let oldPoll!: (value: Dashboard) => void;
@@ -194,7 +203,7 @@ it("blocks the general navigation button while a region save is pending", async 
   expect(screen.getByRole("button", { name: "設定" })).toBeDisabled();
   fireEvent.click(screen.getByRole("button", { name: "設定" }));
   expect(
-    screen.getByRole("heading", { name: "天気の地域設定" }),
+    screen.getByRole("heading", { name: "天気・地域" }),
   ).toBeInTheDocument();
 });
 it("ignores an older poll failure after the new weather has been acknowledged", async () => {

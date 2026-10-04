@@ -310,3 +310,188 @@ it("keeps office-list failure retryable after weather is toggled off and on", as
   expect(screen.getByLabelText("気温の代表地点")).toHaveValue("44132");
   expect(screen.queryByRole("alert")).toBeNull();
 });
+
+it("reports an embedded canonical dirty/saving guard and resets draft without closing", async () => {
+  const onClose = vi.fn(),
+    onGuardChange = vi.fn();
+  render(
+    <WeatherSettings
+      embedded
+      onGuardChange={onGuardChange}
+      onClose={onClose}
+      onSaved={vi.fn()}
+    />,
+  );
+  await waitFor(() => expect(screen.getByLabelText("予報地方")).toBeEnabled());
+  expect(onGuardChange).toHaveBeenLastCalledWith({
+    dirty: false,
+    saving: false,
+  });
+  fireEvent.change(screen.getByLabelText("気温の代表地点"), {
+    target: { value: "44133" },
+  });
+  expect(onGuardChange).toHaveBeenLastCalledWith({
+    dirty: true,
+    saving: false,
+  });
+  fireEvent.keyDown(document, { key: "Escape" });
+  expect(onClose).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole("button", { name: "キャンセル" }));
+  expect(screen.getByLabelText("気温の代表地点")).toHaveValue("44132");
+  expect(onGuardChange).toHaveBeenLastCalledWith({
+    dirty: false,
+    saving: false,
+  });
+  expect(onClose).not.toHaveBeenCalled();
+  let finish!: (
+    value: Awaited<ReturnType<typeof client.saveWeatherSettings>>,
+  ) => void;
+  vi.mocked(client.saveWeatherSettings).mockReturnValueOnce(
+    new Promise((resolve) => {
+      finish = resolve;
+    }),
+  );
+  fireEvent.change(screen.getByLabelText("気温の代表地点"), {
+    target: { value: "44133" },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "保存" }));
+  expect(onGuardChange).toHaveBeenLastCalledWith({ dirty: true, saving: true });
+  await act(async () =>
+    finish({
+      settings: {
+        revision: "r2",
+        selection: { ...selection, station: "44133" },
+      },
+      weather: view().weather,
+    }),
+  );
+  expect(onGuardChange).toHaveBeenLastCalledWith({
+    dirty: false,
+    saving: false,
+  });
+  expect(screen.getByRole("status")).toHaveTextContent("保存しました");
+  expect(onClose).not.toHaveBeenCalled();
+});
+it("adopts the server's canonical response even when it differs from the submitted draft", async () => {
+  const onGuardChange = vi.fn();
+  vi.mocked(client.saveWeatherSettings).mockResolvedValueOnce({
+    settings: { revision: "r2", selection: null },
+    weather: emptyWeather(),
+  });
+  render(
+    <WeatherSettings
+      embedded
+      onGuardChange={onGuardChange}
+      onClose={vi.fn()}
+      onSaved={vi.fn()}
+    />,
+  );
+  await waitFor(() => expect(screen.getByLabelText("予報地方")).toBeEnabled());
+  fireEvent.click(screen.getByRole("button", { name: "保存" }));
+  await screen.findByText("保存しました");
+  expect(
+    screen.getByRole("checkbox", { name: "天気を表示する" }),
+  ).not.toBeChecked();
+  expect(screen.getByLabelText("都道府県・予報官署")).toHaveValue("");
+  expect(onGuardChange).toHaveBeenLastCalledWith({
+    dirty: false,
+    saving: false,
+  });
+});
+it("requires explicit reload after 403 and respects read-only permissions returned by that reload", async () => {
+  await setup();
+  vi.mocked(client.saveWeatherSettings).mockRejectedValueOnce(
+    new client.WeatherSettingsError("forbidden"),
+  );
+  fireEvent.change(screen.getByLabelText("気温の代表地点"), {
+    target: { value: "44133" },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "保存" }));
+  expect(await screen.findByRole("alert")).toHaveTextContent("管理者権限");
+  expect(screen.getByRole("button", { name: "保存" })).toBeDisabled();
+  fireEvent.click(screen.getByRole("button", { name: "保存" }));
+  expect(client.saveWeatherSettings).toHaveBeenCalledTimes(1);
+  const catalogReads = vi.mocked(client.fetchWeatherOffices).mock.calls.length;
+  vi.mocked(client.fetchWeatherSettings).mockResolvedValue(view(false));
+  fireEvent.click(
+    screen.getByRole("button", { name: "現在の設定を再読み込み" }),
+  );
+  await screen.findByText(/この画面は現在の設定の確認のみ/);
+  expect(screen.queryByRole("button", { name: "保存" })).toBeNull();
+  expect(client.fetchWeatherOffices).toHaveBeenCalledTimes(catalogReads);
+});
+it("treats an unknown save failure as unconfirmed until explicit server reload", async () => {
+  await setup();
+  vi.mocked(client.saveWeatherSettings).mockRejectedValueOnce(
+    Error("unrecognized"),
+  );
+  fireEvent.click(screen.getByRole("button", { name: "保存" }));
+  expect(await screen.findByRole("alert")).toHaveTextContent(
+    "保存された可能性",
+  );
+  expect(screen.getByRole("button", { name: "保存" })).toBeDisabled();
+  expect(
+    screen.getByRole("button", { name: "現在の設定を再読み込み" }),
+  ).toBeEnabled();
+});
+
+it("clears a previous Saved result as soon as another embedded save starts", async () => {
+  vi.mocked(client.saveWeatherSettings).mockResolvedValueOnce({
+    settings: { revision: "r2", selection },
+    weather: view().weather,
+  });
+  render(<WeatherSettings embedded onClose={vi.fn()} onSaved={vi.fn()} />);
+  await waitFor(() => expect(screen.getByLabelText("予報地方")).toBeEnabled());
+  fireEvent.click(screen.getByRole("button", { name: "保存" }));
+  await screen.findByText("保存しました");
+  vi.mocked(client.saveWeatherSettings).mockReturnValueOnce(
+    new Promise(() => {}),
+  );
+  fireEvent.click(screen.getByRole("button", { name: "保存" }));
+  expect(screen.queryByText("保存しました")).toBeNull();
+});
+
+it.each(["forbidden", "revision_conflict", "unknown"])(
+  "keeps the %s reload barrier through embedded Cancel and resends only with reloaded revision",
+  async (code) => {
+    render(<WeatherSettings embedded onClose={vi.fn()} onSaved={vi.fn()} />);
+    await waitFor(() =>
+      expect(screen.getByLabelText("予報地方")).toBeEnabled(),
+    );
+    vi.mocked(client.saveWeatherSettings).mockRejectedValueOnce(
+      code === "unknown"
+        ? Error("unconfirmed")
+        : new client.WeatherSettingsError(code),
+    );
+    fireEvent.change(screen.getByLabelText("気温の代表地点"), {
+      target: { value: "44133" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "保存" }));
+    await screen.findByRole("alert");
+    fireEvent.click(screen.getByRole("button", { name: "キャンセル" }));
+    expect(screen.getByLabelText("気温の代表地点")).toHaveValue("44132");
+    expect(screen.getByRole("button", { name: "保存" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "保存" }));
+    expect(client.saveWeatherSettings).toHaveBeenCalledTimes(1);
+    vi.mocked(client.fetchWeatherSettings).mockResolvedValue({
+      ...view(),
+      revision: "r7",
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "現在の設定を再読み込み" }),
+    );
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "保存" })).toBeEnabled(),
+    );
+    vi.mocked(client.saveWeatherSettings).mockResolvedValue({
+      settings: { revision: "r8", selection },
+      weather: view().weather,
+    });
+    fireEvent.click(screen.getByRole("button", { name: "保存" }));
+    await screen.findByText("保存しました");
+    expect(client.saveWeatherSettings).toHaveBeenLastCalledWith({
+      revision: "r7",
+      selection,
+    });
+  },
+);

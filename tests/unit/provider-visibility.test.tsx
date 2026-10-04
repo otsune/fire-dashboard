@@ -5,6 +5,7 @@ import { cleanup, render, screen } from "@testing-library/react";
 import {
   emptyDashboard,
   emptyUsage,
+  defaultUsageVisibility,
   type Usage,
 } from "../../packages/contracts/src/index";
 import { AdditionalUsageCards } from "../../apps/dashboard/src/cards/AdditionalUsageCards";
@@ -86,4 +87,41 @@ it("retains explicit zero USD balance as data", () => {
     screen.getByRole("heading", { name: /Hermes \/ Nous.*利用状況/ }),
   ).toBeInTheDocument();
   expect(document.querySelectorAll(".usage-card")).toHaveLength(1);
+});
+it("honors display-only visibility while restoring unchanged extra-provider values", () => {
+  const usage = ["antigravity", "opencode_go", "hermes_nous"].map(
+    (provider) => ({
+      ...emptyUsage(provider as Usage["provider"]),
+      status: "missing" as const,
+      receivedAt: "2026-10-02T00:00:00.000Z",
+    }),
+  );
+  const snapshot = structuredClone(usage);
+  const { container, rerender } = render(
+    <AdditionalUsageCards
+      usage={usage}
+      timeZone="UTC"
+      now={now}
+      visibility={{
+        ...defaultUsageVisibility,
+        antigravity: false,
+        opencode_go: false,
+        hermes_nous: false,
+      }}
+    />,
+  );
+  expect(container.querySelectorAll(".usage-card")).toHaveLength(0);
+  rerender(
+    <AdditionalUsageCards
+      usage={usage}
+      timeZone="UTC"
+      now={now}
+      visibility={defaultUsageVisibility}
+    />,
+  );
+  expect(container.querySelectorAll(".usage-card")).toHaveLength(3);
+  expect(usage).toEqual(snapshot);
+  expect(container.querySelectorAll(".card-meta")[0]).toHaveTextContent(
+    "最終受信",
+  );
 });

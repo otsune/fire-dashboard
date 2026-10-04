@@ -13,6 +13,7 @@ import {
   saveWeatherSettings,
   WeatherSettingsError,
 } from "../data/weather-settings";
+import type { SettingsGuard } from "./navigation";
 const emptyDraft = (): WeatherSelection => ({
   office: "",
   region: "",
@@ -31,9 +32,13 @@ function errorMessage(error: unknown, catalog = false): string {
 export function WeatherSettings({
   onClose,
   onSaved,
+  embedded = false,
+  onGuardChange,
 }: {
   onClose: () => void;
   onSaved: (weather: Weather) => void;
+  embedded?: boolean;
+  onGuardChange?: (guard: SettingsGuard) => void;
 }) {
   const [view, setView] = useState<WeatherSettingsView | null>(null);
   const [draft, setDraft] = useState(emptyDraft);
@@ -48,6 +53,7 @@ export function WeatherSettings({
   const [saveError, setSaveError] = useState("");
   const [requiresReload, setRequiresReload] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
   const [reload, setReload] = useState(0);
   const [catalogRetry, setCatalogRetry] = useState(0);
   const heading = useRef<HTMLHeadingElement>(null);
@@ -57,25 +63,43 @@ export function WeatherSettings({
   closeRef.current = onClose;
   useEffect(() => {
     mounted.current = true;
-    heading.current?.focus();
+    if (!embedded) heading.current?.focus();
     const escape = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         event.preventDefault();
         if (!savingRef.current) closeRef.current();
       }
     };
-    document.addEventListener("keydown", escape);
+    if (!embedded) document.addEventListener("keydown", escape);
     return () => {
       mounted.current = false;
       document.removeEventListener("keydown", escape);
     };
-  }, []);
+  }, [embedded]);
+  const dirty =
+    !!view?.canEdit &&
+    (enabled !== (view.selection !== null) ||
+      (enabled &&
+        (draft.office !== view.selection?.office ||
+          draft.region !== view.selection?.region ||
+          draft.station !== view.selection?.station)));
+  useEffect(() => {
+    onGuardChange?.({ dirty, saving });
+  }, [dirty, saving, onGuardChange]);
+  useEffect(
+    () => () => onGuardChange?.({ dirty: false, saving: false }),
+    [onGuardChange],
+  );
+  useEffect(() => {
+    if (dirty) setSaved(false);
+  }, [dirty]);
   useEffect(() => {
     const controller = new AbortController();
     let active = true;
     setLoading(true);
     setLoadError("");
     setSaveError("");
+    setSaved(false);
     setView(null);
     void fetchWeatherSettings(controller.signal)
       .then((next) => {
@@ -165,6 +189,7 @@ export function WeatherSettings({
     }
     savingRef.current = true;
     setSaving(true);
+    setSaved(false);
     setSaveError("");
     try {
       const result = await saveWeatherSettings({
@@ -172,11 +197,15 @@ export function WeatherSettings({
         selection: enabled ? draft : null,
       });
       if (!mounted.current) return;
+      setView({ ...view, ...result.settings, weather: result.weather });
+      setDraft(result.settings.selection ?? emptyDraft());
+      setEnabled(result.settings.selection !== null);
+      setSaved(true);
       onSaved(result.weather);
-      closeRef.current();
+      if (!embedded) closeRef.current();
     } catch (error) {
       if (!mounted.current) return;
-      if (error instanceof WeatherSettingsError && error.uncertain) {
+      if (!(error instanceof WeatherSettingsError) || error.uncertain) {
         setSaveError(
           "保存の応答を確認できません。サーバーに保存された可能性があります。再保存する前に現在の設定を再読み込みしてください。",
         );
@@ -189,7 +218,10 @@ export function WeatherSettings({
           "別の画面で設定が変更されました。現在の設定を再読み込みしてから選び直してください。",
         );
         setRequiresReload(true);
-      } else setSaveError(errorMessage(error));
+      } else {
+        setSaveError(errorMessage(error));
+        if (error.code === "forbidden") setRequiresReload(true);
+      }
     } finally {
       savingRef.current = false;
       if (mounted.current) setSaving(false);
@@ -198,20 +230,32 @@ export function WeatherSettings({
   const close = () => {
     if (!savingRef.current) onClose();
   };
+  const cancel = () => {
+    if (savingRef.current) return;
+    if (!embedded) return onClose();
+    setDraft(view?.selection ?? emptyDraft());
+    setEnabled(view?.selection !== null && !!view);
+    setSaved(false);
+    // Cancel cannot clear an unconfirmed acknowledgement or stale revision.
+    if (!requiresReload) setSaveError("");
+  };
   return (
     <section
-      className="settings-panel weather-settings"
+      className={`weather-settings${embedded ? " embedded-weather-settings" : " settings-panel"}`}
       aria-label="天気の地域設定"
       aria-busy={loading || saving}
     >
-      <div className="section-heading">
-        <h1 ref={heading} tabIndex={-1}>
-          天気の地域設定
-        </h1>
-        <button onClick={close} disabled={saving}>
-          戻る
-        </button>
-      </div>
+      {!embedded && (
+        <div className="section-heading">
+          <h1 ref={heading} tabIndex={-1}>
+            天気の地域設定
+          </h1>
+          <button onClick={close} disabled={saving}>
+            戻る
+          </button>
+        </div>
+      )}
+      {saved && <p role="status">保存しました</p>}
       {loading && <p role="status">現在の設定を読み込み中…</p>}
       {loadError && (
         <p role="alert" className="notice">
@@ -347,7 +391,7 @@ export function WeatherSettings({
                   {saveError}
                 </p>
               )}
-              {saving && (
+              {saving && !embedded && (
                 <p role="status">
                   保存中です。応答を確認するまでこの画面を閉じられません。
                 </p>
@@ -359,7 +403,7 @@ export function WeatherSettings({
                 >
                   {saving ? "保存中…" : "保存"}
                 </button>
-                <button type="button" onClick={close} disabled={saving}>
+                <button type="button" onClick={cancel} disabled={saving}>
                   キャンセル
                 </button>
               </div>

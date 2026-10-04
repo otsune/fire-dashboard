@@ -1,10 +1,16 @@
 import { useEffect, useRef, useState } from "react";
 import { Clock } from "./clock/Clock";
-import { Settings } from "./settings/Settings";
+import { SettingsShell } from "./settings/SettingsShell";
+import {
+  useSettingsNavigation,
+  type SettingsGuard,
+} from "./settings/navigation";
+import { shouldShowUsage } from "./settings/visibility";
 import { WeatherSettings } from "./settings/WeatherSettings";
 import { loadSettings, saveSettings } from "./settings/store";
 import {
   emptyDashboard,
+  usageProviders,
   type Dashboard,
   type Weather,
 } from "../../../packages/contracts/src/index";
@@ -29,10 +35,12 @@ export function App() {
   const [initial] = useState(loadSettings);
   const [settings, setSettings] = useState(initial.value);
   const [warning, setWarning] = useState(initial.warning);
-  const [open, setOpen] = useState(false);
-  const [weatherOpen, setWeatherOpen] = useState(false);
-  const focusTarget = useRef<string | null>(null);
-  const weatherOpener = useRef("weather-region-opener");
+  const [weatherGuard, setWeatherGuard] = useState<SettingsGuard>({
+    dirty: false,
+    saving: false,
+  });
+  // Keep the history controller mounted on the dashboard and in every section.
+  const navigation = useSettingsNavigation(weatherGuard);
   const requestGeneration = useRef(0);
   const refreshDashboard = useRef<() => Promise<void>>(async () => {});
   const [data, setData] = useState<Dashboard>(emptyDashboard);
@@ -48,10 +56,22 @@ export function App() {
     generation = useRef(0),
     current = useRef(data);
   useEffect(() => {
+    // Display-only visibility must not interrupt playback or alter an in-flight
+    // announcement's settings signature. Keep the existing audio fields live.
     settingsRef.current = settings;
     generation.current++;
     void audio?.settingsChanged();
-  }, [settings, audio]);
+  }, [
+    settings.timeZone,
+    settings.hour12,
+    settings.audioMode,
+    settings.volume,
+    settings.quiet.enabled,
+    settings.quiet.start,
+    settings.quiet.end,
+    settings.rssAutoRotate,
+    audio,
+  ]);
   useEffect(() => {
     let cancelled = false,
       controller: ReturnType<typeof createAudioController> | null = null;
@@ -180,24 +200,6 @@ export function App() {
       window.removeEventListener("offline", off);
     };
   }, []);
-  useEffect(() => {
-    if (!weatherOpen && focusTarget.current) {
-      document.getElementById(focusTarget.current)?.focus();
-      focusTarget.current = null;
-    }
-  }, [open, weatherOpen]);
-  const openWeather = (opener: string) => {
-    weatherOpener.current = opener;
-    setWeatherOpen(true);
-  };
-  const closeWeather = () => {
-    focusTarget.current = weatherOpener.current;
-    setWeatherOpen(false);
-  };
-  const closeSettings = () => {
-    focusTarget.current = "general-settings-opener";
-    setOpen(false);
-  };
   const weatherSaved = (weather: Weather) => {
     const capturedGeneration = ++requestGeneration.current;
     invalidateDashboardCache();
@@ -228,7 +230,13 @@ export function App() {
     return () => document.removeEventListener("keydown", closeDetails);
   }, []);
   const activateUpdate = () => {
-    if (!waiting) return;
+    if (
+      !waiting ||
+      weatherGuard.dirty ||
+      weatherGuard.saving ||
+      navigation.pending
+    )
+      return;
     audio?.disable();
     navigator.serviceWorker.addEventListener(
       "controllerchange",
@@ -237,9 +245,16 @@ export function App() {
     );
     waiting.postMessage("ACTIVATE_UPDATE");
   };
+  const hasUsage = usageProviders.some((provider) =>
+    shouldShowUsage(
+      provider,
+      data.usage.find((value) => value.provider === provider),
+      settings.usageVisibility,
+    ),
+  );
   return (
     <main
-      className={`dashboard ${open || weatherOpen ? "settings-open" : "overview"}`}
+      className={`dashboard ${navigation.section ? "settings-open" : "overview"}`}
     >
       <header>
         <div className="brand">
@@ -253,8 +268,12 @@ export function App() {
           <button
             id="general-settings-opener"
             aria-label="設定"
-            disabled={weatherOpen}
-            onClick={() => (open ? closeSettings() : setOpen(true))}
+            disabled={weatherGuard.saving}
+            onClick={() =>
+              navigation.section
+                ? navigation.close()
+                : navigation.open("clock_audio", "general-settings-opener")
+            }
           >
             設定 <span aria-hidden="true">⚙</span>
           </button>
@@ -268,25 +287,43 @@ export function App() {
       {waiting && (
         <div className="notice">
           新しい表示の準備ができました{" "}
-          <button onClick={activateUpdate} disabled={weatherOpen}>
+          <button
+            onClick={activateUpdate}
+            disabled={
+              weatherGuard.dirty ||
+              weatherGuard.saving ||
+              navigation.pending !== null
+            }
+          >
             更新して再読み込み
           </button>
         </div>
       )}
-      {weatherOpen ? (
-        <WeatherSettings onClose={closeWeather} onSaved={weatherSaved} />
-      ) : open ? (
-        <Settings
+      {navigation.section ? (
+        <SettingsShell
           value={settings}
+          usage={data.usage}
+          feeds={data.rss}
+          section={navigation.section}
           onChange={(v) => {
             setSettings(v);
             if (!saveSettings(v))
               setWarning("設定を保存できません。この画面では変更を維持します");
           }}
-          onClose={closeSettings}
-          onWeatherSettings={() =>
-            openWeather("settings-weather-region-opener")
+          onSelect={navigation.select}
+          onClose={navigation.close}
+          weatherPanel={
+            <WeatherSettings
+              embedded
+              onClose={navigation.close}
+              onSaved={weatherSaved}
+              onGuardChange={setWeatherGuard}
+            />
           }
+          guard={weatherGuard}
+          pending={navigation.pending}
+          onDiscardPending={navigation.discardPending}
+          onKeepEditing={navigation.keepEditing}
         />
       ) : (
         <>
@@ -294,30 +331,47 @@ export function App() {
             <Clock settings={settings} />
             <WeatherCard
               value={data.weather}
-              onWeatherSettings={() => openWeather("weather-region-opener")}
+              onWeatherSettings={() =>
+                navigation.open("weather", "weather-region-opener")
+              }
               timeZone={settings.timeZone}
               now={cardNow}
             />
           </div>
-          <div className="bottom-grid provider-layout">
-            <section className="usage-grid" aria-label="AI利用状況">
-              {(["claude", "codex"] as const).map((provider) => (
-                <UsageCard
-                  key={provider}
-                  value={
-                    data.usage.find((u) => u.provider === provider) ??
-                    emptyDashboard().usage.find((u) => u.provider === provider)!
-                  }
+          <div
+            className={`bottom-grid provider-layout${hasUsage ? "" : " usage-hidden"}`}
+          >
+            {hasUsage && (
+              <section className="usage-grid" aria-label="AI利用状況">
+                {(["claude", "codex"] as const)
+                  .filter((provider) =>
+                    shouldShowUsage(
+                      provider,
+                      data.usage.find((value) => value.provider === provider),
+                      settings.usageVisibility,
+                    ),
+                  )
+                  .map((provider) => (
+                    <UsageCard
+                      key={provider}
+                      value={
+                        data.usage.find((u) => u.provider === provider) ??
+                        emptyDashboard().usage.find(
+                          (u) => u.provider === provider,
+                        )!
+                      }
+                      timeZone={settings.timeZone}
+                      now={cardNow}
+                    />
+                  ))}
+                <AdditionalUsageCards
+                  usage={data.usage}
                   timeZone={settings.timeZone}
                   now={cardNow}
+                  visibility={settings.usageVisibility}
                 />
-              ))}
-              <AdditionalUsageCards
-                usage={data.usage}
-                timeZone={settings.timeZone}
-                now={cardNow}
-              />
-            </section>
+              </section>
+            )}
             <RssCard
               feeds={data.rss}
               autoRotate={settings.rssAutoRotate}
