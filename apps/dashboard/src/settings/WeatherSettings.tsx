@@ -255,7 +255,11 @@ export function WeatherSettings({
           </button>
         </div>
       )}
-      {saved && <p role="status">保存しました</p>}
+      {saved && (
+        <p role="status" className="status-success">
+          保存しました
+        </p>
+      )}
       {loading && <p role="status">現在の設定を読み込み中…</p>}
       {loadError && (
         <p role="alert" className="notice">
@@ -399,6 +403,7 @@ export function WeatherSettings({
               <div className="weather-settings-actions">
                 <button
                   type="submit"
+                  className="button-primary"
                   disabled={saving || !valid || requiresReload}
                 >
                   {saving ? "保存中…" : "保存"}

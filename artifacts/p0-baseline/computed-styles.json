@@ -1,0 +1,98 @@
+[
+  {
+    "name": "fire-landscape",
+    "viewport": {
+      "width": 1280,
+      "height": 799
+    },
+    "devicePixelRatio": 1,
+    "rootFontSize": "16px",
+    "bodyFontSize": "16px",
+    "pageZoom": 1,
+    "focus": {
+      "tag": "BUTTON",
+      "outline": "rgb(184, 214, 162) solid 3px",
+      "outlineOffset": "3px",
+      "boxShadow": "none",
+      "borderRadius": "9px"
+    },
+    "document": {
+      "scrollWidth": 1280,
+      "scrollHeight": 799,
+      "clientWidth": 1280,
+      "clientHeight": 799
+    }
+  },
+  {
+    "name": "fire-portrait",
+    "viewport": {
+      "width": 800,
+      "height": 1279
+    },
+    "devicePixelRatio": 1,
+    "rootFontSize": "16px",
+    "bodyFontSize": "16px",
+    "pageZoom": 1,
+    "focus": {
+      "tag": "BUTTON",
+      "outline": "rgb(184, 214, 162) solid 3px",
+      "outlineOffset": "3px",
+      "boxShadow": "none",
+      "borderRadius": "9px"
+    },
+    "document": {
+      "scrollWidth": 800,
+      "scrollHeight": 1844,
+      "clientWidth": 800,
+      "clientHeight": 1279
+    }
+  },
+  {
+    "name": "windows-landscape",
+    "viewport": {
+      "width": 1280,
+      "height": 800
+    },
+    "devicePixelRatio": 1,
+    "rootFontSize": "16px",
+    "bodyFontSize": "16px",
+    "pageZoom": 1,
+    "focus": {
+      "tag": "BUTTON",
+      "outline": "rgb(184, 214, 162) solid 3px",
+      "outlineOffset": "3px",
+      "boxShadow": "none",
+      "borderRadius": "9px"
+    },
+    "document": {
+      "scrollWidth": 1280,
+      "scrollHeight": 800,
+      "clientWidth": 1280,
+      "clientHeight": 800
+    }
+  },
+  {
+    "name": "compact",
+    "viewport": {
+      "width": 960,
+      "height": 600
+    },
+    "devicePixelRatio": 1,
+    "rootFontSize": "16px",
+    "bodyFontSize": "16px",
+    "pageZoom": 1,
+    "focus": {
+      "tag": "BUTTON",
+      "outline": "rgb(184, 214, 162) solid 3px",
+      "outlineOffset": "3px",
+      "boxShadow": "none",
+      "borderRadius": "9px"
+    },
+    "document": {
+      "scrollWidth": 960,
+      "scrollHeight": 600,
+      "clientWidth": 960,
+      "clientHeight": 600
+    }
+  }
+]

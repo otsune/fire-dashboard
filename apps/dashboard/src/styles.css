@@ -13,8 +13,8 @@
     BlinkMacSystemFont,
     "Segoe UI",
     sans-serif;
-  color: #e8eeea;
-  background: #101617;
+  color: var(--fd-text-main);
+  background: var(--fd-surface-page);
   font-synthesis: none;
   font-weight: 400;
   line-height: 1.6;
@@ -46,19 +46,52 @@ button {
   border-radius: 9px;
   cursor: pointer;
 }
-button:hover {
-  background: #2c3c39;
-}
 button:disabled {
-  opacity: 0.48;
+  opacity: 1;
+  color: var(--fd-disabled-text);
+  background: var(--fd-disabled-bg);
+  border-color: var(--fd-disabled-border);
   cursor: not-allowed;
+}
+input:disabled,
+select:disabled {
+  opacity: 1;
+  color: var(--fd-disabled-text);
+  background: var(--fd-disabled-bg);
+  border-color: var(--fd-disabled-border);
+  cursor: not-allowed;
+}
+@media (hover: hover) {
+  button:not(:disabled):hover {
+    background: #2c3c39;
+  }
+  .button-primary:not(:disabled):hover {
+    background: var(--fd-action-hover);
+  }
+}
+.button-primary {
+  background: var(--fd-action);
+  border-color: var(--fd-action);
+  color: var(--fd-action-text);
+  font-weight: 700;
+}
+.button-primary:not(:disabled):active {
+  background: var(--fd-action-active);
+  border-color: var(--fd-action-active);
+}
+.button-destructive {
+  color: var(--fd-error);
+  border-color: var(--fd-error);
+  background: transparent;
 }
 button:focus-visible,
 a:focus-visible,
 input:focus-visible,
-select:focus-visible {
-  outline: 3px solid #b8d6a2;
-  outline-offset: 3px;
+select:focus-visible,
+summary:focus-visible {
+  outline: 3px solid var(--fd-focus-yellow);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 2px var(--fd-focus-black);
 }
 a {
   color: #b8d6a2;
@@ -197,8 +230,21 @@ footer {
   margin-bottom: 16px;
   border: 1px solid #9b7e44;
   border-radius: 9px;
-  color: #dfc797;
-  font-size: 13px;
+  color: var(--fd-warning);
+  font-size: var(--fd-font-small);
+}
+.notice::before {
+  content: "⚠ ";
+  font-weight: 700;
+}
+.status-success {
+  color: var(--fd-success);
+  font-size: var(--fd-font-body);
+  margin-bottom: var(--fd-space-4);
+}
+.status-success::before {
+  content: "✓ ";
+  font-weight: 700;
 }
 .settings-panel {
   background: #172122;
@@ -227,13 +273,13 @@ h1 {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  font-size: 14px;
+  font-size: var(--fd-font-body);
   color: #c6d7cd;
 }
 .settings-grid input:not([type="checkbox"]),
 select {
-  min-height: 44px;
-  border: 1px solid #405650;
+  min-height: var(--fd-control-height);
+  border: 1px solid var(--fd-border-control);
   border-radius: 8px;
   padding: 8px;
   background: #101919;
@@ -261,15 +307,15 @@ select {
   margin-top: 32px;
   border-top: 1px solid #34443f;
   padding-top: 24px;
-  font-size: 13px;
-  color: #8fa79b;
+  font-size: var(--fd-font-small);
+  color: var(--fd-text-muted);
 }
 .settings-note p {
   margin: 10px 0;
 }
 .settings-grid label > span {
-  font-size: 12px;
-  color: #88a092;
+  font-size: var(--fd-font-small);
+  color: var(--fd-text-secondary);
 }
 @media (max-width: 700px) {
   .dashboard {
@@ -426,8 +472,8 @@ select {
   color: #8da18f;
 }
 .attribution {
-  font-size: 9px;
-  color: #62796e;
+  font-size: var(--fd-font-small);
+  color: var(--fd-text-muted);
   margin-top: 4px;
 }
 .provider-icon {
@@ -731,10 +777,6 @@ progress::-webkit-progress-value {
 .card-details[open] > summary::before {
   content: "−";
 }
-summary:focus-visible {
-  outline: 3px solid #b8d6a2;
-  outline-offset: 2px;
-}
 .detail-content {
   position: fixed;
   z-index: 20;
@@ -753,8 +795,8 @@ summary:focus-visible {
 .detail-content::before {
   content: "詳細 · Esc でも閉じられます";
   display: block;
-  font-size: 12px;
-  color: #a6b8b2;
+  font-size: var(--fd-font-small);
+  color: var(--fd-text-secondary);
   margin-bottom: 12px;
 }
 /* Preserve the original vertical flow outside the compact landscape overview. */
@@ -1041,7 +1083,7 @@ summary:focus-visible {
   min-width: 0;
   margin: 24px 0 16px;
   padding: 16px;
-  border: 1px solid #405650;
+  border: 1px solid var(--fd-border-control);
   border-radius: 9px;
 }
 .weather-enabled {
@@ -1085,6 +1127,13 @@ summary:focus-visible {
 /* A scrollable, touch-sized settings surface outside the one-screen overview. */
 .unified-settings {
   min-width: 0;
+  font-size: var(--fd-font-body);
+  line-height: var(--fd-line-body);
+}
+.detail-content .small {
+  color: var(--fd-text-secondary) !important;
+  font-size: var(--fd-font-small) !important;
+  line-height: var(--fd-line-body);
 }
 .settings-sections {
   display: grid;
@@ -1094,12 +1143,28 @@ summary:focus-visible {
 }
 .settings-sections button {
   min-width: 0;
+  min-height: var(--fd-control-height);
+  font-size: var(--fd-font-body);
   overflow-wrap: anywhere;
 }
 .settings-sections [aria-current="page"] {
   background: #34473a;
   border-color: #b8d6a2;
   color: #e7efe4;
+  font-weight: 700;
+  box-shadow: inset 0 -3px 0 var(--fd-action);
+}
+.settings-sections [aria-current="page"]:focus-visible {
+  box-shadow:
+    0 0 0 2px var(--fd-focus-black),
+    inset 0 -3px 0 var(--fd-action);
+}
+.audio-controls button:disabled,
+.wake-controls button:disabled,
+.settings-sections button:disabled {
+  color: var(--fd-disabled-text);
+  background: var(--fd-disabled-bg);
+  border-color: var(--fd-disabled-border);
 }
 .settings-section-content {
   min-width: 0;
@@ -1133,8 +1198,8 @@ summary:focus-visible {
   flex: none;
 }
 .settings-help {
-  color: #a6b8b2;
-  font-size: 14px;
+  color: var(--fd-text-secondary);
+  font-size: var(--fd-font-small);
   overflow-wrap: anywhere;
 }
 .settings-license pre {
@@ -1142,11 +1207,12 @@ summary:focus-visible {
   overflow: auto;
   overscroll-behavior: contain;
   padding: 16px;
-  border: 1px solid #34443f;
+  border: 1px solid var(--fd-border-control);
   border-radius: 8px;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
-  font-size: 12px;
+  font-size: var(--fd-font-small);
+  line-height: var(--fd-line-body);
 }
 .settings-confirmation-backdrop {
   position: fixed;

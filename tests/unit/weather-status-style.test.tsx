@@ -14,10 +14,10 @@ afterEach(() => {
 
 it("keeps weather status nonshrinking and unwrapped outside landscape-only rules", () => {
   stylesheet = document.createElement("style");
-  stylesheet.textContent = readFileSync(
-    "apps/dashboard/src/styles.css",
-    "utf8",
-  );
+  stylesheet.textContent = [
+    readFileSync("apps/dashboard/src/styles/tokens.css", "utf8"),
+    readFileSync("apps/dashboard/src/styles.css", "utf8"),
+  ].join("\n");
   document.head.append(stylesheet);
   const regionLabel =
     "東京地方・多摩西部・伊豆諸島北部を含む長い予報地域の表示確認".repeat(3);

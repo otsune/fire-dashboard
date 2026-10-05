@@ -164,7 +164,11 @@ export function SettingsShell({
               <button ref={keepButton} onClick={onKeepEditing}>
                 編集を続ける
               </button>
-              <button disabled={guard.saving} onClick={onDiscardPending}>
+              <button
+                className="button-destructive"
+                disabled={guard.saving}
+                onClick={onDiscardPending}
+              >
                 変更を破棄して移動
               </button>
             </div>

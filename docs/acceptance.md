@@ -195,17 +195,17 @@ node scripts/fire-fit-qa.mjs five 4173
 - CSS変更前に実ブラウザーのカード・見出し・状態・内容・設定ボタン・詳細summaryの内包境界、44pxボタン、通常クリックの判定を追加。既存4サイズの短い地域名／長い地域名の管理者・閲覧者経路を維持し、960×600の短い／長い地域名と取得済み予報を使う2件を追加。強制クリックや仮のDOM寸法は使わない
 - DOM回帰は、詳細を開いた後に予報地方の全文がないことを確認して失敗させ、追加後に成功。全文の見出し名、気温地点、4予報、詳細を閉じた後のsummaryへのフォーカスも確認。CSS描画の成功を示すものではない
 
-| 今回のクラウド確認 | 結果 |
-| --- | --- |
-| 関連する単体／DOM試験 | 6ファイル・55件成功 |
-| `npm test` | 56ファイル・611件成功 |
-| `npm run typecheck` | 成功 |
-| `npm run build` | 成功、オフライン資産57件 |
-| `npm run build:api` / `npm run build:collectors` | 成功 |
-| `npm run test:e2e -- --list` | 6ファイル・54件の定義を検出。操作の実行ではない |
-| Gemini WAVのバイト・SHA-256 | 48本すべて修正前 `39da586` と公開ソース・ビルド出力が一致 |
-| 修正後のブラウザー操作・描画・スクリーンショット | 未実行（NOT RUN）、ネイティブ再試験待ち |
-| Fire／Fully Kiosk実機 | 未実施（NOT RUN） |
+| 今回のクラウド確認                               | 結果                                                      |
+| ------------------------------------------------ | --------------------------------------------------------- |
+| 関連する単体／DOM試験                            | 6ファイル・55件成功                                       |
+| `npm test`                                       | 56ファイル・611件成功                                     |
+| `npm run typecheck`                              | 成功                                                      |
+| `npm run build`                                  | 成功、オフライン資産57件                                  |
+| `npm run build:api` / `npm run build:collectors` | 成功                                                      |
+| `npm run test:e2e -- --list`                     | 6ファイル・54件の定義を検出。操作の実行ではない           |
+| Gemini WAVのバイト・SHA-256                      | 48本すべて修正前 `39da586` と公開ソース・ビルド出力が一致 |
+| 修正後のブラウザー操作・描画・スクリーンショット | 未実行（NOT RUN）、ネイティブ再試験待ち                   |
+| Fire／Fully Kiosk実機                            | 未実施（NOT RUN）                                         |
 
 ブラウザー起動とクラウドlocalhostアクセスは既知の制限で利用できません。この限定修正では再試行・迂回・公開プレビュー・Windows側の操作を行っていません。修正後の実寸法とクリック成功は未確認です。外部の23件成功を、この修正後の54件の成功として扱わないでください。
 
@@ -306,3 +306,23 @@ node scripts/fire-fit-qa.mjs five 4173
 今回のクラウド確認は、単体／統合60ファイル649件、型検査、通常／API／collectorビルド、差分検査が成功。Gemini音声48本とチャイム1本は、変更前・ソース・ビルドのバイトとSHA-256が一致しています。E2E定義は58件（設定関連30件）になりましたが、新版のネイティブ実行と画像確認は未実施です。Windowsは既定のsymlink試験1件をskipとして別記してください。旧版57件の成功を、新版58件の成功として扱わないでください。
 
 音声形式、API、依存関係、認証、OS／ネットワーク設定は変更していません。マージ、配備、Fire／Fully Kiosk実機確認は行っていません。
+
+## DADS-inspired CSS P0-P2 validation (2026-10-05)
+
+- Baseline: `dc38f9a40d811a102b414aa56577efe018a862fc`, tree `d4265e36a4a24f8287c58d94713af82eda246a02`.
+- P0 captures and computed styles are under `artifacts/p0-baseline/`. Desktop Chromium reports a 16px root/body font size and normal visual viewport scale 1. Fully Kiosk text zoom remains unconfirmed; no device setting was changed.
+- P1 adds local semantic CSS tokens, a yellow/black two-part focus treatment, explicit disabled colors/borders, and browser-computed style coverage. These are Fire Dashboard values informed by DADS, not an official DADS dark theme.
+- P2 scopes 16px body/control and 14px supporting text to settings/details, uses 48px setting controls while retaining 44px minimum touch targets, distinguishes the primary save and destructive discard actions, and shows save success as a non-interactive confirmation with a visible check mark.
+- Browser evidence is under `artifacts/p1-p2/`. The 200% case prioritizes reachability and allows vertical scrolling while rejecting horizontal overflow.
+- Grok raw metric checks are not applicable to this baseline because that implementation is not integrated. P3 and Fire/Fully Kiosk visual and touch acceptance remain pending.
+
+### Additional pre-publication checks
+
+- `npm run build:api`: passed; generated `start` and `auth-tailscale` bundles under `dist/aggregator`.
+- `npm run build:collectors`: passed; generated `claude-statusline`, `codex-service`, and `send-snapshot` bundles under `dist/collectors`.
+- All 49 tracked WAV files have the same Git blob IDs as baseline `dc38f9a`; mismatches: 0. The SHA-256 of the sorted current WAV SHA-256 manifest is `0b7cf53f7031f6f25c9f76a0e407dbaca137a862ff6fbbc8e69f79e08fbd180f`.
+- The 200% check uses a 640 CSS px viewport as the reflow equivalent of a 1280 px display. It is not a Fully Kiosk or browser-UI zoom measurement.
+
+### CSS-only rollback boundary
+
+Keep the eventual P1/P2 publication in dedicated commit(s). Roll back by reverting only those CSS commits with a normal forward Git revert; do not reset the repository or deploy an older whole-application tree. The rollback surface is `styles/tokens.css`, its `main.tsx` import, the targeted `styles.css` declarations, the presentation-only classes in `SettingsShell.tsx` and `WeatherSettings.tsx`, and their tests/evidence/docs. Leave collectors, API contracts, Grok work, audio files, saved settings, and deployment state untouched. Re-run unit/type/build/all E2E and verify the generated service-worker asset set after the revert before any approved deployment.
