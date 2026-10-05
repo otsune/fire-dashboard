@@ -463,6 +463,57 @@ test.describe("Weather shortcut with configured forecast at 960×600", () => {
   }
 });
 
+test.describe("Portrait weather heading at 800×1280", () => {
+  test.use({ viewport: { width: 800, height: 1280 } });
+
+  test("long region keeps its status on one line through details, settings and rotation", async ({
+    page,
+  }, testInfo) => {
+    await setupSettings(page, { longLabels: true, configuredForecast: true });
+    const card = page.locator(".weather-card");
+    const heading = card.getByRole("heading", {
+      name: longRegion,
+      exact: true,
+    });
+    const status = card.locator(".status");
+    const expectPortraitHeader = async () => {
+      await expectWeatherShortcutContained(page);
+      await expect(status).toHaveText("更新済み");
+      await expectReadable(page, heading);
+      await expectReadable(page, status);
+      const titleBounds = await heading.boundingBox();
+      const statusBounds = await status.boundingBox();
+      expect(titleBounds!.x + titleBounds!.width).toBeLessThanOrEqual(
+        statusBounds!.x + 1,
+      );
+      await expectNoHorizontalOverflow(page);
+    };
+    await expectPortraitHeader();
+    await testInfo.attach("portrait-long-region-status", {
+      body: await page.screenshot({ fullPage: true }),
+      contentType: "image/png",
+    });
+    const details = card.locator("details");
+    await details.locator("summary").click();
+    await expect(details).toHaveJSProperty("open", true);
+    await expect(
+      details.getByText(`予報地方：${longRegion}`, { exact: true }),
+    ).toBeVisible();
+    await details.getByRole("button", { name: "詳細を閉じる" }).click();
+    await openSettings(page, true);
+    await closeSettings(page);
+    await expectPortraitHeader();
+    await page.setViewportSize({ width: 960, height: 600 });
+    await expectWeatherShortcutContained(page);
+    await page.setViewportSize({ width: 800, height: 1280 });
+    await expectPortraitHeader();
+    await testInfo.attach("portrait-long-region-status-after-rotation", {
+      body: await page.screenshot({ fullPage: true }),
+      contentType: "image/png",
+    });
+  });
+});
+
 test("native Back/Forward, Escape and dirty guards preserve draft and opener focus", async ({
   page,
   context,

@@ -72,56 +72,61 @@ it("includes asset URL identity even when renamed files have identical bytes", a
   expect(changed.assets).toContain("/assets/renamed.js");
   expect(changed.cache).not.toBe(original.cache);
 });
-it("normalizes Windows asset URLs and excludes sw.js during repeated generation", async () => {
-  // This executes actual build source with win32 paths and an in-memory filesystem.
-  // It is a portable-path probe on the current OS, not a Windows process run.
-  const files = new Map<string, Buffer>([
-    ["apps\\dashboard\\src\\sw.ts", Buffer.from(workerSource)],
-    ["apps\\dashboard\\dist\\index.html", Buffer.from("shell")],
-    ["apps\\dashboard\\dist\\assets\\app.js", Buffer.from("bootstrap")],
-    ["apps\\dashboard\\dist\\assets\\app.css", Buffer.from("styles")],
-    ["apps\\dashboard\\dist\\sw.js", Buffer.from("old generated worker")],
-  ]);
-  const source = (await readFile(script, "utf8")).replace(
-    /^import[\s\S]*?;\n/gm,
-    "",
-  );
-  const run = async () => {
-    await runInNewContext("(async () => {" + source + "})()", {
-      join: win32.join,
-      relative: win32.relative,
-      sep: win32.sep,
-      createHash,
-      readdir: async (directory: string) => {
-        const prefix = win32.normalize(directory) + "\\";
-        const names = new Map<string, boolean>();
-        for (const path of files.keys()) {
-          if (!path.startsWith(prefix)) continue;
-          const parts = path.slice(prefix.length).split("\\");
-          names.set(parts[0], parts.length > 1);
-        }
-        return [...names].map(([name, directory]) => ({
-          name,
-          isDirectory: () => directory,
-        }));
-      },
-      readFile: async (path: string, encoding?: string) => {
-        const value = files.get(win32.normalize(path));
-        if (!value) throw Error("missing fixture: " + path);
-        return encoding ? value.toString(encoding as BufferEncoding) : value;
-      },
-      writeFile: async (path: string, value: string) => {
-        files.set(win32.normalize(path), Buffer.from(value));
-      },
-      console: { log: () => {} },
-    });
-    return files.get("apps\\dashboard\\dist\\sw.js")!.toString();
-  };
-  const first = await run();
-  expect(identity(first).assets).toEqual([
-    "/assets/app.css",
-    "/assets/app.js",
-    "/index.html",
-  ]);
-  expect(await run()).toBe(first);
-});
+it.each([
+  { lineEnding: "LF", newline: "\n" },
+  { lineEnding: "CRLF", newline: "\r\n" },
+])(
+  "normalizes Windows asset URLs and excludes sw.js during repeated generation with $lineEnding build source",
+  async ({ newline }) => {
+    // This executes actual build source with win32 paths and an in-memory filesystem.
+    // It is a portable-path probe on the current OS, not a Windows process run.
+    const files = new Map<string, Buffer>([
+      ["apps\\dashboard\\src\\sw.ts", Buffer.from(workerSource)],
+      ["apps\\dashboard\\dist\\index.html", Buffer.from("shell")],
+      ["apps\\dashboard\\dist\\assets\\app.js", Buffer.from("bootstrap")],
+      ["apps\\dashboard\\dist\\assets\\app.css", Buffer.from("styles")],
+      ["apps\\dashboard\\dist\\sw.js", Buffer.from("old generated worker")],
+    ]);
+    const source = (await readFile(script, "utf8"))
+      .replace(/\r?\n/g, newline)
+      .replace(/^import[\s\S]*?;\r?\n/gm, "");
+    const run = async () => {
+      await runInNewContext("(async () => {" + source + "})()", {
+        join: win32.join,
+        relative: win32.relative,
+        sep: win32.sep,
+        createHash,
+        readdir: async (directory: string) => {
+          const prefix = win32.normalize(directory) + "\\";
+          const names = new Map<string, boolean>();
+          for (const path of files.keys()) {
+            if (!path.startsWith(prefix)) continue;
+            const parts = path.slice(prefix.length).split("\\");
+            names.set(parts[0], parts.length > 1);
+          }
+          return [...names].map(([name, directory]) => ({
+            name,
+            isDirectory: () => directory,
+          }));
+        },
+        readFile: async (path: string, encoding?: string) => {
+          const value = files.get(win32.normalize(path));
+          if (!value) throw Error("missing fixture: " + path);
+          return encoding ? value.toString(encoding as BufferEncoding) : value;
+        },
+        writeFile: async (path: string, value: string) => {
+          files.set(win32.normalize(path), Buffer.from(value));
+        },
+        console: { log: () => {} },
+      });
+      return files.get("apps\\dashboard\\dist\\sw.js")!.toString();
+    };
+    const first = await run();
+    expect(identity(first).assets).toEqual([
+      "/assets/app.css",
+      "/assets/app.js",
+      "/index.html",
+    ]);
+    expect(await run()).toBe(first);
+  },
+);

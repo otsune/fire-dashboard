@@ -367,6 +367,10 @@ select {
 .weather-card .status {
   background: #242f2b;
 }
+.weather-card .card-heading .status {
+  flex: none;
+  white-space: nowrap;
+}
 .card h2 {
   font-size: 21px;
 }
@@ -875,10 +879,6 @@ summary:focus-visible {
     overflow: hidden;
     white-space: nowrap;
     text-overflow: ellipsis;
-  }
-  .overview .weather-card .card-heading .status {
-    flex: none;
-    white-space: nowrap;
   }
   .overview .weather-card > .forecast {
     margin: auto 0;

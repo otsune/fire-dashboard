@@ -343,6 +343,37 @@ export async function expectWeatherShortcutContained(page: Page) {
     overlapWidth * overlapHeight,
     "weather controls must not overlap",
   ).toBe(0);
+  const status = card.locator(".status");
+  const statusBounds = await status.boundingBox();
+  const statusLayout = await status.evaluate((element) => {
+    const style = getComputedStyle(element);
+    const range = document.createRange();
+    range.selectNodeContents(element);
+    return {
+      lineCount: Array.from(range.getClientRects()).filter(
+        (rect) => rect.width && rect.height,
+      ).length,
+      singleLineHeight: [
+        style.lineHeight,
+        style.paddingTop,
+        style.paddingBottom,
+        style.borderTopWidth,
+        style.borderBottomWidth,
+      ].reduce((height, value) => height + Number.parseFloat(value), 0),
+      horizontallyContained: element.scrollWidth <= element.clientWidth + 1,
+    };
+  });
+  expect(
+    statusLayout.lineCount,
+    "weather status stays on one rendered line",
+  ).toBe(1);
+  expect(
+    statusLayout.horizontallyContained,
+    "weather status is not clipped",
+  ).toBe(true);
+  expect(statusBounds!.height).toBeLessThanOrEqual(
+    statusLayout.singleLineHeight + 1,
+  );
   const viewport = page.viewportSize()!;
   if (viewport.width > viewport.height) {
     expect(
@@ -366,19 +397,6 @@ export async function expectWeatherShortcutContained(page: Page) {
       Number.parseFloat(getComputedStyle(element).lineHeight),
     );
     expect(headingBounds!.height).toBeLessThanOrEqual(lineHeight + 1);
-    const status = card.locator(".status");
-    const statusBounds = await status.boundingBox();
-    const singleLineHeight = await status.evaluate((element) => {
-      const style = getComputedStyle(element);
-      return [
-        style.lineHeight,
-        style.paddingTop,
-        style.paddingBottom,
-        style.borderTopWidth,
-        style.borderBottomWidth,
-      ].reduce((height, value) => height + Number.parseFloat(value), 0);
-    });
-    expect(statusBounds!.height).toBeLessThanOrEqual(singleLineHeight + 1);
   }
   // Playwright checks real hit testing; the caller then clicks normally to open.
   await button.click({ trial: true });
