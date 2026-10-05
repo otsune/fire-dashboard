@@ -1,8 +1,22 @@
-import { test, expect } from "@playwright/test";
-/** Uses test-only audio media/manifest; it does not claim real recorded audio or Fire validation. */
-test("production controller claims one hour across two tabs and reload", async ({
-  context,
-}) => {
+import { test, expect, type BrowserContext, type Page } from "@playwright/test";
+
+/** Held synthetic media exercises production arbitration, not real audio or Fire compatibility. */
+async function installHeldAudio(context: BrowserContext) {
+  const playback = {
+    active: new Set<string>(),
+    maximum: 0,
+    urls: [] as string[],
+  };
+  await context.exposeBinding(
+    "recordTestAudio",
+    (_source, event: { kind: "start" | "end"; id: string; url: string }) => {
+      if (event.kind === "start") {
+        playback.active.add(event.id);
+        playback.urls.push(event.url);
+        playback.maximum = Math.max(playback.maximum, playback.active.size);
+      } else playback.active.delete(event.id);
+    },
+  );
   await context.route("**/audio/manifest.json", (route) =>
     route.fulfill({
       json: {
@@ -18,66 +32,216 @@ test("production controller claims one hour across two tabs and reload", async (
     }),
   );
   await context.addInitScript(() => {
+    const fixture = window as unknown as {
+      testPlayed: string[];
+      testFinishAudio: () => Promise<void>;
+      recordTestAudio: (event: {
+        kind: "start" | "end";
+        id: string;
+        url: string;
+      }) => Promise<void>;
+    };
     const played: string[] = [];
-    (window as unknown as { testPlayed: string[] }).testPlayed = played;
+    fixture.testPlayed = played;
+    let current: FixtureAudio | null = null;
     class FixtureAudio {
-      src: string;
+      id = crypto.randomUUID();
+      active = false;
       volume = 1;
       onended: (() => void) | null = null;
       onerror: (() => void) | null = null;
-      constructor(src: string) {
-        this.src = src;
-      }
-      play() {
+      constructor(public src: string) {}
+      async play() {
+        this.active = true;
+        current = this;
         played.push(this.src);
-        Promise.resolve().then(() => this.onended?.());
-        return Promise.resolve();
+        await fixture.recordTestAudio({
+          kind: "start",
+          id: this.id,
+          url: this.src,
+        });
       }
-      pause() {}
+      async finish(ended = true) {
+        if (!this.active) return;
+        this.active = false;
+        await fixture.recordTestAudio({
+          kind: "end",
+          id: this.id,
+          url: this.src,
+        });
+        if (ended) this.onended?.();
+      }
+      pause() {
+        void this.finish(false);
+      }
       removeAttribute() {}
       load() {}
     }
+    fixture.testFinishAudio = async () => {
+      await current?.finish();
+    };
     Object.defineProperty(window, "Audio", { value: FixtureAudio });
   });
-  const pages = [await context.newPage(), await context.newPage()];
-  await Promise.all(
-    pages.map(async (page) => {
-      await page.clock.install({ time: new Date("2026-10-02T00:59:55Z") });
-      await page.goto("/");
-      await page.getByRole("button", { name: "音声を有効にする" }).click();
-      await expect(page.getByText("音声有効", { exact: true })).toBeVisible();
-    }),
+  return playback;
+}
+async function played(page: Page) {
+  return page.evaluate(
+    () => (window as unknown as { testPlayed: string[] }).testPlayed,
   );
-  await Promise.all(pages.map((page) => page.clock.runFor(6500)));
-  const played = await Promise.all(
-    pages.map((page) =>
-      page.evaluate(
-        () => (window as unknown as { testPlayed: string[] }).testPlayed,
-      ),
-    ),
+}
+async function finishAudio(page: Page) {
+  await page.evaluate(() =>
+    (
+      window as unknown as { testFinishAudio: () => Promise<void> }
+    ).testFinishAudio(),
   );
-  expect(played.flat().filter((url) => url === "/audio/10.mp3")).toHaveLength(
-    1,
-  );
-  await pages[0].reload();
+}
+async function enableAudio(page: Page) {
+  const before = (await played(page)).length;
+  await page.getByRole("button", { name: "音声を有効にする" }).click();
+  await expect.poll(async () => (await played(page)).length).toBe(before + 1);
+  await finishAudio(page);
+  await expect(page.getByText("音声有効", { exact: true })).toBeVisible();
   await expect(
-    pages[0].getByRole("button", { name: "音声を有効にする" }),
-  ).toBeVisible();
-  const claims = await pages[0].evaluate(async () => {
+    page.getByRole("button", { name: "音声を無効にする" }),
+  ).toBeEnabled();
+}
+async function claimKeys(page: Page) {
+  return page.evaluate(async () => {
     const request = indexedDB.open("fire-dashboard-v1", 1);
-    const db = await new Promise<IDBDatabase>((resolve) => {
+    const db = await new Promise<IDBDatabase>((resolve, reject) => {
       request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
     });
-    return new Promise<number>((resolve) => {
-      const tx = db.transaction("claims", "readonly");
-      const request = tx.objectStore("claims").count();
-      request.onsuccess = () => {
-        db.close();
-        resolve(request.result);
-      };
-    });
+    try {
+      return await new Promise<string[]>((resolve, reject) => {
+        const tx = db.transaction("claims", "readonly");
+        const request = tx.objectStore("claims").getAll();
+        request.onsuccess = () =>
+          resolve(request.result.map((value: { key: string }) => value.key));
+        request.onerror = () => reject(request.error);
+      });
+    } finally {
+      db.close();
+    }
   });
-  expect(claims).toBe(1);
+}
+
+test.describe("synthetic audio arbitration", () => {
+  // A controlling worker can serve the bundled manifest without reaching the
+  // route fixture, especially after reload. Keep only these synthetic tests
+  // off that cache path; production offline and real chime tests keep workers.
+  test.use({ serviceWorkers: "block" });
+
+  test("production controller claims one hour across two enabled tabs and reload", async ({
+    context,
+  }) => {
+    const playback = await installHeldAudio(context);
+    const pages = [await context.newPage(), await context.newPage()];
+    // Playwright's clock belongs to the context. Install, pause and advance it
+    // through one page so both controllers observe the same normal clock ticks.
+    await pages[0].clock.install({ time: new Date("2026-10-02T00:59:00Z") });
+    await Promise.all(
+      pages.map(async (page) => {
+        await page.goto("/");
+        await expect(
+          page.getByRole("button", { name: "音声を有効にする" }),
+        ).toBeEnabled();
+      }),
+    );
+    await pages[0].clock.pauseAt(new Date("2026-10-02T00:59:55Z"));
+    for (const page of pages) await enableAudio(page);
+    for (const page of pages) {
+      await expect(page.getByText("音声有効", { exact: true })).toBeVisible();
+      await expect(
+        page.getByRole("button", { name: "音声を無効にする" }),
+      ).toBeEnabled();
+    }
+    expect(playback.urls).toEqual(["/audio/0.mp3", "/audio/0.mp3"]);
+    expect(await claimKeys(pages[0])).toEqual([]);
+    await pages[0].clock.runFor(6500);
+    await expect
+      .poll(() => playback.urls.filter((url) => url === "/audio/10.mp3").length)
+      .toBe(1);
+    const histories = await Promise.all(pages.map(played));
+    expect(
+      histories.flat().filter((url) => url === "/audio/10.mp3"),
+    ).toHaveLength(1);
+    expect(await claimKeys(pages[0])).toEqual(["Asia/Tokyo|2026-10-02|10"]);
+    const hourlyPage =
+      pages[histories.findIndex((urls) => urls.includes("/audio/10.mp3"))];
+    await finishAudio(hourlyPage);
+    await expect.poll(() => playback.active.size).toBe(0);
+    expect(playback.maximum).toBe(1);
+    await pages[0].reload();
+    await expect(
+      pages[0].getByRole("button", { name: "音声を有効にする" }),
+    ).toBeEnabled();
+    await expect(
+      pages[0].getByRole("button", { name: "音声を無効にする" }),
+    ).toHaveCount(0);
+    await pages[0].clock.runFor(1000);
+    expect(await played(pages[0])).toEqual([]);
+    expect(await claimKeys(pages[0])).toEqual(["Asia/Tokyo|2026-10-02|10"]);
+    // A fresh tap is allowed, but the persisted hourly attempt never replays.
+    await enableAudio(pages[0]);
+    await pages[0].clock.runFor(1000);
+    expect(await played(pages[0])).toEqual(["/audio/0.mp3"]);
+    expect(playback.urls.filter((url) => url === "/audio/10.mp3")).toHaveLength(
+      1,
+    );
+    expect(await claimKeys(pages[0])).toEqual(["Asia/Tokyo|2026-10-02|10"]);
+    expect(playback.maximum).toBe(1);
+  });
+
+  test("a contending enable stays disabled until an explicit retry after exclusive preview release", async ({
+    context,
+  }) => {
+    const playback = await installHeldAudio(context);
+    const pages = [await context.newPage(), await context.newPage()];
+    await pages[0].clock.install({ time: new Date("2026-10-02T00:59:00Z") });
+    await Promise.all(
+      pages.map(async (page) => {
+        await page.goto("/");
+        await expect(
+          page.getByRole("button", { name: "音声を有効にする" }),
+        ).toBeEnabled();
+      }),
+    );
+    await pages[0].clock.pauseAt(new Date("2026-10-02T00:59:55Z"));
+    await pages[0].getByRole("button", { name: "音声を有効にする" }).click();
+    await expect.poll(() => playback.active.size).toBe(1);
+    await pages[1].getByRole("button", { name: "音声を有効にする" }).click();
+    await expect(
+      pages[1].getByText("別の画面で音声を再生中", { exact: true }),
+    ).toBeVisible();
+    await expect(
+      pages[1].getByRole("button", { name: "音声を有効にする" }),
+    ).toBeEnabled();
+    await expect(
+      pages[1].getByRole("button", { name: "音声を無効にする" }),
+    ).toHaveCount(0);
+    expect(await played(pages[1])).toEqual([]);
+    expect(playback.urls).toEqual(["/audio/0.mp3"]);
+    expect(playback.maximum).toBe(1);
+    await finishAudio(pages[0]);
+    await expect(pages[0].getByText("音声有効", { exact: true })).toBeVisible();
+    expect(playback.active.size).toBe(0);
+    await pages[0].clock.runFor(1000);
+    await expect(
+      pages[1].getByRole("button", { name: "音声を有効にする" }),
+    ).toBeEnabled();
+    await expect(
+      pages[1].getByRole("button", { name: "音声を無効にする" }),
+    ).toHaveCount(0);
+    expect(await played(pages[1])).toEqual([]);
+    expect(playback.urls).toEqual(["/audio/0.mp3"]);
+    await enableAudio(pages[1]);
+    expect(playback.urls).toEqual(["/audio/0.mp3", "/audio/0.mp3"]);
+    expect(playback.maximum).toBe(1);
+    expect(playback.active.size).toBe(0);
+    expect(await claimKeys(pages[0])).toEqual([]);
+  });
 });
 
 test("bundled original chime decodes and plays only after an explicit tap", async ({

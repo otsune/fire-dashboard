@@ -33,16 +33,121 @@ test("unconfigured dashboard has clock/cards/settings with no invented live data
 test("clock continues offline and production shell reloads", async ({
   page,
   context,
-}) => {
-  await page.goto("/");
-  await expect(page.getByText("オフライン準備完了")).toBeVisible();
-  const time = await page.getByTestId("clock-seconds").textContent();
-  await context.setOffline(true);
-  await expect(page.getByTestId("clock-seconds")).not.toHaveText(time!);
-  await page.reload();
-  await expect(page.getByTestId("clock-time")).toBeVisible();
-  await expect(page.getByText("地域未設定")).toBeVisible();
-  await context.setOffline(false);
+}, testInfo) => {
+  const assetResponses: {
+    url: string;
+    offlineReload: boolean;
+    status: number;
+    fromServiceWorker: boolean;
+    origin: string | null;
+    vary: string | null;
+  }[] = [];
+  const assetFailures: { url: string; error: string | undefined }[] = [];
+  const pending: Promise<void>[] = [];
+  let offlineReload = false;
+  const isBootstrapAsset = (url: string) =>
+    /\/assets\/.*\.(js|css)$/.test(new URL(url).pathname);
+  context.on("response", (response) => {
+    if (!isBootstrapAsset(response.url())) return;
+    const phase = offlineReload;
+    pending.push(
+      (async () => {
+        assetResponses.push({
+          url: response.url(),
+          offlineReload: phase,
+          status: response.status(),
+          fromServiceWorker: response.fromServiceWorker(),
+          origin: await response.request().headerValue("origin"),
+          vary: await response.headerValue("vary"),
+        });
+      })(),
+    );
+  });
+  context.on("requestfailed", (request) => {
+    if (isBootstrapAsset(request.url()))
+      assetFailures.push({
+        url: request.url(),
+        error: request.failure()?.errorText,
+      });
+  });
+  let beforeOffline;
+  try {
+    await page.goto("/");
+    await expect(page.getByText("オフライン準備完了")).toBeVisible();
+    // ready can resolve before clients.claim(); wait for actual page control.
+    await expect
+      .poll(() =>
+        page.evaluate(
+          () => navigator.serviceWorker.controller?.state ?? "none",
+        ),
+      )
+      .toBe("activated");
+    beforeOffline = await page.evaluate(async () => {
+      const registration = await navigator.serviceWorker.getRegistration();
+      const assets = [
+        ...document.querySelectorAll<HTMLScriptElement | HTMLLinkElement>(
+          'script[src], link[rel="stylesheet"]',
+        ),
+      ].map((element) =>
+        element instanceof HTMLScriptElement ? element.src : element.href,
+      );
+      const cachesState = await Promise.all(
+        (await caches.keys()).map(async (name) => {
+          const cache = await caches.open(name);
+          const entries = await Promise.all(
+            (await cache.keys()).map(async (request) => ({
+              url: request.url,
+              origin: request.headers.get("origin"),
+              vary: (await cache.match(request))?.headers.get("vary") ?? null,
+            })),
+          );
+          return { name, entries };
+        }),
+      );
+      return {
+        assets,
+        controller: {
+          state: navigator.serviceWorker.controller?.state,
+          scriptURL: navigator.serviceWorker.controller?.scriptURL,
+        },
+        active: registration?.active?.state,
+        waiting: registration?.waiting?.state,
+        caches: cachesState,
+      };
+    });
+    const time = await page.getByTestId("clock-seconds").textContent();
+    await context.setOffline(true);
+    await expect(page.getByTestId("clock-seconds")).not.toHaveText(time!);
+    offlineReload = true;
+    const response = await page.reload();
+    expect(response?.status()).toBe(200);
+    expect(response?.fromServiceWorker()).toBe(true);
+    await expect(page.getByTestId("clock-time")).toBeVisible();
+    await expect(page.getByText("地域未設定")).toBeVisible();
+    await Promise.all(pending);
+    expect(assetFailures).toEqual([]);
+    for (const url of beforeOffline.assets)
+      expect(
+        assetResponses.some(
+          (asset) =>
+            asset.url === url &&
+            asset.offlineReload &&
+            asset.status === 200 &&
+            asset.fromServiceWorker,
+        ),
+      ).toBe(true);
+  } finally {
+    await Promise.allSettled(pending);
+    await testInfo.attach("offline-bootstrap-diagnostics", {
+      body: JSON.stringify(
+        { beforeOffline, assetResponses, assetFailures },
+        null,
+        2,
+      ),
+      contentType: "application/json",
+    });
+    await context.setOffline(false);
+  }
 });
 test("portrait and landscape stay within the viewport and fonts are local", async ({
   page,

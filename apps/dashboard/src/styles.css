@@ -996,6 +996,7 @@ summary:focus-visible {
     gap: 0.04em;
     font-size: 44vw;
     font-size: min(46vw, 30vh, 440px);
+    line-height: 1.08;
   }
   .clock-separator {
     display: none;

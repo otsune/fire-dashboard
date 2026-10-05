@@ -1,6 +1,11 @@
 /* Generated as a versioned, self-contained worker by scripts/build-sw.mjs. */
 const CACHE = "fire-shell-__VERSION__";
 const ASSETS = __ASSETS__;
+const ASSET_PATHS = new Set(
+  ASSETS.map((asset) => new URL(asset, self.location.origin))
+    .filter((asset) => asset.origin === self.location.origin)
+    .map((asset) => asset.pathname),
+);
 self.addEventListener("install", (event) =>
   event.waitUntil(
     (async () => {
@@ -62,8 +67,12 @@ self.addEventListener("fetch", (event) => {
           : shell;
       }
       return (
-        (await cache.match(event.request, { ignoreSearch: true })) ||
-        fetch(event.request)
+        (await cache.match(event.request, {
+          ignoreSearch: true,
+          // Declared build URLs have fixed bytes. Precache requests lack the
+          // page's Origin, so Vary: Origin must not hide these offline assets.
+          ignoreVary: ASSET_PATHS.has(url.pathname),
+        })) || fetch(event.request)
       );
     })(),
   );

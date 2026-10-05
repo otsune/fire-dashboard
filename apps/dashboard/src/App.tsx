@@ -54,12 +54,23 @@ export function App() {
   > | null>(null);
   const settingsRef = useRef(settings),
     generation = useRef(0),
+    previousAudioTick = useRef<Tick | null>(null),
+    skipNextAudioAnnouncement = useRef(false),
     current = useRef(data);
   useEffect(() => {
     // Display-only visibility must not interrupt playback or alter an in-flight
     // announcement's settings signature. Keep the existing audio fields live.
     settingsRef.current = settings;
     generation.current++;
+    // settingsChanged cancels old playback. Keep a fresh clock-safety sample
+    // without replaying a boundary crossed before the next scheduler tick.
+    previousAudioTick.current = {
+      wallMs: Date.now(),
+      monoMs: performance.now(),
+      visible: !document.hidden,
+      generation: generation.current,
+    };
+    skipNextAudioAnnouncement.current = true;
     void audio?.settingsChanged();
   }, [
     settings.timeZone,
@@ -87,10 +98,10 @@ export function App() {
   }, []);
   useEffect(() => {
     if (!audio) return;
-    let previous: Tick | null = null;
+    previousAudioTick.current = null;
     const visibility = () => {
       generation.current++;
-      previous = null;
+      previousAudioTick.current = null;
       if (document.hidden) void audio.stop();
     };
     document.addEventListener("visibilitychange", visibility);
@@ -101,8 +112,14 @@ export function App() {
         visible: !document.hidden,
         generation: generation.current,
       };
-      const decision = evaluateHour(previous, tick, settingsRef.current);
-      previous = tick;
+      const decision = evaluateHour(
+        previousAudioTick.current,
+        tick,
+        settingsRef.current,
+      );
+      previousAudioTick.current = tick;
+      const skipAnnouncement = skipNextAudioAnnouncement.current;
+      skipNextAudioAnnouncement.current = false;
       if (
         decision.reason === "clock_resync" ||
         decision.reason === "resync" ||
@@ -110,11 +127,12 @@ export function App() {
         isQuiet(tick.wallMs, settingsRef.current)
       )
         void audio.stop();
-      else void audio.announce(decision);
+      else if (!skipAnnouncement) void audio.announce(decision);
     }, 250);
     return () => {
       clearInterval(timer);
       document.removeEventListener("visibilitychange", visibility);
+      previousAudioTick.current = null;
       void audio.stop();
     };
   }, [audio]);
