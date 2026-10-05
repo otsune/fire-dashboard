@@ -76,4 +76,17 @@ describe("Fire Dashboard design tokens", () => {
       main.indexOf('import "./styles.css"'),
     );
   });
+
+  it("keeps the landscape RSS preview readable without a persistent underline", () => {
+    const css = readFileSync("apps/dashboard/src/styles.css", "utf8");
+    expect(css).toMatch(
+      /\.overview \.rss-card \.headline-preview a\s*{[^}]*font-size:\s*18px;[^}]*line-height:\s*1\.4;[^}]*text-decoration:\s*none;/s,
+    );
+    expect(css).toMatch(
+      /\.overview \.rss-card \.headline-preview a:hover\s*{[^}]*text-decoration:\s*none;/s,
+    );
+    expect(css).toMatch(
+      /\.headline-preview article\s*{[^}]*white-space:\s*nowrap;[^}]*text-overflow:\s*ellipsis;/s,
+    );
+  });
 });

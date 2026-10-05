@@ -991,6 +991,14 @@ progress::-webkit-progress-value {
     flex: none;
     font-size: 14px;
   }
+  .overview .rss-card .headline-preview a {
+    font-size: 18px;
+    line-height: 1.4;
+    text-decoration: none;
+  }
+  .overview .rss-card .headline-preview a:hover {
+    text-decoration: none;
+  }
   .overview .rss-card .provider-sub {
     display: none;
   }
