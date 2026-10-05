@@ -27,7 +27,14 @@ test("admin acknowledgement stays in weather; explicit close and reopen read per
     .getByRole("combobox", { name: "気温の代表地点", exact: true })
     .selectOption("44133");
   await page.getByRole("button", { name: "保存", exact: true }).click();
-  await expect(page.getByRole("status")).toHaveText("保存しました");
+  // Child acknowledgement may precede the shell's saving-guard update.
+  await expect(
+    page.getByRole("status").filter({ hasText: /^保存しました$/ }),
+  ).toHaveText("保存しました");
+  await expect(
+    page.getByRole("region", { name: "設定", exact: true }),
+  ).toHaveAttribute("aria-busy", "false");
+  await expect(page.getByRole("button", { name: "時計に戻る" })).toBeEnabled();
   await expect(
     page.getByRole("heading", { name: "天気・地域", exact: true }),
   ).toBeVisible();
@@ -47,7 +54,13 @@ test("admin acknowledgement stays in weather; explicit close and reopen read per
     .getByRole("combobox", { name: "気温の代表地点", exact: true })
     .selectOption("44132");
   await page.getByRole("button", { name: "保存", exact: true }).click();
-  await expect(page.getByRole("status")).toHaveText("保存しました");
+  await expect(
+    page.getByRole("status").filter({ hasText: /^保存しました$/ }),
+  ).toHaveText("保存しました");
+  await expect(
+    page.getByRole("region", { name: "設定", exact: true }),
+  ).toHaveAttribute("aria-busy", "false");
+  await expect(page.getByRole("button", { name: "時計に戻る" })).toBeEnabled();
   expect(fixture.puts).toEqual([
     { revision: "r1", selection: { ...selection, station: "44133" } },
     { revision: "r2", selection },
@@ -217,7 +230,12 @@ test("pending save blocks section/header/Return/Escape/Back and duplicate submit
   } finally {
     finish();
   }
-  await expect(page.getByRole("status")).toHaveText("保存しました");
+  await expect(
+    page.getByRole("status").filter({ hasText: /^保存しました$/ }),
+  ).toHaveText("保存しました");
+  await expect(
+    page.getByRole("region", { name: "設定", exact: true }),
+  ).toHaveAttribute("aria-busy", "false");
   await expect(
     page.getByRole("heading", { name: "天気・地域", exact: true }),
   ).toBeVisible();

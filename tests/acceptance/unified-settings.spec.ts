@@ -303,7 +303,12 @@ for (const viewport of viewports) {
         .selectOption("44133");
       await page.unroute("**/api/v1/weather-settings", failSave);
       await page.getByRole("button", { name: "保存", exact: true }).click();
-      await expect(page.getByRole("status")).toHaveText("保存しました");
+      await expect(
+        page.getByRole("status").filter({ hasText: /^保存しました$/ }),
+      ).toHaveText("保存しました");
+      await expect(
+        page.getByRole("region", { name: "設定", exact: true }),
+      ).toHaveAttribute("aria-busy", "false");
       await expect(
         page.getByRole("heading", { name: "天気・地域", exact: true }),
       ).toBeVisible();
