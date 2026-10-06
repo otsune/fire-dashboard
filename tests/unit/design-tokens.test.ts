@@ -77,16 +77,19 @@ describe("Fire Dashboard design tokens", () => {
     );
   });
 
-  it("keeps the landscape RSS preview readable without a persistent underline", () => {
+  it("keeps the RSS preview readable as a two-line headline without a persistent underline", () => {
     const css = readFileSync("apps/dashboard/src/styles.css", "utf8");
     expect(css).toMatch(
-      /\.overview \.rss-card \.headline-preview a\s*{[^}]*font-size:\s*18px;[^}]*line-height:\s*1\.4;[^}]*text-decoration:\s*none;/s,
+      /\.rss-card \.headline-preview a\s*{[^}]*font-size:\s*36px;[^}]*line-height:\s*1\.25;[^}]*text-decoration:\s*none;/s,
     );
     expect(css).toMatch(
-      /\.overview \.rss-card \.headline-preview a:hover\s*{[^}]*text-decoration:\s*none;/s,
+      /\.rss-card \.headline-preview a:hover\s*{[^}]*text-decoration:\s*none;/s,
     );
-    expect(css).toMatch(
-      /\.headline-preview article\s*{[^}]*white-space:\s*nowrap;[^}]*text-overflow:\s*ellipsis;/s,
-    );
+    const previewRule = css.match(/\.headline-preview article\s*{([^}]*)}/s)?.[1];
+    expect(previewRule).toMatch(/display:\s*-webkit-box;/);
+    expect(previewRule).toMatch(/-webkit-line-clamp:\s*2;/);
+    expect(previewRule).toMatch(/-webkit-box-orient:\s*vertical;/);
+    expect(previewRule).toMatch(/white-space:\s*normal;/);
+    expect(previewRule).toMatch(/overflow:\s*hidden;/);
   });
 });

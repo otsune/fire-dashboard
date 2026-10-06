@@ -823,12 +823,20 @@ progress::-webkit-progress-value {
   flex: 1;
 }
 .headline-preview article {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
   overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
+  white-space: normal;
 }
-.headline-preview a {
+.rss-card .headline-preview a {
   color: #ccd9c5;
+  font-size: 36px;
+  line-height: 1.25;
+  text-decoration: none;
+}
+.rss-card .headline-preview a:hover {
+  text-decoration: none;
 }
 .rss-card .card-details {
   flex: none;
@@ -883,8 +891,8 @@ progress::-webkit-progress-value {
   }
   .overview .top-grid .seconds {
     align-self: flex-end;
-    margin-bottom: 8px;
-    font-size: clamp(18px, 3vw, 40px);
+    margin-bottom: 4px;
+    font-size: clamp(14px, 2vw, 32px);
   }
   .overview .clock-date {
     font-size: clamp(14px, 1.7vw, 24px);
@@ -984,20 +992,12 @@ progress::-webkit-progress-value {
     flex-direction: row;
     gap: 12px;
     align-items: center;
-    min-height: 52px;
-    padding: 0 12px;
+    min-height: 100px;
+    padding: 4px 12px;
   }
   .overview .rss-card h2 {
     flex: none;
     font-size: 14px;
-  }
-  .overview .rss-card .headline-preview a {
-    font-size: 18px;
-    line-height: 1.4;
-    text-decoration: none;
-  }
-  .overview .rss-card .headline-preview a:hover {
-    text-decoration: none;
   }
   .overview .rss-card .provider-sub {
     display: none;

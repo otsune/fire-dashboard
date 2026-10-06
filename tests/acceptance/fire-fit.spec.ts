@@ -414,6 +414,13 @@ for (const viewport of landscapeSizes) {
         await expectLandscapeLayout(page, count);
         await expect(page.locator(".headline-preview article")).toHaveCount(1);
         await expect(page.locator(".rss-card article:visible")).toHaveCount(1);
+        const headline = page.locator(".headline-preview a");
+        await expect(headline).toHaveCSS("font-size", "36px");
+        await expect(headline).toHaveCSS("line-height", "45px");
+        await expect(headline).toHaveCSS("text-decoration-line", "none");
+        const preview = page.locator(".headline-preview article");
+        await expect(preview).toHaveCSS("-webkit-line-clamp", "2");
+        expect((await preview.boundingBox())!.height).toBeLessThanOrEqual(90);
         await expect(page.locator("details.card-details[open]")).toHaveCount(0);
         await expectUnclippedText(
           page,
