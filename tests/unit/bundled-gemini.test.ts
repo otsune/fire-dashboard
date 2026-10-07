@@ -8,7 +8,7 @@ import {
 import { createAudioController } from "../../apps/dashboard/src/audio/controller";
 import { parseSettings } from "../../packages/contracts/src/index";
 
-it("bundles both complete Gemini sets with preserved PCM and recorded provenance", async () => {
+it("bundles both complete Ogg sets while retaining original PCM and provenance", async () => {
   const manifest = parseManifest(
     JSON.parse(
       await readFile("apps/dashboard/public/audio/manifest.json", "utf8"),
@@ -33,19 +33,22 @@ it("bundles both complete Gemini sets with preserved PCM and recorded provenance
     ).toEqual(
       Array.from(
         { length: 24 },
-        (_, h) => `hour-${String(h).padStart(2, "0")}.wav`,
-      ),
+        (_, h) => ["ogg", "wav"].map(ext => `hour-${String(h).padStart(2, "0")}.${ext}`),
+      ).flat().sort(),
     );
     for (let hour = 0; hour < 24; hour++) {
       const key = String(hour).padStart(2, "0");
       const path = `${format}/hour-${key}.wav`;
       const asset = hours[key];
-      expect(asset.url).toBe(`/audio/gemini/${path}`);
+      expect(asset.url).toBe(`/audio/gemini/${path.replace(".wav", ".ogg")}`);
+      const ogg = await readFile(`apps/dashboard/public${asset.url}`);
+      expect(ogg.toString("ascii", 0, 4)).toBe("OggS");
+      expect(ogg.includes(Buffer.from("OpusHead"))).toBe(true);
       expect(asset.license).toContain("/audio/gemini/NOTICE.txt");
       expect(asset.license).not.toMatch(
         /private.only|non.commercial|elevenlabs/i,
       );
-      const wav = await readFile(`apps/dashboard/public${asset.url}`);
+      const wav = await readFile(`apps/dashboard/public/audio/gemini/${path}`);
       expect(wav.toString("ascii", 0, 4)).toBe("RIFF");
       expect(wav.readUInt16LE(20)).toBe(1);
       expect(wav.readUInt16LE(22)).toBe(1);
@@ -101,7 +104,7 @@ it.each([true, false])(
       expect(played).toEqual([]);
       expect(await controller.enable()).toBe(true);
       expect(played).toEqual([
-        `/audio/gemini/${hour12 ? "12h" : "24h"}/hour-00.wav`,
+        `/audio/gemini/${hour12 ? "12h" : "24h"}/hour-00.ogg`,
       ]);
     } finally {
       controller.dispose();

@@ -113,3 +113,17 @@ npm run preview
 Web Locks未対応の場合は、安全のため他の所有者のリースを時刻だけで自動回収しません。タブの強制終了などで権利が残ると音声が停止したままになる場合があります。その場合はすべての同一ダッシュボード画面を閉じたことを人が確認してから、そのサイトの保存データを消去し、設定と音声の有効化をやり直してください。保存されたカードと時報履歴も消えます。実機の対応状況は未確認です。
 
 保留中の時報も無効化、非表示、設定変更、時刻補正、10秒の期限超過で破棄します。音声を鳴らさなかった記録も再試行しません。
+
+## Ogg/Opus delivery
+
+The 48 bundled hourly clips are served as Ogg/Opus (32kbps VBR, mono,
+20ms frames, application audio). The original WAVs remain in source control;
+`provenance.json` describes those originals and `compression.json` describes
+the delivery copies. The chime remains unchanged WAV. Both standard and
+private builds omit the 48 redundant bundled hourly WAV copies from output
+before generating the versioned offline cache. Private MP3/WAV overrides
+are still installed afterward and remain in their private output paths.
+
+Opus files total 276,951 bytes versus 3,387,072 bytes for the 48 source WAVs.
+Fire playback and perceptual audio quality still require authorized device
+validation. No MP3 fallback or automatic codec selection is included.

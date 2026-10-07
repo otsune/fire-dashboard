@@ -28,3 +28,13 @@ record, not a guarantee that every use or redistribution is permitted.
 Official terms checked on 2026-10-04:
 https://ai.google.dev/gemini-api/terms
 https://developers.google.com/terms
+
+Ogg delivery copies
+The .ogg files are lossy Opus delivery copies of these original WAV clips,
+encoded with libopus at 32kbps VBR, mono, application audio, 20ms frames.
+Original WAV files and their provenance.json records remain unchanged in
+the source repository. compression.json records the source/output hashes
+and technical checks. Production builds omit only these 48 original hourly
+WAV copies from the generated distribution; the original chime stays WAV.
+No perceptual listening or Fire-device verification is claimed for Opus.
+The same source-and-terms notice applies; no additional license is granted.
