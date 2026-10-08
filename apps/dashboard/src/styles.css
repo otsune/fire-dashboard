@@ -583,7 +583,7 @@ progress::-webkit-progress-value {
 }
 .headlines a,
 .headlines article > span {
-  font-size: 14px;
+  font-size: 22px;
   color: #ccd9c5;
   text-decoration: none;
   overflow-wrap: anywhere;
@@ -777,7 +777,10 @@ summary:focus-visible {
   white-space: nowrap;
   text-overflow: ellipsis;
 }
-.headline-preview a {
+.headline-preview a,
+.headline-preview article > span {
+  font-size: 28px;
+  line-height: 1.4;
   color: #ccd9c5;
 }
 .rss-card .card-details {
