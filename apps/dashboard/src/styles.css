@@ -783,6 +783,30 @@ summary:focus-visible {
   line-height: 1.4;
   color: #ccd9c5;
 }
+.headline-preview a,
+.headline-preview a:hover,
+.headline-preview a:focus-visible,
+.headlines a:hover {
+  text-decoration: none;
+}
+.headline-preview.is-ticker {
+  overflow: hidden;
+}
+.headline-preview.is-ticker article {
+  display: inline-block;
+  width: max-content;
+  overflow: visible;
+  text-overflow: clip;
+  will-change: transform;
+}
+@media (prefers-reduced-motion: reduce) {
+  .headline-preview.is-ticker article {
+    display: block;
+    width: auto;
+    white-space: normal;
+    will-change: auto;
+  }
+}
 .rss-card .card-details {
   flex: none;
   margin: 0;

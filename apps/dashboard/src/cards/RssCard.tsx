@@ -13,6 +13,7 @@ export function RssCard({
   now: number;
 }) {
   const card = useRef<HTMLElement>(null);
+  const preview = useRef<HTMLDivElement>(null);
   const articleTrip = useRef<{
     link: HTMLAnchorElement;
     departed: boolean;
@@ -57,21 +58,80 @@ export function RssCard({
   const items = feeds.flatMap((f) =>
     f.items.map((item) => ({ ...item, feed: f })),
   );
+  const current = items.length ? items[index % items.length] : null;
+  const playback = useRef({ paused, expanded });
+  playback.current = { paused, expanded };
   useEffect(() => {
-    if (!autoRotate || paused || expanded || items.length < 2) return;
-    const timer = setInterval(() => {
+    const viewport = preview.current;
+    const article = viewport?.querySelector("article");
+    if (!autoRotate || !current || !viewport || !article) return;
+    const shouldPause = () => {
       // Read live DOM focus: removing a focused headline need not emit blur.
       const active = document.activeElement;
       const reading =
         active instanceof Element &&
         card.current?.contains(active) &&
         !!active.closest(".headline-preview, .detail-content");
-      if (document.hidden || (reading && active !== returnedLink.current))
-        return;
-      setIndex((i) => (i + 1) % items.length);
-    }, 15000);
-    return () => clearInterval(timer);
-  }, [autoRotate, paused, expanded, items.length]);
+      return (
+        document.hidden ||
+        playback.current.paused ||
+        playback.current.expanded ||
+        (reading && active !== returnedLink.current) ||
+        viewport.matches(":active") ||
+        (window.matchMedia("(hover: hover)").matches &&
+          viewport.matches(":hover"))
+      );
+    };
+    const advance = () => setIndex((i) => i + 1);
+    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)");
+    if (reduced.matches || typeof article.animate !== "function") {
+      let elapsed = 0;
+      const timer = setInterval(() => {
+        if (!shouldPause() && items.length > 1 && (elapsed += 100) >= 15000)
+          advance();
+      }, 100);
+      return () => clearInterval(timer);
+    }
+    let animation: Animation | null = null;
+    const start = () => {
+      animation?.cancel();
+      const width = viewport.clientWidth;
+      const length = article.scrollWidth;
+      animation = article.animate(
+        [
+          { transform: `translateX(${width}px)` },
+          { transform: `translateX(${-length}px)` },
+        ],
+        {
+          duration: ((width + length) / 45) * 1000,
+          easing: "linear",
+          fill: "forwards",
+        },
+      );
+      animation.onfinish = advance;
+      if (shouldPause()) animation.pause();
+    };
+    start();
+    const observer =
+      typeof ResizeObserver === "undefined" ? null : new ResizeObserver(start);
+    observer?.observe(viewport);
+    const timer = setInterval(() => {
+      if (shouldPause()) animation?.pause();
+      else if (animation?.playState === "paused") animation.play();
+    }, 100);
+    return () => {
+      clearInterval(timer);
+      observer?.disconnect();
+      animation?.cancel();
+    };
+  }, [
+    autoRotate,
+    index,
+    current?.feed.id,
+    current?.id,
+    current?.title,
+    items.length,
+  ]);
   const headline = (v: (typeof items)[number], detail = false) => (
     <article key={v.feed.id + v.id}>
       {detail && (
@@ -89,7 +149,6 @@ export function RssCard({
       )}
     </article>
   );
-  const current = items.length ? items[index % items.length] : null;
   const problem = feeds.find((f) => deriveStatus(f, now).label !== "更新済み");
   return (
     <section
@@ -132,7 +191,10 @@ export function RssCard({
       <h2>
         ニュース <span className="provider-sub">RSS</span>
       </h2>
-      <div className="headline-preview">
+      <div
+        className={`headline-preview${autoRotate ? " is-ticker" : ""}`}
+        ref={preview}
+      >
         {current ? (
           headline(current)
         ) : (
@@ -142,7 +204,7 @@ export function RssCard({
       {problem && (
         <span className="status">{deriveStatus(problem, now).label}</span>
       )}
-      {items.length > 1 && autoRotate && (
+      {items.length > 0 && autoRotate && (
         <button className="small-button" onClick={() => setPaused((v) => !v)}>
           {paused ? "切替を再開" : "切替を停止"}
         </button>
