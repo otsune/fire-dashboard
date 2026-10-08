@@ -1,5 +1,6 @@
 import type { Weather } from "../../../../packages/contracts/src/index";
 import { deriveStatus, formatTime } from "../data/status";
+import { forecastRegionLabel } from "../data/prefectures";
 export function WeatherCard({
   value,
   timeZone,
@@ -32,7 +33,7 @@ export function WeatherCard({
       className={`card weather-card ${value.regionId === null ? "is-unconfigured" : ""}`}
     >
       <div className="card-heading">
-        <h2>{value.regionLabel ?? "天気予報"}</h2>
+        <h2>{forecastRegionLabel(value.regionId, value.regionLabel)}</h2>
         <span className="status">{status.label}</span>
       </div>
       {value.regionId === null ? (

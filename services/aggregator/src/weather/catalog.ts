@@ -41,6 +41,7 @@ const forecastSchema = z
                     name: label,
                   }),
                   weathers: values.optional(),
+                  temps: values.optional(),
                   tempsMin: values.optional(),
                   tempsMax: values.optional(),
                 }),
@@ -131,7 +132,7 @@ export function createWeatherCatalog(
           .flatMap((value) => value.areas)) {
           if (entry.weathers && /^\d{6}$/.test(entry.area.code))
             regions.set(entry.area.code, entry.area.name);
-          if (entry.tempsMin || entry.tempsMax)
+          if (entry.temps || entry.tempsMin || entry.tempsMax)
             stations.set(entry.area.code, entry.area.name);
         }
         if (!regions.size) throw Error("forecast");

@@ -2,6 +2,8 @@
 
 ## Fire ADB実機確認（2026-10-09）
 
+天気の当日気温修正後、GMKtecの実APIとFireで「神奈川県 東部」「晴れ」「予報気温16〜25℃・降水0%」を確認しました。気象庁の当日気温 `temps` を従来処理が無視し、週間気温の空欄で表示が欠落していた点を修正。当日／週間／欠測気温と都道府県表示のE2E 3件が成功。型検査・API/UIビルド成功、API再起動後はactive・NRestarts=0、認証なし401・127.0.0.1待受を確認。実機横画面1280×799のはみ出しなし。証拠は `C:\Users\user\dev\sandbox\agent-work\fire-dashboard\2026-10-09-weather-fix\` に保存しています。
+
 RSSティッカー追加後も実機確認を実施。28px・下線なし、実際の移動、停止中の位置保持、再開、アニメーション終了後の次記事切替、横画面1280×799のはみ出しなしを確認しました。関連E2Eは3件成功（移動・停止・再開・全文通過後の切替、読み取りフォーカス時の停止、動きを減らす設定）。証拠は `C:\Users\user\dev\sandbox\agent-work\fire-dashboard\2026-10-09-rss-ticker\` のJSONと実機スクリーンショットです。記事切替は検証時にアニメーションを完了させて確認しており、全記事の自然な通過を長時間観測したものではありません。
 
 Windows 11のADBからFire HD 10 Plus（KFTRPWI、Android 9）に接続し、Fully KioskのWebView（Chrome 138）でGMKtecの実配信 `https://gmktec.taila8b10.ts.net:8444/` を確認しました。合成音声やデスクトップの画面エミュレーションは使っていません。

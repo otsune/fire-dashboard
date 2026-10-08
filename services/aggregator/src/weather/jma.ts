@@ -10,6 +10,7 @@ const area = z.object({
   weathers: z.array(z.string()).optional(),
   weatherCodes: z.array(z.string()).optional(),
   pops: z.array(z.string()).optional(),
+  temps: z.array(z.string()).optional(),
   tempsMin: z.array(z.string()).optional(),
   tempsMax: z.array(z.string()).optional(),
 });
@@ -81,8 +82,24 @@ export function normalizeWeather(
         const i = s.timeDefines.findIndex((v) => day(v) === day(start));
         const a = s.areas.find((a) => a.area.code === options.stationId);
         if (i >= 0 && a) {
-          temperatureMinC = numeric(a.tempsMin?.[i], -100, 100);
-          temperatureMaxC = numeric(a.tempsMax?.[i], -100, 100);
+          // Daily forecasts encode lows at 00:00 and highs at 09:00/18:00 JST.
+          // Weekly arrays often leave today's entry blank: do not erase daily values.
+          s.timeDefines.forEach((time, index) => {
+            if (day(time) !== day(start)) return;
+            const hour = new Intl.DateTimeFormat("en", {
+              timeZone: "Asia/Tokyo",
+              hour: "2-digit",
+              hourCycle: "h23",
+            }).format(new Date(time));
+            const value = numeric(a.temps?.[index], -100, 100);
+            if (hour === "00") temperatureMinC = value ?? temperatureMinC;
+            if (hour === "09" || hour === "18")
+              temperatureMaxC = value ?? temperatureMaxC;
+          });
+          temperatureMinC =
+            numeric(a.tempsMin?.[i], -100, 100) ?? temperatureMinC;
+          temperatureMaxC =
+            numeric(a.tempsMax?.[i], -100, 100) ?? temperatureMaxC;
         }
       }
       return {
