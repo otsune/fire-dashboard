@@ -158,7 +158,14 @@ export function createAudioController(
         try {
           const s = settings();
           if (s.audioMode === "chime" || s.audioMode === "both")
-            await play(manifest.chime!.url, s.volume, controller.signal);
+            await play(
+              (hour % 2 === 1
+                ? (manifest.chimeOdd ?? manifest.chime!)
+                : manifest.chime!
+              ).url,
+              s.volume,
+              controller.signal,
+            );
           if (s.audioMode === "both") {
             await delay(300);
             if (controller.signal.aborted || !permit())
