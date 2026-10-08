@@ -1,4 +1,64 @@
 import { test, expect, type BrowserContext, type Page } from "@playwright/test";
+for (const hour of [0, 1, 12, 23]) {
+  test(`bundled chime selects the correct asset at ${hour}:00`, async ({
+    page,
+  }) => {
+    await page.addInitScript(() => {
+      const played: string[] = [];
+      (window as unknown as { testPlayed: string[] }).testPlayed = played;
+      class FixtureAudio {
+        onended: (() => void) | null = null;
+        constructor(private src: string) {}
+        play() {
+          played.push(this.src);
+          Promise.resolve().then(() => this.onended?.());
+          return Promise.resolve();
+        }
+        pause() {}
+        removeAttribute() {}
+        load() {}
+      }
+      Object.defineProperty(window, "Audio", { value: FixtureAudio });
+    });
+    const boundary = Date.parse(
+      `2026-10-10T${String(hour).padStart(2, "0")}:00:00+09:00`,
+    );
+    await page.clock.install({ time: new Date(boundary - 5000) });
+    await page.goto("/");
+    await page.getByRole("button", { name: "設定", exact: true }).click();
+    await page.getByLabel("時報の種類").selectOption("chime");
+    await page.getByRole("button", { name: "時計に戻る" }).click();
+    await page.getByRole("button", { name: "音声を有効にする" }).click();
+    await expect(page.getByText("音声有効", { exact: true })).toBeVisible();
+    await page.evaluate(() => {
+      (window as unknown as { testPlayed: string[] }).testPlayed.length = 0;
+    });
+    await page.clock.runFor(6500);
+    const expected =
+      hour % 2 === 0
+        ? "/audio/chime_Eb5_C5_Eb5_Ab5.ogg"
+        : "/audio/chime_NRT.ogg";
+    await expect
+      .poll(() =>
+        page.evaluate(
+          () => (window as unknown as { testPlayed: string[] }).testPlayed,
+        ),
+      )
+      .toEqual([expected]);
+    const duration = await page.evaluate(async (url) => {
+      const response = await fetch(url);
+      if (!response.ok) throw Error(`audio fetch failed: ${response.status}`);
+      const context = new AudioContext();
+      try {
+        return (await context.decodeAudioData(await response.arrayBuffer()))
+          .duration;
+      } finally {
+        await context.close();
+      }
+    }, expected);
+    expect(duration).toBeGreaterThan(0);
+  });
+}
 
 /** Held synthetic media exercises production arbitration, not real audio or Fire compatibility. */
 async function installHeldAudio(context: BrowserContext) {

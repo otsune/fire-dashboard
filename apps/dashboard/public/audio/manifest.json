@@ -98,8 +98,12 @@
     }
   },
   "chime": {
-    "url": "/audio/chime_Eb5_C5_Eb5_Ab5.wav",
-    "license": "Unlicense; original mathematically synthesized Eb5 C5 Eb5 Ab5 chime. See docs/audio-assets.md for provenance."
+    "url": "/audio/chime_Eb5_C5_Eb5_Ab5.ogg",
+    "license": "User-provided chime audio."
+  },
+  "chimeOdd": {
+    "url": "/audio/chime_NRT.ogg",
+    "license": "User-provided chime audio."
   },
   "hours24": {
     "00": {

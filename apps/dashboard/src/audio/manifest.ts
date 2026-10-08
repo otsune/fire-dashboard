@@ -4,6 +4,8 @@ export type AudioManifest = {
   /** Optional 24-hour speech; legacy hours always means the 12-hour set. */
   hours24?: Record<string, AudioAsset>;
   chime: AudioAsset | null;
+  /** Optional odd-hour chime; chime is used for even hours and legacy manifests. */
+  chimeOdd?: AudioAsset;
 };
 const empty = (): AudioManifest => ({ hours: {}, chime: null });
 function object(value: unknown): value is Record<string, unknown> {
@@ -37,8 +39,18 @@ export function parseManifest(value: unknown): AudioManifest {
     value.hours24 === undefined ? undefined : parseHours(value.hours24);
   if (!hours || hours24 === null) return empty();
   if (value.chime !== null && !assetValid(value.chime)) return empty();
+  if (value.chimeOdd !== undefined && !assetValid(value.chimeOdd))
+    return empty();
   return {
     hours,
+    ...(value.chimeOdd === undefined
+      ? {}
+      : {
+          chimeOdd: {
+            url: value.chimeOdd.url,
+            license: value.chimeOdd.license,
+          },
+        }),
     ...(hours24 === undefined ? {} : { hours24 }),
     chime:
       value.chime === null
