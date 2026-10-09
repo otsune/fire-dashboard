@@ -2,7 +2,7 @@
 
 ## 通常ビルドの同梱音源
 
-`npm run dev` と `npm run build` は、12時間用・24時間用各24本のGemini TTS WAVとオリジナル4音チャイムを使います。外部音声の取り込みは不要です。音声は静的ファイルとして同梱し、再生時にGemini APIへ接続しません。
+`npm run dev` と `npm run build` は、12時間用・24時間用各24本のGemini TTS WAVと2種類のOGGチャイムを使います。外部音声の取り込みは不要です。音声は静的ファイルとして同梱し、再生時にGemini APIへ接続しません。
 
 - 12時間用：`apps/dashboard/public/audio/gemini/12h/hour-00.wav` ～ `hour-23.wav`
 - 24時間用：`apps/dashboard/public/audio/gemini/24h/hour-00.wav` ～ `hour-23.wav`
@@ -16,19 +16,18 @@ Gemini生成音声は公開リポジトリへの同梱を承認されたもの�
 
 ### 出所と利用条件
 
-コードと独自合成チャイムにはリポジトリの [Unlicense](../LICENSE) を適用します。Gemini生成音声は別扱いとし、[NOTICE.txt](../apps/dashboard/public/audio/gemini/NOTICE.txt) に出所と確認した規約を記載しています。Googleが音声をUnlicenseで提供したという意味ではなく、新たな音声ライセンスを付与するものでもありません。
+コードにはリポジトリの [Unlicense](../LICENSE) を適用します。同梱OGGチャイムの利用条件は後述のとおり別扱いです。Gemini生成音声は別扱いとし、[NOTICE.txt](../apps/dashboard/public/audio/gemini/NOTICE.txt) に出所と確認した規約を記載しています。Googleが音声をUnlicenseで提供したという意味ではなく、新たな音声ライセンスを付与するものでもありません。
 
 [Gemini API Additional Terms「Use of Generated Content」](https://ai.google.dev/gemini-api/terms)では、Googleは生成内容の所有権を主張せず、利用者が適用法などに従い、共有先での利用にも責任を持つとしています。[Google APIs Terms第5条(e)](https://developers.google.com/terms)は、コンテンツの権利、出所の表示、権利表示の保持を扱っています。第三者の権利や各利用形態への適合を一律に保証するものではありません。確認日：2026-10-04。
 
 ## 同梱チャイム
 
-現在の時報では、偶数時（0時を含む）に `chime_Eb5_C5_Eb5_Ab5.ogg`、奇数時に `chime_NRT.ogg` を再生します。「チャイムのみ」と「チャイム＋音声」に適用します。両OGGは利用者提供の音源で、以下の独自合成WAVの出所・ライセンス情報とは別扱いです。OGGの詳しい出所・利用条件は未確認です。
+現在の時報では、偶数時（0時を含む）に `chime_Eb5_C5_Eb5_Ab5.ogg`、奇数時に `chime_NRT.ogg` を再生します。「チャイムのみ」と「チャイム＋音声」に適用します。manifestの `chime` が偶数時・既定の音源、`chimeOdd` が奇数時の音源です。
 
-`chime_Eb5_C5_Eb5_Ab5.wav` は、Eb5 → C5 → Eb5 → Ab5（レ♯ → ド → レ♯ → ソ♯）の採用音源です。既存録音のサンプリングや第三者音源を使わず、2026-10-03に数式から独自合成しました。
+- `chime_Eb5_C5_Eb5_Ab5.ogg`：Ogg Vorbis、mono、48 kHz、3.2秒、18,790 bytes
+- `chime_NRT.ogg`：Ogg Vorbis、stereo、44.1 kHz、約3.364秒、48,023 bytes
 
-- PCM16、mono、48 kHz、3.2秒、307,244 bytes
-- ピーク -12 dBFS、クリップなし
-- SHA-256: `4486bbe635a74c647621f28c407e8b3067a523c11d0848110008961debcfab11`
+両OGGは利用者提供の音源です。詳しい出所・利用条件は未確認であり、コードのUnlicenseを適用するものではありません。以前の独自合成チャイムWAVは同梱を終了し、現在のツリーから削除しています。Gemini TTSの時刻読み上げWAV 48本は引き続き同梱します。
 
 「設定」→「時報の種類」→「チャイムのみ」を選び、時計に戻って「音声を有効にする」をタップすると試聴できます。ページを開く、設定を選ぶ、ビルドするだけでは鳴りません。
 

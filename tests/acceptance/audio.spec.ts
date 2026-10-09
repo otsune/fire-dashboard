@@ -140,40 +140,46 @@ test("production controller claims one hour across two tabs and reload", async (
   expect(claims).toBe(1);
 });
 
-test("bundled original chime decodes and plays only after an explicit tap", async ({
-  page,
-}) => {
-  await page.goto("/");
-  await expect(
-    page.getByRole("button", { name: "音声を有効にする" }),
-  ).toBeEnabled();
-  await expect(
-    page.getByRole("button", { name: "音声を無効にする" }),
-  ).toHaveCount(0);
-  const decoded = await page.evaluate(async () => {
-    const response = await fetch("/audio/chime_Eb5_C5_Eb5_Ab5.wav");
-    const context = new AudioContext();
-    try {
-      const audio = await context.decodeAudioData(await response.arrayBuffer());
-      return { duration: audio.duration, channels: audio.numberOfChannels };
-    } finally {
-      await context.close();
-    }
+for (const asset of [
+  { url: "/audio/chime_Eb5_C5_Eb5_Ab5.ogg", duration: 3.2, channels: 1 },
+  { url: "/audio/chime_NRT.ogg", duration: 148349 / 44100, channels: 2 },
+]) {
+  test(`bundled OGG chime ${asset.url} decodes and enables only after an explicit tap`, async ({
+    page,
+  }) => {
+    await page.goto("/");
+    await expect(
+      page.getByRole("button", { name: "音声を有効にする" }),
+    ).toBeEnabled();
+    await expect(
+      page.getByRole("button", { name: "音声を無効にする" }),
+    ).toHaveCount(0);
+    const decoded = await page.evaluate(async (url) => {
+      const response = await fetch(url);
+      if (!response.ok) throw Error(`audio fetch failed: ${response.status}`);
+      const context = new AudioContext();
+      try {
+        const audio = await context.decodeAudioData(await response.arrayBuffer());
+        return { duration: audio.duration, channels: audio.numberOfChannels };
+      } finally {
+        await context.close();
+      }
+    }, asset.url);
+    expect(decoded.duration).toBeCloseTo(asset.duration, 2);
+    expect(decoded.channels).toBe(asset.channels);
+    await page.getByRole("button", { name: "設定", exact: true }).click();
+    await page.getByLabel("時報の種類").selectOption("chime");
+    await page.getByRole("button", { name: "時計に戻る" }).click();
+    await expect(
+      page.getByRole("button", { name: "音声を有効にする" }),
+    ).toBeEnabled();
+    await page.getByRole("button", { name: "音声を有効にする" }).click();
+    await expect(page.getByText("音声有効", { exact: true })).toBeVisible({
+      timeout: 10000,
+    });
+    await page.reload();
+    await expect(
+      page.getByRole("button", { name: "音声を有効にする" }),
+    ).toBeEnabled();
   });
-  expect(decoded.duration).toBeCloseTo(3.2, 2);
-  expect(decoded.channels).toBe(1);
-  await page.getByRole("button", { name: "設定", exact: true }).click();
-  await page.getByLabel("時報の種類").selectOption("chime");
-  await page.getByRole("button", { name: "時計に戻る" }).click();
-  await expect(
-    page.getByRole("button", { name: "音声を有効にする" }),
-  ).toBeEnabled();
-  await page.getByRole("button", { name: "音声を有効にする" }).click();
-  await expect(page.getByText("音声有効", { exact: true })).toBeVisible({
-    timeout: 10000,
-  });
-  await page.reload();
-  await expect(
-    page.getByRole("button", { name: "音声を有効にする" }),
-  ).toBeEnabled();
-});
+}
