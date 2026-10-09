@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 import React from "react";
 import { it, expect, afterEach } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+import { render, screen, cleanup, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import {
   emptyDashboard,
   emptyCommon,
@@ -9,7 +10,7 @@ import {
 import { WeatherCard } from "../../apps/dashboard/src/cards/WeatherCard";
 import { UsageCard } from "../../apps/dashboard/src/cards/UsageCard";
 import { RssCard } from "../../apps/dashboard/src/cards/RssCard";
-import { deriveStatus } from "../../apps/dashboard/src/data/status";
+import { deriveStatus, formatTime } from "../../apps/dashboard/src/data/status";
 afterEach(cleanup);
 const now = Date.parse("2026-10-02T00:00:00Z");
 it("makes missing weather region explicit", () => {
@@ -22,6 +23,119 @@ it("makes missing weather region explicit", () => {
   );
   expect(screen.getByText("地域未設定")).toBeInTheDocument();
 });
+it("retains complete weather names and forecasts in openable details", async () => {
+  const regionLabel =
+    "東京地方・多摩西部・伊豆諸島北部を含む長い予報地域の表示確認".repeat(3);
+  const stationLabel =
+    "山間部と離島を含む非常に長い気温代表地点の表示確認".repeat(3);
+  const periods = Array.from({ length: 4 }, (_, index) => ({
+    startsAt: new Date(now + index * 3_600_000).toISOString(),
+    endsAt: new Date(now + (index + 1) * 3_600_000).toISOString(),
+    summary:
+      index === 0
+        ? "晴れ時々くもり。昼過ぎから雨で、所により雷を伴い激しく降る。".repeat(
+            12,
+          )
+        : `予報 ${index + 1}`,
+    weatherCode: null,
+    temperatureMinC: 19,
+    temperatureMaxC: 27,
+    precipitationProbabilityPct: 20,
+  }));
+  const { container } = render(
+    <WeatherCard
+      value={{
+        ...emptyDashboard().weather,
+        regionId: "130010",
+        regionLabel,
+        temperatureStationLabel: stationLabel,
+        periods,
+      }}
+      timeZone="UTC"
+      now={now}
+    />,
+  );
+  expect(screen.getByRole("heading", { name: regionLabel })).toHaveTextContent(
+    regionLabel,
+  );
+  expect(
+    container.querySelector(".weather-card > .forecast strong"),
+  ).toHaveTextContent(periods[0].summary);
+  expect(
+    container.querySelector(".weather-card > .forecast"),
+  ).toHaveTextContent("予報気温 19〜27 °C · 降水 20%");
+  const details = container.querySelector("details")!;
+  const summary = details.querySelector("summary")!;
+  const user = userEvent.setup();
+  expect(details).not.toHaveAttribute("open");
+  await user.click(summary);
+  expect(details).toHaveAttribute("open");
+  expect(
+    within(details).getByText(`予報地方：${regionLabel}`, { exact: true }),
+  ).toBeVisible();
+  expect(
+    within(details).getByText(`気温地点：${stationLabel}`, { exact: true }),
+  ).toBeVisible();
+  const detailedForecasts = details.querySelectorAll<HTMLElement>(".forecast");
+  expect(detailedForecasts).toHaveLength(periods.length);
+  for (const [index, period] of periods.entries()) {
+    expect(
+      within(details).getByText(period.summary, { exact: true }),
+    ).toBeVisible();
+    expect(detailedForecasts[index]).toHaveTextContent(
+      `${formatTime(period.startsAt, "UTC")}〜${formatTime(period.endsAt, "UTC")}`,
+    );
+    expect(detailedForecasts[index]).toHaveTextContent(
+      "予報気温 19〜27 °C · 降水 20%",
+    );
+  }
+  await user.click(
+    within(details).getByRole("button", { name: "詳細を閉じる" }),
+  );
+  expect(details).not.toHaveAttribute("open");
+  expect(summary).toHaveFocus();
+});
+it.each([true, false])(
+  "groups weather actions while retaining details with setup available=%s",
+  async (withSettings) => {
+    let settingsOpened = 0;
+    const { container } = render(
+      <WeatherCard
+        value={emptyDashboard().weather}
+        timeZone="UTC"
+        now={now}
+        onWeatherSettings={withSettings ? () => settingsOpened++ : undefined}
+      />,
+    );
+    // This is a DOM grouping/interaction check, not a layout measurement.
+    const actions =
+      container.querySelector<HTMLDivElement>(".weather-actions")!;
+    expect(actions).not.toBeNull();
+    const details = actions.querySelector("details")!;
+    const summary = details.querySelector("summary")!;
+    const user = userEvent.setup();
+    if (withSettings) {
+      await user.click(
+        within(actions).getByRole("button", { name: "天気の地域を設定" }),
+      );
+      expect(settingsOpened).toBe(1);
+    } else {
+      expect(
+        within(actions).queryByRole("button", { name: "天気の地域を設定" }),
+      ).toBeNull();
+    }
+    await user.click(summary);
+    expect(details).toHaveAttribute("open");
+    expect(
+      within(details).getByText(/予報地方と気温の代表地点を選択/),
+    ).toBeVisible();
+    await user.click(
+      within(details).getByRole("button", { name: "詳細を閉じる" }),
+    );
+    expect(details).not.toHaveAttribute("open");
+    expect(summary).toHaveFocus();
+  },
+);
 it("shows an empty feed without fixture headlines", () => {
   render(
     <RssCard feeds={[]} autoRotate={false} timeZone="Asia/Tokyo" now={now} />,

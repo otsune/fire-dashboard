@@ -14,6 +14,7 @@ afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
   localStorage.clear();
+  window.history.replaceState({ dashboard: true }, "");
 });
 it("integrates unconfigured cards, settings round-trip and disabled absent audio", async () => {
   vi.stubGlobal(
@@ -40,7 +41,7 @@ it("integrates unconfigured cards, settings round-trip and disabled absent audio
   fireEvent.click(screen.getByRole("button", { name: "設定" }));
   fireEvent.click(screen.getByRole("checkbox", { name: "12時間表記" }));
   fireEvent.click(screen.getByRole("button", { name: "時計に戻る" }));
-  expect(screen.getByTestId("clock-time")).toBeInTheDocument();
+  await screen.findByTestId("clock-time");
   fireEvent.click(screen.getByRole("button", { name: "設定" }));
   expect(screen.getByRole("checkbox", { name: "12時間表記" })).toBeChecked();
 });

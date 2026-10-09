@@ -3,7 +3,7 @@ import React from "react";
 import { it, expect, afterEach } from "vitest";
 import { render, screen, cleanup, fireEvent } from "@testing-library/react";
 import { Clock } from "../../apps/dashboard/src/clock/Clock";
-import { Settings } from "../../apps/dashboard/src/settings/Settings";
+import { ClockAudioSettings } from "../../apps/dashboard/src/settings/ClockAudioSettings";
 import { parseSettings } from "../../packages/contracts/src/index";
 afterEach(cleanup);
 it("shows Tokyo hour and Japanese date", () => {
@@ -35,17 +35,13 @@ it("supports a zero-padded UTC hour", () => {
   );
   expect(screen.getByTestId("clock-time")).toHaveTextContent("01:00");
 });
-it("settings changes propagate and return is explicit", () => {
-  let volume = 0.3,
-    closed = false;
+it("clock/audio settings changes propagate", () => {
+  let volume = 0.3;
   render(
-    <Settings
+    <ClockAudioSettings
       value={parseSettings({})}
       onChange={(s) => {
         volume = s.volume;
-      }}
-      onClose={() => {
-        closed = true;
       }}
     />,
   );
@@ -53,6 +49,4 @@ it("settings changes propagate and return is explicit", () => {
     target: { value: "70" },
   });
   expect(volume).toBe(0.7);
-  fireEvent.click(screen.getByRole("button", { name: "時計に戻る" }));
-  expect(closed).toBe(true);
 });

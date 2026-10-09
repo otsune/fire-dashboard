@@ -1,4 +1,9 @@
 import { z } from "zod";
+import {
+  defaultUsageVisibility,
+  readUsageVisibility,
+  type UsageVisibility,
+} from "./display-settings";
 export const usageProviders = [
   "claude",
   "codex",
@@ -262,7 +267,10 @@ const fields = {
   rssAutoRotate: z.boolean(),
 };
 const settingsSchema = z.object(fields);
-export type AppSettings = z.infer<typeof settingsSchema>;
+export type AppSettings = z.infer<typeof settingsSchema> & {
+  // Downgrading preserves stored JSON; saving in the old version drops this field.
+  usageVisibility: UsageVisibility;
+};
 export const defaultSettings: AppSettings = {
   timeZone: "Asia/Tokyo",
   hour12: false,
@@ -270,6 +278,7 @@ export const defaultSettings: AppSettings = {
   volume: 0.3,
   quiet: { enabled: false, start: "22:00", end: "07:00" },
   rssAutoRotate: true,
+  usageVisibility: defaultUsageVisibility,
 };
 export function readSettings(input: unknown): {
   value: AppSettings;
@@ -281,15 +290,19 @@ export function readSettings(input: unknown): {
     typeof input === "object" && input !== null
       ? (input as Record<string, unknown>)
       : {};
-  for (const key of Object.keys(fields) as (keyof AppSettings)[]) {
+  for (const key of Object.keys(fields) as (keyof typeof fields)[]) {
     if (!(key in o)) continue;
     const r = fields[key].safeParse(o[key]);
     if (r.success) Object.assign(value, { [key]: r.data });
     else warnings.push(`設定「${key}」を初期値に戻しました`);
   }
+  const visibility = readUsageVisibility(o.usageVisibility);
+  value.usageVisibility = visibility.value;
+  warnings.push(...visibility.warnings);
   return { value, warnings };
 }
 export function parseSettings(input: unknown): AppSettings {
   return readSettings(input).value;
 }
 export * from "./weather-settings";
+export * from "./display-settings";
