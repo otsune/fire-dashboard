@@ -1,0 +1,7 @@
+# Keep static assets and worker input byte-identical on Windows and Linux.
+apps/dashboard/index.html text eol=lf
+apps/dashboard/public/**/*.json text eol=lf
+apps/dashboard/public/**/*.txt text eol=lf
+# Preserve the bundled third-party license exactly as supplied.
+apps/dashboard/public/licenses/DSEG-LICENSE.txt -text
+apps/dashboard/src/sw.ts text eol=lf
