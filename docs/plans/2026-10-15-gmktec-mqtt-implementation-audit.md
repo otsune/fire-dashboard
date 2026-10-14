@@ -890,7 +890,8 @@ Serve・broker・API設定は変更していない。
 | source / artifact固定 | commit `384acfe`（`feat: publish usage over MQTT`）へ実装・focused test・配備ドキュメントを固定。作業ツリー由来の未コミットartifactという§32.2-1の状態を解消 |
 | API artifact | `dist/aggregator/start.mjs` SHA256 `2010671506a2358c0a3435ef005157ab9309a944c26bbeb27a843e9a6ad1003d`。§31.2の記録と一致し、§32.2-1の「次回再起動後のartifact」という曖昧さを解消した |
 | Dashboard artifact | `index.html`、本体JS、MQTT chunk、`sw.js` のSHA256は§31.2の記録と一致。FireのService Worker取得物も `sw.js` として制御中 |
-| 検証状態 | `git diff --check` は成功。今回の端末設定変更による実装ソース差分はない |
+| runtime `mqtt-status` | Fire同一オリジンから `state=connected`、`connected=true`、`deliveryStatus=ok`、`currentRevision=107`、state PUBACK `2026-10-14T22:27:15.754Z`、heartbeat PUBACK `2026-10-14T22:26:48.176Z`、エラーなしを取得 |
+| 検証状態 | commit後にfocused 8 files／58 tests、typecheck、Dashboard/API/collector build、`git diff --check` が成功。今回の端末設定変更による実装ソース差分はない |
 
 ### 33.2 Fully Kiosk再起動後のMQTT opt-in
 
