@@ -951,3 +951,41 @@ retained state受信まで行った。reader A/Bともに接続成功、同じ`s
 最終配備判定は引き続き **保留** とする。72時間観測が24時間・72時間の各基準を満たすまで待機し、
 別の物理表示端末を用意できた時点で同じreader収束試験を実端末2台でも行う。実ネットワーク負荷を
 含む長時間安定性も観測ログで判定する。
+
+## 35. 第25回再監査 — 4reader負荷試験と試験後のruntime確認（2026-10-15）
+
+§34の並行reader確認を補強するため、母艦からTailscale Serve経由のWebSocket readerを4本、
+60秒間同時接続した。試験スクリプトは `/tmp/fire-dashboard-mqtt-load-probe.mjs` で、各readerが
+MQTT CONNECT、state topicへのSUBSCRIBE、retained state受信、20秒間隔のPING／PONGを行う。
+
+### 35.1 試験結果
+
+| 確認 | 実測結果 |
+| --- | --- |
+| 接続数・時間 | 4 reader、60秒、`/api/v1/usage/stream`（Serve経由） |
+| CONNECT／retained state | 4／4が接続成功し、4／4が `fire-dashboard/v1/main/usage/state` のretained stateを受信 |
+| keepalive | 各readerがPING応答を2回受信。試験中のエラーなし |
+| 試験後 | 4 readerは正常切断。API、Mosquitto、Fire HD 10は試験後も稼働継続 |
+
+Mosquittoのjournalには、07:31:56 JSTに `audit-load-1`〜`audit-load-4` の4クライアントが
+port 9001へ接続し、07:33:26 JSTに4クライアントすべてが `connection closed by client` で
+切断された記録がある。これはreader側の試験終了による切断であり、broker障害による切断ではない。
+この試験は同一母艦からの4接続であり、物理表示端末4台の試験ではない。
+
+### 35.2 試験後のruntime
+
+- `fire-dashboard-api.service`: `active/running`、PID `676804`、`node dist/aggregator/start.mjs`。
+- `fire-dashboard-mosquitto.service`: `active/running`、コンテナPID `664313`。listenerは
+  `127.0.0.1:1883`／`127.0.0.1:9001`のまま。
+- Fire HD 10はFully KioskのStart URLに `?usageMqtt=1` を保持し、MQTT接続済み表示を継続。
+- 4reader試験終了後もAPI healthは `status=ok`、publisherは接続状態を維持し、最新確認の
+  `currentRevision` は `118`。state／heartbeatのPUBACK更新も継続している。
+
+### 35.3 判定と残タスク
+
+4reader負荷試験は合格とする。ただし、同一母艦からのreader試験は物理的な複数表示端末の代替には
+ならない。最終配備判定は **保留** のままとし、次を残す。
+
+1. `/tmp/fire-dashboard-mqtt-observations-20261015.jsonl` の24時間・72時間時点の定点記録を確認する。
+2. 可能な場合は2台目のFire等を `?usageMqtt=1` で接続し、両端末のrevision／streamId収束を確認する。
+3. 観測終了後に、連続運転・複数端末・実ネットワーク負荷を含む最終判定を更新する。
