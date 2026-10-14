@@ -1264,7 +1264,7 @@ Claude付きFire観測の次の5分間隔サンプルを取得した。観測時
 | --- | --- |
 | Claude付きFire | 9/9 accepted、parse error 0、failure 0、`reconnectCountMax=0` |
 | 通常Fire | 12/12 accepted、初期1行をignored、parse error 0、failure 0。最新revision `219` |
-| ホスト資源 | 8/8 accepted、parse error 0、failure 0 |
+| ホスト資源 | 9/9 accepted、parse error 0、failure 0 |
 
 検査器追加はcommit `befe52e`。次の24／72時間判定では同じCLIを使い、判定基準の手作業差をなくす。
 この補助ツールの合格は長期試験そのものの完了を意味しないため、最終判定は **保留** とする。
