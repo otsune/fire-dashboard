@@ -989,3 +989,25 @@ port 9001へ接続し、07:33:26 JSTに4クライアントすべてが `connecti
 1. `/tmp/fire-dashboard-mqtt-observations-20261015.jsonl` の24時間・72時間時点の定点記録を確認する。
 2. 可能な場合は2台目のFire等を `?usageMqtt=1` で接続し、両端末のrevision／streamId収束を確認する。
 3. 観測終了後に、連続運転・複数端末・実ネットワーク負荷を含む最終判定を更新する。
+
+## 36. 第26回再監査 — 長期試験のリソース基準値（2026-10-15）
+
+Phase 6の「CPU・メモリ・通信量・再接続数を記録し、導入前と比較する」という条件に備え、
+Fire定点観測を止めずにGMKtec側の読み取り専用スナップショットを取得した。取得時刻は
+2026-10-15 07:36:41 JSTである。
+
+| 対象 | 基準値 |
+| --- | --- |
+| `fire-dashboard-api.service` | `active/running`、PID `676804`、`NRestarts=0`、`MemoryCurrent=65,130,496` bytes、`CPUUsageNSec=2,238,180,000` |
+| `fire-dashboard-mosquitto.service` | `active/running`、PID `664313`、`NRestarts=0`、`MemoryCurrent=11,067,392` bytes、`CPUUsageNSec=2,374,461,000` |
+| Mosquittoコンテナ瞬時値 | CPU `0.08%`、memory `2.269MB / 8.058GB`、NetIO `770B / 430B`、PIDs `1` |
+| loopback WS listener | `127.0.0.1:9001`に確立済み接続2本。接続数の24／72時間差分比較に使う |
+| インターフェース累積値 | `enp3s0` RX `117,185,257,494`／TX `49,083,094,385` bytes、`tailscale0` RX `15,152,688`／TX `105,948,114` bytes |
+
+認証なしの `GET /api/v1/health` は `401` となった。これは認証境界の負の検証であり、正のhealth値は
+同時刻のFire同一オリジン観測（§34／§35のJSONL）で `status=ok` を確認する。API／Mosquittoの
+`NRestarts=0` はこのスナップショット時点の値であり、観測終了時に再取得して比較する。
+
+この基準値だけでは長期安定性は証明できない。24時間・72時間時点で同じ項目を再取得し、CPU／
+メモリ／インターフェース通信量／接続数／`reconnectCount`の差分を記録する。GMKtec全体の再起動試験は
+運用影響を伴うため、別途承認された実施機会がない限り未実施として扱う。
