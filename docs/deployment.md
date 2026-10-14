@@ -95,6 +95,9 @@ node scripts/validate-mqtt-observations.mjs \
   --host /tmp/fire-dashboard-mqtt-host-observations-YYYYMMDD.jsonl
 ```
 
+各ログの `durationHours` と `maxGapMinutes` に観測範囲と最大間隔が出ます。24時間判定では、例えば
+`--min-hours 24 --max-gap-minutes 10` を追加し、`durationGate.passed=true` と
+`gapGate.passed=true`、終了コード0を確認します。72時間判定では `--min-hours 72` に変更します。
 終了コード0と、各ログの `failures=[]`・`parseErrors=[]`を確認してから、24時間／72時間の判定を記録します。
 
 ## Fully Kiosk 内での天気地域設定

@@ -4,24 +4,42 @@ import { readFile } from "node:fs/promises";
 
 const usage = () => {
   process.stderr.write(
-    "Usage: node scripts/validate-mqtt-observations.mjs --claude <path> --fire <path> --host <path>\n",
+    "Usage: node scripts/validate-mqtt-observations.mjs --claude <path> --fire <path> --host <path> [--min-hours <hours>] [--max-gap-minutes <minutes>]\n",
   );
 };
 
 function parseArgs(argv) {
   const paths = {};
+  const options = { minHours: null, maxGapMinutes: null };
   for (let index = 0; index < argv.length; index += 1) {
     const key = argv[index];
-    if (!["--claude", "--fire", "--host"].includes(key)) {
+    if (
+      ![
+        "--claude",
+        "--fire",
+        "--host",
+        "--min-hours",
+        "--max-gap-minutes",
+      ].includes(key)
+    ) {
       throw new Error(`unknown_option:${key}`);
     }
     const value = argv[index + 1];
-    if (!value || value.startsWith("--")) throw new Error(`missing_value:${key}`);
-    paths[key.slice(2)] = value;
+    if (!value || value.startsWith("--"))
+      throw new Error(`missing_value:${key}`);
+    if (key === "--min-hours" || key === "--max-gap-minutes") {
+      const numeric = Number(value);
+      if (!Number.isFinite(numeric) || numeric < 0) {
+        throw new Error(`invalid_number:${key}`);
+      }
+      options[key === "--min-hours" ? "minHours" : "maxGapMinutes"] = numeric;
+    } else {
+      paths[key.slice(2)] = value;
+    }
     index += 1;
   }
   if (Object.keys(paths).length !== 3) throw new Error("three_logs_required");
-  return paths;
+  return { paths, options };
 }
 
 async function readLog(path) {
@@ -39,9 +57,28 @@ async function readLog(path) {
 }
 
 function timeRange(values) {
+  const timestamps = values
+    .map((value) => Date.parse(value.observedAt))
+    .filter(Number.isFinite)
+    .sort((a, b) => a - b);
+  const firstMs = timestamps[0] ?? null;
+  const lastMs = timestamps.at(-1) ?? null;
+  const gaps = timestamps
+    .slice(1)
+    .map((timestamp, index) => timestamp - timestamps[index]);
   return {
     first: values[0]?.observedAt ?? null,
     last: values.at(-1)?.observedAt ?? null,
+    durationHours:
+      firstMs === null || lastMs === null
+        ? null
+        : Math.round(((lastMs - firstMs) / 3_600_000) * 1000) / 1000,
+    maxGapMinutes:
+      gaps.length === 0
+        ? timestamps.length === 0
+          ? null
+          : 0
+        : Math.round((Math.max(...gaps) / 60_000) * 1000) / 1000,
   };
 }
 
@@ -81,7 +118,11 @@ function checkFire(log) {
   const failures = [];
   for (const row of log.parsed) {
     const value = row.value;
-    if (!value.mqttStatus && !value.error && typeof value.pageUrl === "string") {
+    if (
+      !value.mqttStatus &&
+      !value.error &&
+      typeof value.pageUrl === "string"
+    ) {
       ignored.push(row.line);
       continue;
     }
@@ -149,8 +190,15 @@ function hasFailure(summary) {
   );
 }
 
+function gate(summary, key, required, compare) {
+  if (required === null) return true;
+  return summary.every(
+    (value) => value[key] !== null && compare(value[key], required),
+  );
+}
+
 try {
-  const paths = parseArgs(process.argv.slice(2));
+  const { paths, options } = parseArgs(process.argv.slice(2));
   const logs = {
     claude: await readLog(paths.claude),
     fire: await readLog(paths.fire),
@@ -161,10 +209,43 @@ try {
     fire: checkFire(logs.fire),
     host: checkHost(logs.host),
   };
+  const logSummaries = Object.values(summary);
+  summary.durationGate =
+    options.minHours === null
+      ? null
+      : {
+          requiredHours: options.minHours,
+          passed: gate(
+            logSummaries,
+            "durationHours",
+            options.minHours,
+            (actual, required) => actual >= required,
+          ),
+        };
+  summary.gapGate =
+    options.maxGapMinutes === null
+      ? null
+      : {
+          requiredMinutes: options.maxGapMinutes,
+          passed: gate(
+            logSummaries,
+            "maxGapMinutes",
+            options.maxGapMinutes,
+            (actual, required) => actual <= required,
+          ),
+        };
   process.stdout.write(`${JSON.stringify(summary)}\n`);
-  if (Object.values(summary).some(hasFailure)) process.exitCode = 1;
+  if (
+    logSummaries.some(hasFailure) ||
+    summary.durationGate?.passed === false ||
+    summary.gapGate?.passed === false
+  ) {
+    process.exitCode = 1;
+  }
 } catch (error) {
   usage();
-  process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
+  process.stderr.write(
+    `${error instanceof Error ? error.message : String(error)}\n`,
+  );
   process.exitCode = 2;
 }

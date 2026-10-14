@@ -1289,3 +1289,19 @@ snapshot sequence 3、NICのRX/TX増加を確認した。ADBでもFire HD 10は`
 
 これはClaude計測の実運用経路が継続している証拠だが、開始から24時間未満である。24／72時間連続運転、
 複数端末同時試験、GMKtec全体再起動試験は未完了のため、最終配備判定は **保留** とする。
+
+## 50. 第40回再監査 — 長期観測の時間・間隔ゲートを追加（2026-10-15）
+
+観測検査器が合格行の存在だけで成功扱いしないよう、`--min-hours` と `--max-gap-minutes` を追加した。
+各ログに `durationHours` と `maxGapMinutes` を出力し、指定した3ログすべてが条件を満たさない場合は
+終了コード1にする。これにより24／72時間の判定で、短時間のサンプルを長期運転の証拠と誤認しない。
+
+| 検証 | 結果 |
+| --- | --- |
+| 回帰テスト | `tests/unit/validate-mqtt-observations.test.ts`、2 tests passed。最小時間不足と最大間隔超過をそれぞれ確認 |
+| 現行ログ通常検査（08:39 JST） | Claude 12/12、Fire 15/15（ignored 1）、ホスト11/11。parse error 0、failure 0、最大間隔はいずれも約5分 |
+| 現行ログの時間・間隔ゲート | Claude `0.917h`、Fire `1.167h`、ホスト `0.833h`。`--max-gap-minutes 10` は終了コード0／`gapGate.passed=true`。`--min-hours 24` は終了コード1／`durationGate.passed=false` |
+| 整形・差分 | Prettier成功、`git diff --check`成功 |
+
+運用手順は `docs/deployment.md` に更新した。観測プロセスとGMKtecのAPI／Claude sender／Mosquittoは稼働中だが、
+24／72時間の時間条件、複数物理端末、GMKtec全体再起動の証拠はまだ揃っていないため、最終配備判定は **保留** とする。
