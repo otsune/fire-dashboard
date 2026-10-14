@@ -1305,3 +1305,20 @@ snapshot sequence 3、NICのRX/TX増加を確認した。ADBでもFire HD 10は`
 
 運用手順は `docs/deployment.md` に更新した。観測プロセスとGMKtecのAPI／Claude sender／Mosquittoは稼働中だが、
 24／72時間の時間条件、複数物理端末、GMKtec全体再起動の証拠はまだ揃っていないため、最終配備判定は **保留** とする。
+
+## 51. 第41回再監査 — GMKtec Serve経路4-reader負荷再試験（2026-10-15）
+
+既存の `/tmp/fire-dashboard-mqtt-load-probe.mjs` を用い、GMKtec Serve経由の
+`/api/v1/usage/stream`へ4 readerを同時接続して60秒維持した。各readerは`mqtt` subprotocolで接続し、
+retained stateを受信してから20秒間隔のPINGへ2回応答を受けた。
+
+| 確認 | 実測結果 |
+| --- | --- |
+| reader数・継続時間 | 4 reader、60,000ms。4/4が60秒完走 |
+| MQTT接続・retained state | `allConnected=true`、`allRetained=true` |
+| heartbeat | 各reader `pingResponses=2` |
+| 試験後のサービス | API、Claude sender、Mosquittoとも`active/running`、`NRestarts=0` |
+| 試験後の接続残留 | 負荷readerのプロセス・接続は残らず、APIの通常broker接続だけが継続 |
+
+同一母艦からのreader負荷は再現できたが、物理的な複数表示端末の代替にはならない。24／72時間連続運転、
+複数物理端末、GMKtec全体再起動試験は未完了のため、最終配備判定は **保留** とする。
