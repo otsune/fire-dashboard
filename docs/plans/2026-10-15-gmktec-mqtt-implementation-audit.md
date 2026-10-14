@@ -1234,3 +1234,19 @@ Claude aliasテスト追加後、MQTT実装に関係するfocused suiteをsandbo
 
 focused suiteは全件合格した。これはコードとbuildの検証結果であり、24／72時間の実機連続運転やGMKtec全体
 再起動試験を代替しないため、最終配備判定は **保留** とする。
+
+## 47. 第37回再監査 — Claude付きFireの定点継続（2026-10-15）
+
+Claude付きFire観測の次の5分間隔サンプルを取得した。観測時刻は `2026-10-14T23:23:25.071Z`
+（JST 2026-10-15 08:23:25）である。
+
+| 確認 | 実測結果 |
+| --- | --- |
+| Fire表示 | `?usageMqtt=1`、MQTT接続済み、切断表示なし、Service Worker controllerあり |
+| MQTT runtime | `state=connected`、`reconnectCount=0`、`deliveryStatus=ok`、`currentRevision=217`、`lastError=null` |
+| API／Claude | health `ok`、Claude `status=ok`／`sourceAlias=gmktec`、5時間8%・7日27% |
+| 受信時刻 | `receivedAt=2026-10-14T23:22:58.889Z` |
+| ホスト | `23:22:06Z` にAPI／Claude sender `active/running`、`NRestarts=0`、snapshot sequence 3 |
+
+§42のrevision 208から217へ進み、5分継続後もFire・API・MQTT・Claudeの状態は崩れていない。短時間の
+連続性証拠であり、24／72時間判定と全体再起動試験は未完了のため、最終判定は **保留** とする。
