@@ -1,10 +1,10 @@
 # GMKtec MQTT usage配信 実装監査記録
 
-本書は `docs/plans/2026-10-14-gmktec-mqtt-usage-plan.md` に基づくMQTT実装の監査の正本。実装ソースは現在も作業ツリー上の未コミット差分（基準 `07cc993`）で、本番artifactはその作業ツリーから生成した。`07cc993` 以降のコミットは文書のみ。
+本書は `docs/plans/2026-10-14-gmktec-mqtt-usage-plan.md` に基づくMQTT実装の監査の正本。実装ソースと本番artifactの対応commitは `384acfe`（`feat: publish usage over MQTT`）で固定した。本書の監査追記はこのcommitより後の記録である。
 いつ見るか: MQTT実装の変更・再配備前、Phase 2／3の試験記録、長期運用試験の更新時。
 関連: 計画 `docs/plans/2026-10-14-gmktec-mqtt-usage-plan.md`、計画監査 `docs/plans/2026-10-15-gmktec-mqtt-usage-plan-audit.md`、配備 `docs/deployment.md`、`gmktec-change-control`、`gmktec-validation-and-evidence`。
-状態: **コード修正・focused test、開発broker、GMKtec本番broker／API／Serve、Fire HD 10の短時間MQTT実機試験まで完了。24／72時間連続運転、Wi-Fi切替、複数端末同時試験は保留**（2026-10-15、Asia/Tokyo）。
-範囲: §10以前は本番反映前の履歴である。§27で隔離broker、§29で本番Mosquitto／API／Serve／Fireを検証し、§31でdigest固定、台帳更新、artifact hashを追記する。本番artifactは未コミット作業ツリー由来で、API artifact SHA256 prefixは `2010671506a2358c`。
+状態: **コード修正・focused test、開発broker、GMKtec本番broker／API／Serve、Fire HD 10の短時間MQTT実機試験まで完了。Wi-Fi切替、Service Worker更新後の再接続、Fully Kiosk再起動後のStart URL保持も短時間確認済み。24／72時間連続運転、複数端末同時試験、実ネットワーク負荷は保留**（2026-10-15、Asia/Tokyo）。
+範囲: §10以前は本番反映前の履歴である。§27で隔離broker、§29で本番Mosquitto／API／Serve／Fireを検証し、§31でdigest固定、台帳更新、artifact hashを追記した。現行artifactはcommit `384acfe` から生成し、API artifact SHA256 prefixは `2010671506a2358c`。
 
 ## 1. 結論
 
@@ -12,7 +12,7 @@
 
 初回監査で指摘した端末単位のMQTT無効化、gatewayのbackpressure向き、再接続時のretained `offline`、`too_large` 時の古いpending state、publisherの接続状態可視化はコード修正済みで、native timerと高速接続raceの修正を含むfocused test 58件が成功している。MQTT opt-in端末だけがchunkを実行時に読み込み、HTTP専用端末のService Worker事前キャッシュからはMQTT chunkを除外した。
 
-隔離brokerと本番brokerの双方でpublisher、ACL、gateway、MQTT.js reader、LWT、broker停止後の再接続を確認し、Fire HD 10ではTailscale Serve経由のWSS、CONNECT/CONNACK、SUBSCRIBE、retained state、heartbeat、HTTP fallbackを確認した。本番Mosquittoはdigest固定、台帳は更新済みである。24／72時間連続運転、Wi-Fi切替、Service Worker更新後の長時間安定性、複数表示端末同時試験、実ネットワーク負荷は残っているため、最終配備判定は **保留** とする。
+隔離brokerと本番brokerの双方でpublisher、ACL、gateway、MQTT.js reader、LWT、broker停止後の再接続を確認し、Fire HD 10ではTailscale Serve経由のWSS、CONNECT/CONNACK、SUBSCRIBE、retained state、heartbeat、HTTP fallbackを確認した。本番Mosquittoはdigest固定、台帳は更新済みである。Wi-Fi切替、Service Worker更新後の再接続、Fully Kiosk再起動後のStart URL保持は短時間試験で確認済みだが、24／72時間連続運転、複数表示端末同時試験、実ネットワーク負荷は残っているため、最終配備判定は **保留** とする。
 
 ## 2. 検証結果
 
@@ -45,9 +45,9 @@ focused test追加前の34件は、HEAD `07cc993` のクリーンなworktree（`
 | Phase 1 契約・保存・順序 | `packages/contracts/src/usage-delivery.ts`、`store.ts`、`usage/ingest.ts` | 部分完了。基本契約とrevisionはあるが、旧状態移行・サイズ境界・バックアップ復元の受け入れ試験がない |
 | Phase 2 publisher | `services/aggregator/src/mqtt/publisher.ts` | 本番brokerまで完了。QoS 1、retain、LWT、heartbeat、ACK期限、coalesce、offline単独時の再接続、`mqtt-status.runtime`をfocused test、隔離broker、本番broker停止／復旧で確認 |
 | Phase 3 WSS認証・ACL | `services/aggregator/src/mqtt/gateway.ts`、`server.ts` | 本番Serveまで完了。実WebSocketのreader認証、Origin、subprotocol、ACL、上流確認、拒否時cleanup、loopback公開範囲を確認。実ネットワーク負荷は保留 |
-| Phase 4 表示端末 | `usage-state.ts`、`usage-stream.ts`、`cache.ts`、`App.tsx` | 短時間実機まで完了。Fire HD 10／Fully KioskでWSS、retained state、heartbeat、native timer、HTTP fallbackを確認。Wi-Fi切替、SW更新後の長時間安定性、複数端末同時試験は保留 |
-| Phase 5 GMKtec段階導入 | 外部設定 | 完了。broker、API config／credentials、user service、Serve経路を反映し、Quadletはdigest固定。台帳も更新済み |
-| Phase 6 常設運用 | 運用・長時間試験 | 保留。24／72時間試験、Wi-Fi切替、複数端末、実ネットワーク負荷の証拠待ち |
+| Phase 4 表示端末 | `usage-state.ts`、`usage-stream.ts`、`cache.ts`、`App.tsx` | 短時間実機まで完了。Fire HD 10／Fully KioskでWSS、retained state、heartbeat、native timer、HTTP fallback、Wi-Fi切替、SW更新後の再接続、Fully再起動後のStart URL保持を確認。24／72時間の安定性、複数端末同時試験は保留 |
+| Phase 5 GMKtec段階導入 | 外部設定 | 短時間導入完了。broker、API config／credentials、user service、Serve経路を反映し、Quadletはdigest固定。台帳も更新済み。artifactはcommit `384acfe` に固定 |
+| Phase 6 常設運用 | 運用・長時間試験 | 保留。24／72時間試験、複数端末、実ネットワーク負荷の証拠待ち |
 
 ## 4. 実装確認
 
@@ -875,3 +875,55 @@ rollback時は、まずFireのqueryを除去し、`systemctl --user stop fire-da
 - Wi-Fi切替とService Worker更新後の再接続
 - 複数端末の同時試験
 - artifactのcommit固定
+
+## 33. 第23回再監査 — Fully Kiosk Start URL永続化とruntime再照合（2026-10-15）
+
+§32の残タスクを進め、Fire HD 10のFully Kiosk設定を変更して再起動試験を行った。設定変更は
+Fire実機のFully Kiosk UI（Web Content Settings → Start URL）だけで、GMKtecのネットワーク設定・
+Serve・broker・API設定は変更していない。
+
+### 33.1 稼働artifactとサービスの再照合
+
+| 確認 | 実測結果 |
+| --- | --- |
+| API service | `fire-dashboard-api.service` は `active/running`、PID `676804`、起動 `2026-10-15 07:08:47 JST`。実行形式は `node dist/aggregator/start.mjs` |
+| source / artifact固定 | commit `384acfe`（`feat: publish usage over MQTT`）へ実装・focused test・配備ドキュメントを固定。作業ツリー由来の未コミットartifactという§32.2-1の状態を解消 |
+| API artifact | `dist/aggregator/start.mjs` SHA256 `2010671506a2358c0a3435ef005157ab9309a944c26bbeb27a843e9a6ad1003d`。§31.2の記録と一致し、§32.2-1の「次回再起動後のartifact」という曖昧さを解消した |
+| Dashboard artifact | `index.html`、本体JS、MQTT chunk、`sw.js` のSHA256は§31.2の記録と一致。FireのService Worker取得物も `sw.js` として制御中 |
+| 検証状態 | `git diff --check` は成功。今回の端末設定変更による実装ソース差分はない |
+
+### 33.2 Fully Kiosk再起動後のMQTT opt-in
+
+ADB端末 `G001NW06319100XT`（Fire HD 10、Fully Kiosk `1.61.3-play`）で、まず従来のStart URLのまま
+Fullyを再起動した。このときページは `https://gmktec.taila8b10.ts.net:8444/`（queryなし）へ戻り、
+footerは `MQTT 未接続` になった。これは§32.2で指摘した、手動遷移だけではStart URLが永続化されない
+事象の再現である。
+
+Fullyの **Web Content Settings → Start URL** を次へ変更して保存した。
+
+```text
+https://gmktec.taila8b10.ts.net:8444/?usageMqtt=1
+```
+
+保存直後にURL、footer、Service Worker制御を確認し、さらに `am force-stop` → Fully起動 → 15秒待機の
+再試験を行った。再起動後のWebView（PID `2111`）は次を返した。
+
+| 確認 | 実測結果 |
+| --- | --- |
+| 表示URL | `https://gmktec.taila8b10.ts.net:8444/?usageMqtt=1`。queryが保持された |
+| MQTT footer | `Fire HD 10 Plus · 前面表示用 · MQTT 接続済み` |
+| Service Worker | `navigator.serviceWorker.controller.scriptURL` は `https://gmktec.taila8b10.ts.net:8444/sw.js` |
+| 画面状態 | usage、weather、RSSを表示し、MQTT retained state／heartbeat受信後の通常画面を維持 |
+
+これにより、Fully KioskのStart URL未設定が原因だった再起動後のopt-in消失は解消した。端末側の設定を
+queryなしへ戻せば、従来どおりHTTP専用端末として動作する設計は維持される。Remote Adminの有効化や
+外部ポート公開は行っていない。
+
+### 33.3 現在の判定と残タスク
+
+短時間の本番導入、Fire MQTT購読、Wi-Fi切替、Service Worker更新後の再接続、Fully Kiosk再起動後の
+Start URL保持は確認済みとする。最終配備判定は次の残タスクが終わるまで **保留** とする。
+
+1. 24／72時間連続運転で `mqtt-status` の接続状態、PUBACK時刻、Fire footer、API healthを定点記録する。
+2. 2台以上の表示端末を同時に `?usageMqtt=1` で接続し、gateway接続数・broker負荷・revision収束を確認する。
+3. 実ネットワーク負荷を含む長時間安定性を確認する。
