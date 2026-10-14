@@ -1107,3 +1107,20 @@ JSONLの有効なサンプルだけを使う。24時間・72時間時点で同�
 
 この検査は短時間のログ整合性と現在状態を確認するもので、24／72時間の連続運転を代替しない。長期観測の
 最終判定では、有効サンプルの連続性、PUBACK／heartbeat、再接続数、CPU／メモリ／NIC差分を同じ基準で比較する。
+
+## 40. 第30回再監査 — Claude statusline更新のAPI／MQTT伝播（2026-10-15）
+
+通常稼働中のClaude Code statuslineから新しい入力を受け、snapshotが更新されたことをホスト観測で確認した。
+その後、Claude付きFire観測で新しいusageがAPI正本とMQTT配信へ伝播したことを確認した。これは§37.3-3の
+「Claude Codeのstatuslineが次回の通常セッションでも計測処理を維持する」の受入証拠である。
+
+| 確認 | 実測結果 |
+| --- | --- |
+| Host snapshot | `sequence=3`、`capturedAt=2026-10-14T23:08:44.420Z`、`provider=claude`、`status=ok`、`sourceAlias=gmktec` |
+| API／MQTT／Fire | 観測時刻 `2026-10-14T23:13:24.867Z`、MQTT revision `199`、`state=connected`、`deliveryStatus=ok`、health `ok` |
+| Claude usage | 5時間枠 `8%`（reset `2026-10-15T02:30:00Z`）、7日枠 `27%`（reset `2026-10-18T04:00:00Z`） |
+| 受信時刻 | API正本 `receivedAt=2026-10-14T23:12:56.316Z`。snapshot更新後にheartbeatだけでなく新しい値を受信した |
+| 常駐サービス | API／Claude senderともに `active/running`、`NRestarts=0` |
+
+旧snapshotの値を再送しただけではなく、statusline由来の `8%`／`27%` がAPIとMQTTへ届いたため、計測処理の
+更新経路を陽性確認できた。長期観測の24／72時間判定はまだ保留である。
