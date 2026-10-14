@@ -1301,7 +1301,7 @@ snapshot sequence 3、NICのRX/TX増加を確認した。ADBでもFire HD 10は`
 | 回帰テスト | `tests/unit/validate-mqtt-observations.test.ts`、2 tests passed。最小時間不足と最大間隔超過をそれぞれ確認 |
 | 現行ログ通常検査（08:39 JST） | Claude 12/12、Fire 15/15（ignored 1）、ホスト11/11。parse error 0、failure 0、最大間隔はいずれも約5分 |
 | 現行ログの時間・間隔ゲート | Claude `0.917h`、Fire `1.167h`、ホスト `0.833h`。`--max-gap-minutes 10` は終了コード0／`gapGate.passed=true`。`--min-hours 24` は終了コード1／`durationGate.passed=false` |
-| 整形・差分 | Prettier成功、`git diff --check`成功 |
+| 整形・差分 | 変更対象ファイルのPrettier成功、`git diff --check`成功 |
 
 運用手順は `docs/deployment.md` に更新した。観測プロセスとGMKtecのAPI／Claude sender／Mosquittoは稼働中だが、
 24／72時間の時間条件、複数物理端末、GMKtec全体再起動の証拠はまだ揃っていないため、最終配備判定は **保留** とする。
