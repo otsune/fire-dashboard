@@ -1011,3 +1011,54 @@ Fire定点観測を止めずにGMKtec側の読み取り専用スナップショ�
 この基準値だけでは長期安定性は証明できない。24時間・72時間時点で同じ項目を再取得し、CPU／
 メモリ／インターフェース通信量／接続数／`reconnectCount`の差分を記録する。GMKtec全体の再起動試験は
 運用影響を伴うため、別途承認された実施機会がない限り未実施として扱う。
+
+## 37. 第27回再監査 — GMKtec上のClaude usage計測を有効化（2026-10-15）
+
+「Claudeの計測をgmktecで」の残作業として、GMKtecで実行中のClaude Code statuslineからusageを
+収集し、既存のHTTPS collector、集約API、MQTT配信へ接続した。Claude Code自体のAPI呼び出しや
+プロンプト取得は追加していない。
+
+### 37.1 変更内容
+
+| 対象 | 変更 |
+| --- | --- |
+| Claude Code | `/home/otsune/.claude/statusline-command.sh` の既存表示出力を維持し、stdinのrate limit JSONを `dist/collectors/claude-statusline.mjs` へ非同期で渡す処理を末尾に追加 |
+| snapshot | `/home/otsune/.local/state/fire-dashboard/claude-snapshot.json`、`FIRE_SOURCE_ALIAS=gmktec` |
+| 送信 | 新規 user unit `fire-dashboard-claude-sender.service`。15秒間隔でsnapshotを読み、変化時または60秒heartbeatで `https://gmktec.taila8b10.ts.net:8444/api/v1/usage` へ送信 |
+| API表示選択 | `~/.config/fire-dashboard/config.json` の `preferredSources.claude` を `["gmktec","win-desktop"]` に更新。同一アカウントを合算しない |
+| バックアップ | `~/.claude/statusline-command.sh.bak-20261015_074210`、`~/.claude/settings.json.bak-20261015_073949`、`~/.config/fire-dashboard/config.json.bak-20261015_073949` |
+
+`~/.claude/settings.json` のstatusline commandは既存の `~/.claude/statusline-command.sh` に戻しているため、
+既存セッションと新規セッションの両方が同じ拡張済みスクリプトを使う。スクリプト構文は `sh -n` で確認した。
+
+### 37.2 実アカウント入力による受入
+
+固定JSONでの表示回帰試験では、既存出力 `Sonnet ctx 42% ... 5h 17% wk 31%` を維持し、
+snapshotにrate limit 2枠だけが保存されることを確認した。fixtureは本番送信前に退避し、実アカウントの
+Claudeセッションから生成されたsnapshotとは混在させていない。
+
+実セッションからは次を取得した。
+
+| 確認 | 実測結果 |
+| --- | --- |
+| Claude CLI | `/home/otsune/.local/bin/claude`、version `2.1.300` |
+| snapshot | `provider=claude`、`status=ok`、`sourceAlias=gmktec`、`sequence=2`、capturedAt `2026-10-14T22:42:21.433Z` |
+| API受信 | GMKtec正本stateで `receivedAt=2026-10-14T22:42:33.936Z`、`usageRevision=137`、`errorCode=null` |
+| sender | `fire-dashboard-claude-sender.service` は `enabled`／`active(running)`、PID `704040`、journalに送信エラーなし |
+| API | `fire-dashboard-api.service` は設定反映後にPID `704002`で `active(running)`、`NRestarts=0` |
+| MQTT／Fire | Fire同一オリジンでClaude値、`mqtt connected`、`deliveryStatus=ok`、health `ok` を同一サンプル（22:43:24Z）で確認。MQTT revision `137` |
+
+Claude値を含む追加定点観測をセッション `7382`、5分間隔、72時間上限で開始した。ログは
+`/tmp/fire-dashboard-mqtt-claude-observations-20261015.jsonl` へ保存し、URL、Service Worker、MQTT状態、
+API health、Claudeのstatus／sourceAlias／capturedAt／receivedAt／bucketsを同時に記録する。既存セッション
+`20454` は通常のMQTT観測として継続している。
+
+### 37.3 判定と残タスク
+
+GMKtecでのClaude計測、API受信、MQTT配信までの短時間受入は合格とする。残りは次のとおり。
+
+1. セッション `7382` の24時間・72時間サンプルでClaude値、MQTT接続、health、再接続数の継続性を確認する。
+2. 既存24／72時間MQTT観測とリソース基準値を含め、API設定反映後の長期安定性を最終判定する。
+3. Claude Codeのstatuslineが再起動・更新後も計測処理を維持することを、次回の通常セッション開始時に再確認する。
+
+最終配備判定は長期観測が終わるまで **保留** とする。
