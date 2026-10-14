@@ -1124,3 +1124,33 @@ JSONLの有効なサンプルだけを使う。24時間・72時間時点で同�
 
 旧snapshotの値を再送しただけではなく、statusline由来の `8%`／`27%` がAPIとMQTTへ届いたため、計測処理の
 更新経路を陽性確認できた。長期観測の24／72時間判定はまだ保留である。
+
+## 41. 第31回再監査 — GMKtec Claude計測の現時点再照合（2026-10-15）
+
+§40の後もコード変更や設定変更を行わず、GMKtec上のClaude計測経路を再照合した。確認時刻は
+2026-10-15 08:16 JST（2026-10-14 23:16 UTC）である。
+
+### 41.1 コードとローカルsnapshot
+
+| 確認 | 実測結果 |
+| --- | --- |
+| Claude collectorテスト | `tests/unit/claude.test.ts` と `tests/unit/send-service.test.ts`、2 files／7 tests passed |
+| 型・shell検査 | `npm run typecheck` 成功、`statusline-command.sh` の `sh -n` 成功、`git diff --check` 成功 |
+| snapshot | `provider=claude`、`status=ok`、`sourceAlias=gmktec`、`sequence=3`、`capturedAt=2026-10-14T23:08:44.420Z` |
+| usage値 | 5時間枠 `8%`（reset `2026-10-15T02:30:00Z`）、7日枠 `27%`（reset `2026-10-18T04:00:00Z`） |
+
+### 41.2 常駐サービスとFire配信
+
+systemdの読み取り専用属性と、直近のFire同一オリジン観測を突き合わせた。
+
+| 対象 | 実測結果 |
+| --- | --- |
+| `fire-dashboard-api.service` | `active/running`、PID `704002`、`NRestarts=0` |
+| `fire-dashboard-claude-sender.service` | `active/running`、PID `704040`、`NRestarts=0` |
+| `fire-dashboard-mosquitto.service` | `active/running`、PID `664313`、`NRestarts=0` |
+| Claude付きFire観測 | 直近 `2026-10-14T23:13:24.867Z`。MQTT `connected`、`reconnectCount=0`、`deliveryStatus=ok`、health `ok` |
+| Claudeの受信 | `sourceAlias=gmktec`、`receivedAt=2026-10-14T23:12:56.316Z`。MQTT revision `199` |
+
+snapshot、送信サービス、API正本、MQTT、Fire画面の一連の経路は現時点で継続している。これは長期試験の
+中間確認であり、24／72時間連続運転の合格証明には置き換えない。観測セッション `7382`（Claude付き）、
+`20454`（通常Fire）、`79562`（ホスト資源）は停止せず継続する。最終配備判定は引き続き **保留** とする。
