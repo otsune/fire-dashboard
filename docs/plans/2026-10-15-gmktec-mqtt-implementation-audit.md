@@ -1268,3 +1268,24 @@ Claude付きFire観測の次の5分間隔サンプルを取得した。観測時
 
 検査器追加はcommit `befe52e`。次の24／72時間判定では同じCLIを使い、判定基準の手作業差をなくす。
 この補助ツールの合格は長期試験そのものの完了を意味しないため、最終判定は **保留** とする。
+
+## 49. 第39回再監査 — GMKtec Claude計測の継続サンプル（2026-10-15）
+
+GMKtec上のClaude sender、usage API、MQTT broker、Fire HD 10の表示経路を継続観測し、
+2026-10-15 08:34 JST時点のJSONLを同じ検査器で再判定した。Claude付きFireの観測開始は
+`2026-10-14T22:43:24Z`（JST 07:43:24）で、24時間判定の閾値は
+`2026-10-15T22:43:24Z`（JST 2026-10-16 07:43:24）である。
+
+| ログ | 件数・時刻範囲 | 合格・扱い |
+| --- | --- | --- |
+| Claude付きFire | 11行、`22:43:24Z`〜`23:33:25Z` | 11/11 accepted、parse error 0、failure 0、`reconnectCountMax=0`。最新revision `237` |
+| 通常Fire | 15行、`22:29:40Z`〜`23:34:41Z` | 14/14 accepted、初期1行をignored、parse error 0、failure 0。最新revision `240` |
+| ホスト資源 | 10行、`22:47:06Z`〜`23:32:06Z` | 10/10 accepted、parse error 0、failure 0 |
+
+最新のClaude付きFireはURL `?usageMqtt=1`、MQTT `connected`、`deliveryStatus=ok`、
+`reconnectCount=0`、health `ok`、Claude `status=ok`／`sourceAlias=gmktec`、5時間枠8%・
+7日枠27%を示した。ホスト観測ではAPIとClaude senderが`active/running`、`NRestarts=0`、
+snapshot sequence 3、NICのRX/TX増加を確認した。ADBでもFire HD 10は`device`状態である。
+
+これはClaude計測の実運用経路が継続している証拠だが、開始から24時間未満である。24／72時間連続運転、
+複数端末同時試験、GMKtec全体再起動試験は未完了のため、最終配備判定は **保留** とする。
