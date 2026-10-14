@@ -85,6 +85,18 @@ UTF-8 サイズ上限を超えた場合は state を途中送信せず、端末�
 端末は HTTPS の revision を照合します。MQTT を有効化する前に開発用 broker で QoS、LWT、
 切断復帰、reader 認証、Origin 欠落、`mqtt` 以外の subprotocol、上限超過を検証してください。
 
+長期運用観測のJSONLは、実機・API・ホストの3ログを同じ基準で再検査できます。
+初期ページ遷移だけの行は検査器が明示的に `ignored` とし、それ以外の不完全行やJSON破損は失敗にします。
+
+```sh
+node scripts/validate-mqtt-observations.mjs \
+  --claude /tmp/fire-dashboard-mqtt-claude-observations-YYYYMMDD.jsonl \
+  --fire /tmp/fire-dashboard-mqtt-observations-YYYYMMDD.jsonl \
+  --host /tmp/fire-dashboard-mqtt-host-observations-YYYYMMDD.jsonl
+```
+
+終了コード0と、各ログの `failures=[]`・`parseErrors=[]`を確認してから、24時間／72時間の判定を記録します。
+
 ## Fully Kiosk 内での天気地域設定
 
 天気カードまたは設定画面から、同じ画面内で予報地域と気温の代表地点を選びます。新しいタブ・位置情報権限・ブラウザーへの管理用秘密情報の保存は使いません。地域一覧は集約APIが気象庁の固定URLから取得し、ブラウザーは同一オリジンのAPIだけを利用します。
