@@ -4,7 +4,7 @@
 いつ見るか: MQTT実装のコミット・レビュー前、Phase 2／3の試験を書く前、本番でgateway／publisherを有効化する前。
 関連: 計画 `docs/plans/2026-10-14-gmktec-mqtt-usage-plan.md`、計画監査 `docs/plans/2026-10-15-gmktec-mqtt-usage-plan-audit.md`、配備 `docs/deployment.md`、`gmktec-change-control`、`gmktec-validation-and-evidence`。
 状態: **初回監査の必須4件、upgrade拒否時の上流cleanup、revision／資格情報／接続数制限／publisher起動分離／設定・接続状態可視化をコード修正・試験済み。本番有効化不可**（2026-10-15、Asia/Tokyo）。
-範囲: コード・テスト・ビルドのみ。GMKtecへの配備、Mosquitto、Tailscale Serve、systemd、Fire実機は変更・検証していない。
+範囲: 初回監査はコード・テスト・ビルドのみ。後続の§10／§26／§27でGMKtecの既存Serve入口、Fire実機の読み取り、隔離した一時Mosquitto／gateway統合試験を追加した。本番のMosquitto、gateway、systemd、FireのMQTT設定は変更していない。
 
 ## 1. 結論
 
@@ -12,7 +12,7 @@
 
 初回監査で指摘した端末単位のMQTT無効化、gatewayのbackpressure向き、再接続時のretained `offline`、`too_large` 時の古いpending state、publisherの接続状態可視化はコード修正済みで、今回の修正を含むfocused test 57件が成功している。MQTT opt-in端末だけがchunkを実行時に読み込み、HTTP専用端末のService Worker事前キャッシュからはMQTT chunkを除外した。
 
-残るのは、publisher／gateway／ブラウザー購読の実broker試験、Mosquitto／Serve／systemd／Fireの配備と24時間以上の実機試験である。upgrade拒否時の保留upstreamはraw TCP socketの終了監視で閉じることを実ソケット回帰試験で確認したが、実ネットワークでの資源上限と運用証拠は未取得である。したがって、計画のPhase 2〜4を完全受け入れ済み、またはPhase 5の本番配備済みとは扱わない。
+隔離した一時Mosquittoと一時APIを使い、publisher、ACL、gateway、MQTT.js reader、LWT、broker停止後の再接続を§27で確認した。残るのは本番Mosquitto／Serve／systemdへの段階配備、Fire HD 10での `?usageMqtt=1` 実機試験、24時間以上の実機試験、実ネットワークでの資源上限と運用証拠である。したがって、開発broker上のPhase 2／3統合試験は受け入れ済みとするが、計画のPhase 4完全受け入れ、Phase 5本番配備済みとは扱わない。
 
 ## 2. 検証結果
 
@@ -43,9 +43,9 @@ focused test追加前の34件は、HEAD `07cc993` のクリーンなworktree（`
 | 計画の領域 | 実装 | 判定 |
 | --- | --- | --- |
 | Phase 1 契約・保存・順序 | `packages/contracts/src/usage-delivery.ts`、`store.ts`、`usage/ingest.ts` | 部分完了。基本契約とrevisionはあるが、旧状態移行・サイズ境界・バックアップ復元の受け入れ試験がない |
-| Phase 2 publisher | `services/aggregator/src/mqtt/publisher.ts` | 部分完了。QoS 1、retain、LWT、heartbeat、ACK期限、coalesce、offline単独時の再接続、`mqtt-status.runtime`による実行時状態をfocused testで確認。brokerを用いた試験がない |
-| Phase 3 WSS認証・ACL | `services/aggregator/src/mqtt/gateway.ts`、`server.ts` | 部分完了。認証・Origin・subprotocol・上流確認・双方向転送・上流拒否・接続寿命・設定可能な接続数上限を`injectWS`＋注入上流で確認。実Serve、Mosquitto ACL、実ネットワークでの資源挙動は未確認 |
-| Phase 4 表示端末 | `usage-state.ts`、`usage-stream.ts`、`cache.ts`、`App.tsx` | 部分完了。端末単位の有効化、共通reducer、HTTP fallback、heartbeat照合は実装。Fire WebView、SW更新、実機到着順は未検証 |
+| Phase 2 publisher | `services/aggregator/src/mqtt/publisher.ts` | 開発broker統合まで完了。QoS 1、retain、LWT、heartbeat、ACK期限、coalesce、offline単独時の再接続、`mqtt-status.runtime`をfocused testと一時Mosquittoで確認。本番brokerでの受け入れは未実施 |
+| Phase 3 WSS認証・ACL | `services/aggregator/src/mqtt/gateway.ts`、`server.ts` | 開発broker／一時API統合まで完了。実WebSocketのreader認証、Origin、subprotocol、ACL、上流確認、LWT後の再接続を確認。実Serve、本番listener、実ネットワークでの資源挙動は未確認 |
+| Phase 4 表示端末 | `usage-state.ts`、`usage-stream.ts`、`cache.ts`、`App.tsx` | 部分完了。端末単位の有効化、共通reducer、HTTP fallback、heartbeat照合は実装。Fully KioskのHTTP表示は§26で確認済みだが、MQTT/WSS、SW更新、実機到着順は未検証 |
 | Phase 5 GMKtec段階導入 | 外部設定 | 未着手。broker、Serve、systemd、Fire設定を変更していない |
 | Phase 6 常設運用 | 運用・長時間試験 | 未着手。24／72時間試験、負荷、復旧、台帳更新なし |
 
@@ -78,9 +78,9 @@ focused test追加前の34件は、HEAD `07cc993` のクリーンなworktree（`
 - `disconnectAndReconnect` は正常切断前に retained `offline` を明示publishしない。offlineは停止処理とLWTの責務に分けた。
 - `queueCurrentState` は `too_large` 時に既存の `pendingState` を破棄するため、古いrevisionを後から送らない。
 
-残る試験:
+実broker試験で確認した点:
 
-- publisherのfocused testでheartbeat独立、offline単独再接続、QoS／retain指定、PUBACK timeout、古いcallback、LWT設定を確認した。再接続後のbroker retained順序とLWTの実効動作は実brokerで証明する必要がある。
+- publisherのfocused testに加え、§27のMosquitto 2.1.2でstate／availabilityのretain、heartbeatの非retain、PUBACK、強制終了時のLWT offline、broker停止後の `connect_error`／再接続／復旧を確認した。本番brokerの同じ証拠は別途取得する。
 
 ### 4.3 gateway
 
@@ -97,9 +97,9 @@ focused test追加前の34件は、HEAD `07cc993` のクリーンなworktree（`
 - 各方向の送信先ソケットの `bufferedAmount` を検査するhelperを追加した。
 - preHandler後に下流upgradeが破棄された場合、requestと`request.raw.socket`の`close`／`error`で保留中の上流WSを閉じるcleanupを追加した。実Fastify＋実TCPソケットで、不正なWebSocket versionの400応答後に上流が閉じることを確認した。
 
-残る試験:
+実broker試験で確認した点:
 
-- `injectWS` と注入上流によるOrigin、認証、subprotocol、上流失敗、接続寿命、双方向転送はfocused integration testで実施した。実WebSocket／Mosquitto brokerによるpayload上限、backpressure、接続数上限、Serve経路は未確認である。
+- `injectWS` と注入上流に加え、§27で実WebSocketの `mqtt` upgrade、gateway経由のretained state、Origin／reader／subprotocol拒否を確認した。実Serve経路、payload上限・backpressure・接続数上限の実ネットワーク負荷は未確認である。
 
 ### 4.4 Dashboard
 
@@ -119,7 +119,7 @@ focused test追加前の34件は、HEAD `07cc993` のクリーンなworktree（`
 
 残る試験:
 
-- Fire WebView、SW更新、Wi-Fi切替、複数タブ、実際のretained availabilityとheartbeatの到着順は未実機確認である。
+- Fully KioskでのMQTT/WSS、SW更新、Wi-Fi切替、複数タブ、実際のretained availabilityとheartbeatの到着順は未実機確認である。HTTP pollingによる画面表示は§26で確認した。
 
 ### 4.5 設定・配備
 
@@ -145,7 +145,7 @@ focused test追加前の34件は、HEAD `07cc993` のクリーンなworktree（`
 未証明の範囲:
 
 - 外部から送られた偽の `Tailscale-User-Login` をTailscale Serveが上書き・除去すること。既存の `/api` 中継がWebSocket upgradeと認証ヘッダーを転送すること。
-- Mosquittoのwrite listener／read listener分離、ACL、readerのpublish拒否、管理topic拒否。
+- 本番Mosquittoのwrite listener／read listener分離、ACL、readerのpublish拒否、管理topic拒否。隔離した一時Mosquittoでは§27の証拠を取得済み。
 - loopback以外からの到達拒否、Fire WebViewのCSP・WSS・subprotocol挙動。
 - gatewayの実ネットワークでの資源上限挙動。コード上の接続数制限と異常upgrade時の保留上流cleanupは確認したが、Serve経路を含む負荷試験は未確認。
 
@@ -153,9 +153,9 @@ focused test追加前の34件は、HEAD `07cc993` のクリーンなworktree（`
 
 ## 6. 外部変更と本番配備の状態
 
-今回の作業では次を変更していない。
+今回の作業では本番について次を変更していない。一時検証用にrootless PodmanのMosquittoコンテナ、設定、認証ファイル、APIプロセスを `/tmp/fire-mqtt-integration-20261015` 配下で作成・停止・再作成したが、本番unitや本番パスには触れていない。
 
-- GMKtecのMosquitto／Podman／quadlet。
+- GMKtec本番のMosquitto／Podman／quadlet。
 - Tailscale Serve、HTTPS入口、listener、ACL。
 - `fire-dashboard-api.service` などのsystemd unit。
 - `FIRE_CONFIG`、`mqtt.credentialsFile` の本番パスや資格情報ファイル。
@@ -179,7 +179,7 @@ focused test追加前の34件は、HEAD `07cc993` のクリーンなworktree（`
 1. publisher、gateway、usage-streamのfocused／統合testsを追加する。認証・Origin・subprotocol・上流失敗・heartbeat独立・offline単独再接続・接続寿命・backpressure・異常upgrade cleanupは実装した。PUBACK遅延／timeout／古いcallback、payload上限、実brokerのQoS／retain／LWTは実broker試験へ残す。
 2. focused tests、typecheck、各buildを再実行し、全体テストの既存／環境依存失敗とは別に結果を記録する。
 3. Phase 0でbroker・port・Serve・unit・ACL・Fire経路を読み取り専用確認する。設定変更前に時刻付きバックアップと切り戻し手順を用意する。
-4. 開発brokerでQoS／retain／LWT／ACLを統合試験し、Fire以外の検証端末でWSSを確認する。
+4. 開発brokerでのQoS／retain／LWT／ACLとFire以外の検証端末相当のWSS経路は§27で確認済み。本番broker／Serveへ同じ正負証拠を移す。
 5. Fire 1台だけを `?usageMqtt=1` で有効化し、24時間（可能なら72時間）の正負証拠を取得する。成功後にのみPhase 6へ進む。
 
 ## 9. 監査判定
@@ -601,3 +601,196 @@ Phase 0の入口・認証・使用ポートの一部は確認できたが、brok
 ### 25.2 判定
 
 §24の記述は実測と一致し、23.2の3件は解決とする。新規の指摘は無く、コード上の監査指摘はすべて解決した。§10.3の未完了項目（実broker、ACL、Serve、Fire実機、長時間試験）により、本番配備判定は引き続き **不可**。残りはPhase 0／3以降の実環境作業である。
+
+## 26. 第16回再監査 — Fire HD 10・Fully Kiosk表示とHTTPS経路（2026-10-15）
+
+ユーザー報告「接続完了」を受け、GMKtecのホスト側ADBからFire HD 10を読み取り確認した。現行の表示端末はSilkではなくFully Kiosk Browserで、`gmktec.taila8b10.ts.net:8444`を開いている。端末設定、broker、gateway、Serve、systemdは変更していない。
+
+| 確認 | 結果 |
+| --- | --- |
+| `adb devices -l` | `G001NW06319100XT device`。`model=KFTRPWI`、`product=trona`、USB接続 |
+| 前面アプリ | `de.ozerov.fully/.FullyActivity`（Fully Kiosk Browser） |
+| 端末OS | Android 9／SDK 28。端末のFire OSは7.3.3.1（既取得値） |
+| Fireのネットワーク | Wi-Fi `192.168.2.151`、`gmktec.taila8b10.ts.net` は `100.106.71.32` へ名前解決。端末からのpingは成功（約20.7 ms） |
+| Fireから `100.106.71.32:8444` | TCP接続成功 |
+| Fireから `:18787`／`:9001` | 接続拒否。APIとWSS上流をloopbackに限定している現行構成と整合 |
+| FireのTailscale VPN | `tun0` がUP、`100.122.116.122/32`。VPN DNSのsearch domainに `taila8b10.ts.net` がある |
+| ホストから `https://gmktec.taila8b10.ts.net:8444/` | `curl -k` のTLS 1.3接続とHTTP/2応答を確認、`200`、dashboard HTML 659 bytes |
+| ホストから `/api/v1/health` | `200`、`{"status":"ok","schemaVersion":1}` |
+| ホストから `/api/v1/dashboard` | `200`、保存済みdashboard JSONを取得 |
+| Fire Silkで `/` と `/api/v1/health` | DevToolsで複数タブを確認。root／healthの一部は `ERR_TIMED_OUT`、別rootタブは `readyState=complete` だがDOMが空で、レスポンス／resource entryなし |
+| Fire Silkで `https://example.com/` | 本文を正常表示。Silk全体の描画不能ではない |
+| Fire Silkで `https://100.106.71.32:8444/` | 「安全に接続できません／無効な応答」。IP直指定ではTLS入口まで到達し、証明書名不一致を解決すればよい段階まで進む |
+| Fully Kioskの現在画面 | ダッシュボードを正常表示。時計、天気、Claude／Codex／Antigravity／OpenCode Go／Hermesカード、RSS、音声操作を確認。ヘッダーは「集約サービス接続済み」 |
+| Fully KioskのMQTT表示 | フッターは「MQTT 未接続」。現行画面はHTTP表示として動作しているが、MQTT購読の有効化・WSS経路は未試験 |
+
+Fully Kioskの実画面により、Fire実機のHTTPS表示（HTTP polling経路）は合格とする。画面フッターが「MQTT 未接続」のため、これはMQTT/WSSの合格を意味しない。Silkで観測した `ERR_TIMED_OUT` とMagicDNS迂回仮説は補助ブラウザーの所見であり、現行のFully Kiosk表示障害とは扱わない。`?usageMqtt=1` の購読試験はgatewayとbrokerが未配備のため実施していない。
+
+### 26.1 判定と次の実機確認
+
+- Phase 0の端末識別、DNS、ping、8444到達性は確認済み。Fully KioskのHTTP表示も確認済み。
+- Phase 3の隔離Mosquitto ACL／WSS upgradeは§27で完了した。本番Mosquitto／Serve経路、Phase 4のFire実機MQTT購読、24／72時間試験は未完了。
+- 次は本番変更のバックアップとrollbackを用意し、承認後に1台だけFully Kioskで `?usageMqtt=1` を明示してWSS接続、retained state、heartbeat、切断後のHTTP fallbackを確認する。SilkのMagicDNS問題はFully Kioskとは別の任意対応とする。
+
+本番配備判定は引き続き **不可**。実broker、ACL、gateway配備、Fire本文描画、WSS到着順、長時間安定性の証拠が揃うまで有効化しない。
+
+## 27. 第17回再監査 — 隔離Mosquitto・実gateway統合試験（2026-10-15）
+
+§26の未完了項目のうち、Fire実機を変更しない開発broker／gateway経路をGMKtec上で検証した。本番の `fire-dashboard-api.service`、Tailscale Serve、Fire HD 10、既存の1883／9001 listenerは変更していない。検証環境は次のとおり。
+
+- Mosquitto 2.1.2（`docker.io/library/eclipse-mosquitto:2`）を rootless Podman の一時コンテナ `fire-mqtt-listener-20261015` として起動した。
+- ホスト側は `127.0.0.1:18883`（TCP MQTT）と `127.0.0.1:19001`（WebSocket）だけへport mappingした。rootless port mappingからコンテナへ到達させるため、コンテナ内部のlistener bindは `0.0.0.0` とした。これは本番の外部公開を意味せず、本番ではホスト側loopback、gatewayのloopback upstream、外部listener非公開を別々に確認する。
+- ACLは匿名WebSocket用の先頭topic行（state／availability／heartbeatのreadのみ）と、認証済み `publisher`（write）／`reader`（readのみ）を分離した。admin topicには明示denyを置いた。Mosquitto公式のACL仕様どおり、匿名クライアントにはACLファイル先頭のtopic行が適用される（[ACL file plugin](https://mosquitto.org/documentation/plugins/acl-file/)）。
+- 一時APIは `127.0.0.1:28787`、topic prefixは `fire-dashboard/v1/test`、reader認証は秘密を含まない試験用ヘッダー、broker資格情報は一時ファイルへ限定した。資格情報の内容は監査記録へ残さない。
+
+### 27.1 実測結果
+
+| 検証 | 結果 |
+| --- | --- |
+| ACLファイル読み込み | 不正行を意図的に入れた起動は失敗し、除去後はbrokerが起動した。ACLが実際に読み込まれていることを確認 |
+| TCP publisher | 認証済み `publisher` が stateをQoS 1・retainでpublishできた |
+| 認証済みreader ACL | `reader` は許可されたstate retainedを受信でき、admin topicは2秒待っても受信できなかった。reader publish後もstate retainedはpublisherの値から変化しなかった |
+| 匿名WebSocket ACL | `mosquitto_sub --ws` がstate retainedを受信でき、匿名publish後もstate retainedは変化しなかった。WebSocket listenerからwrite権限を得られないことを確認 |
+| gatewayの実WebSocket | gateway upstreamのbindを切り分け後、`ws` clientで下流が `101`、protocolが `mqtt` になった |
+| gateway経由のMQTT.js | 許可Origin、reader認証、`mqtt` subprotocolで `fire-dashboard/v1/test/usage/state` のpayloadを `retain: true`、QoS 1で受信した。payloadはpublisherが送ったretain stateと一致した |
+| 拒否条件 | 不許可OriginはHTTP 403、reader認証なしは401、`mqtt` 以外のsubprotocolは400で、いずれも101を返さなかった |
+| LWT | 一時API publisherをSIGKILLで強制終了し、availability retainedが同じinstanceIdの `offline` へ変わることを確認した |
+| broker停止／復旧 | broker停止中の `/api/v1/mqtt-status` は `state: reconnecting`、`connected: false`、`lastError: connect_error`。再起動後15秒の再取得では `state: connected`、`connected: true`、`reconnectCount: 4`、state／heartbeatのPUBACK時刻が更新された |
+| broker復旧後のgateway | broker再起動後もgateway経由MQTT.js readerがrevision `0` の retained stateを受信した |
+
+`mqtt-status` の一例（broker復旧後）は `publisher: ready`、`runtime.state: connected`、`deliveryStatus: ok` で、接続断の `connect_error` と発生時刻も残った。reader応答にusername、password、broker URLは含まれなかった。
+
+### 27.2 判定と本番への含意
+
+- Phase 2のpublisherについて、開発brokerでQoS／retain／PUBACK／LWT／停止復旧を受け入れ可能な証拠が揃った。
+- Phase 3のgatewayについて、実WebSocket、reader認証、Origin、`mqtt` subprotocol、匿名read-only listener、ACL拒否、retained state転送を受け入れ可能な証拠が揃った。
+- gatewayは上流へbroker資格情報を注入しないため、本番でもTCP publisher listenerと、loopbackからだけ到達できる匿名read-only WebSocket listenerを分離する必要がある。WebSocket listenerをTailscaleやLANへ直接公開してはならない。
+- rootless Podmanのコンテナ内部bindとホストport mappingの挙動は実装環境依存である。本番採用時は `ss`、localhost疎通、LAN側の陰性疎通を取得し、loopback限定を証明する。
+- Fire HD 10のFully Kioskで `?usageMqtt=1` を開く実機試験、Tailscale Serve経由のWSS、Service Worker更新、Wi-Fi切替、24／72時間連続試験は未完了である。
+
+本番配備判定は **不可** のままとする。次の変更は、timestamped backup、rollback、systemd／Serveの正負疎通証拠を用意し、`gmktec-change-control` の承認ゲートを通してから実施する。
+
+## 28. 第18回再監査 — Phase 5 本番反映ゲート（2026-10-15）
+
+§27の開発broker統合後、GMKtecの本番状態を再取得した。artifact生成は完了したが、ライブサービスへはまだ反映していない。
+
+| 確認 | 現在値 | 判定 |
+| --- | --- | --- |
+| `fire-dashboard-api.service` | user unitは `active/running`、`127.0.0.1:18787`。`FIRE_CONFIG=/home/otsune/.config/fire-dashboard/config.json` | 既存HTTP運用は継続 |
+| 本番設定のMQTT | `mqtt.enabled`／`gateway.enabled` は未設定のためschema既定値false | MQTT未有効 |
+| 本番資格情報 | `/home/otsune/.config/fire-dashboard/mqtt-credentials.json` は存在しない | publisher起動不可 |
+| 本番broker | 1883／9001は未待受、PodmanにMosquittoコンテナなし | broker未配備 |
+| Tailscale Serve | `:8444` tailnet-only、`/`はdashboard dist、`/api`は`127.0.0.1:18787/api`へproxy | 既存入口を維持可能 |
+| Serve経由 `/api/v1/mqtt-status` | 現在は404 | 実行中APIは旧artifact |
+| artifact | `npm run typecheck`、`npm run build`、`npm run build:api` 成功。生成 `dist/aggregator/start.mjs` はgateway／mqtt-statusを含む | 再起動後に反映可能 |
+| Fire HD 10 | Fully Kioskで8444をHTTP表示中、MQTT opt-in未設定 | 実機MQTT試験待ち |
+
+承認後に実行する変更を次の順序に固定する。
+
+1. 対象設定、資格情報、quadlet／user unit、ACLを時刻付きバックアップし、rollbackコマンドを記録する。資格情報の値はログ・監査文書へ出さない。
+2. rootless Podman Mosquittoを `127.0.0.1:1883`／`127.0.0.1:9001` のhost mappingで起動する。TCP listenerはpublisher認証・write ACL、WebSocket listenerはloopback到達のみ・匿名read-only ACLとする。
+3. 本番 `config.json` に `mqtt.enabled=true`、`gateway.enabled=true`、loopback URL、credentials pathを追加し、最新artifactを読み込むuser serviceを再起動する。
+4. `ss`、localhost疎通、LAN側の陰性疎通、`/api/v1/mqtt-status`、8444経由のWSS upgradeを正負両方で確認する。
+5. Fire HD 10だけ `?usageMqtt=1` を付け、retained state、heartbeat、切断後HTTP fallbackを確認する。失敗時はqueryを除去してHTTPへ戻す。
+
+本節の時点では承認・設定編集・秘密作成・service再起動・Serve変更・Fire URL変更を実施していない。`gmktec-change-control` の「ネットワーク露出を増やす変更は人間承認必須」により、本番配備判定は **不可** のままとする。
+
+## 29. 第19回再監査 — 本番反映、Fire MQTT接続、端末race修正（2026-10-15）
+
+ユーザー承認を受け、§28の手順を実行した。設定変更前に作成したバックアップは
+`/home/otsune/.config/fire-dashboard/backups/mqtt-20261015-063022/` である。資格情報の値は
+journal、監査記録、応答へ出していない。
+
+### 29.1 本番配備
+
+| 確認 | 実測結果 |
+| --- | --- |
+| broker | rootless Podman Quadlet `fire-dashboard-mosquitto.service`、`docker.io/library/eclipse-mosquitto:2`（Mosquitto 2.1.2）、active/running |
+| host listener | `127.0.0.1:1883`（publisher認証TCP）、`127.0.0.1:9001`（匿名read-only WebSocket）。`ss`で外部アドレス待受なし |
+| ACL | TCPは `publisher` の3 usage topic writeのみ。WebSocketは state／availability／heartbeat のreadのみ。host側 `100.106.71.32:1883/9001` は接続拒否 |
+| 直接WebSocket ACL試験 | `127.0.0.1:9001/mqtt` の匿名clientが retained state（retain=true、QoS 1）を読めた。`fire-dashboard/v1/main/admin/audit-probe` publishは拒否された |
+| publisher資格情報 | `/home/otsune/.config/fire-dashboard/mqtt-credentials.json` は owner-only mode 600。Mosquittoのhash fileはコンテナ権限降格のため mode 644で、平文パスワードを含まない |
+| API config | `mqtt.enabled=true`、`gateway.enabled=true`、URLは `127.0.0.1`、topic prefixは `fire-dashboard/v1/main`。既存のweather/feed/preferredSourcesを保持 |
+| API service | `fire-dashboard-api.service` は再起動後 active/running、`127.0.0.1:18787`。`/api/v1/health` は直接・Serve経由とも200 |
+| runtime | Serve経由 `mqtt-status` は `publisher: ready`、`state: connected`、`connected: true`、`deliveryStatus: ok`。state／heartbeatのPUBACK時刻とrevisionを取得 |
+
+Serve経路の実WebSocketは `wss://gmktec.taila8b10.ts.net:8444/api/v1/usage/stream` で101、MQTT protocol、retained state（retain=true、QoS 1）を受信した。直接APIの認証なしは401、Serve経由の不許可Originは403、loopback gatewayの誤subprotocolは400で、101を返さなかった。Tailscale Serveの8444は従来どおりtailnet-onlyで、Serve設定自体は変更していない。
+
+brokerを一時停止した際、APIは `state: reconnecting`、`connected: false`、`lastError: connect_error` となり、HTTP healthは200を維持した。brokerを再起動すると、約20秒以内に `state: connected`、`reconnectCount` 増加、state／heartbeatのPUBACK更新へ復帰した。
+
+### 29.2 Fire HD 10実機
+
+ADB `G001NW06319100XT`（`KFTRPWI`、Android 9、Fully Kiosk 1.61.3）で、Fully Kioskを
+`https://gmktec.taila8b10.ts.net:8444/?usageMqtt=1` へ遷移した。古いService Worker cacheを一度消去し、更新済みbundleを再取得した後、次を確認した。
+
+- WebSocket 101、MQTT CONNECT/CONNACK、SUBSCRIBE、retained state、heartbeatのframeをFire WebView DevToolsで確認した。
+- 画面footerは `Fire HD 10 Plus · 前面表示用 · MQTT 接続済み`。時計、天気、usageカード、RSSは従来どおり表示した。
+- broker停止中もHTTP healthは200で、dashboard画面を保持した。broker復旧後、footerは `MQTT 接続済み` に戻った。
+
+初回の本番bundleではFire footerが `MQTT 接続中` のままになった。DevToolsでCONNACK後の
+`SecurityError: Failed to construct 'Worker'`（既存CSPがblob Workerを拒否）を特定したため、
+ブラウザーMQTT clientに `timerVariant: "native"` を指定した。併せて、高速handshakeで
+`connect` listener登録前に接続済みになるraceを `client.connected` の再照合で修正した。
+focused suiteは8 files、58 tests passed（追加race／native timer試験を含む）。
+
+### 29.3 判定と残タスク
+
+Phase 0のFire識別・DNS・8444到達性、Phase 2 publisher、Phase 3 ACL／gateway、Phase 4の
+Fire実機MQTT購読、Phase 5のloopback公開・Serve経路は合格とする。本番設定、broker、API、
+Fire URLのrollbackには§29.1のバックアップと、`?usageMqtt=1` を除去してHTTP pollingへ戻す手順を使う。
+
+24／72時間連続運転、Wi-Fi切替、Service Worker更新後の長時間安定性、複数表示端末の同時試験は
+未完了である。したがって長期安定性を含む最終配備判定は **保留** とし、次回監査で連続運転の
+証拠を追記する。
+
+rollback時は、まず `systemctl --user stop fire-dashboard-mosquitto.service` でbrokerを停止し、
+バックアップの `config.json` を元のパスへ原子的に戻して `fire-dashboard-api.service` を再起動する。
+Quadlet、Mosquitto設定、資格情報は削除せず、同じバックアップディレクトリへ退避してから確認する。
+FireはURLから `?usageMqtt=1` を除去してHTTP pollingへ戻す。
+
+## 30. 第20回再監査 — §26〜§29の独立確認（2026-10-15）
+
+§29の本番反映後、作業ツリーと稼働中のGMKtecを読み取りだけで再確認した。本番の設定、サービス、Fireは変更していない。
+
+### 30.1 検証結果
+
+| 確認 | 結果 |
+| --- | --- |
+| focused test＋既存usage試験（mqtt-credentials／offline-build／usage-delivery／usage-stream／mqtt-gateway／usage／usage-replay／opencode-go-ingestion） | 8 files、58 tests passed。§29の記載と一致 |
+| `npm run typecheck`、`prettier --check usage-stream.ts` | 成功 |
+| `timerVariant: "native"` | mqtt.js 5.16.1 の `get-timer.js` は、`auto` の場合にブラウザーで worker-timers を選ぶ。dashboardのCSP（`script-src 'self'`、`worker-src` なし）ではblob Workerを生成できないため、`native` 固定は妥当 |
+| `client.connected` の再照合 | 実際の動的import経路では、`mqtt.connect()` からリスナー登録までがマイクロタスク内で完了するため、接続完了の通知が先に届くことはない。防御的な対策で、害はない。§29の「MQTT 接続中」で止まった原因はWorker生成失敗である |
+| 待受 | `ss` で `127.0.0.1:1883`／`127.0.0.1:9001`（rootlessport）と `127.0.0.1:18787`（node）だけを確認 |
+| サービス | `fire-dashboard-mosquitto.service` は active。`fire-dashboard-api.service` は 06:32:32 JST に再起動し、`node dist/aggregator/start.mjs` で稼働 |
+| Mosquitto設定 | TCP 1883 は `allow_anonymous false`、パスワードファイル、publisher の3 topic write ACL。WebSocket 9001 は匿名で、state／availability／heartbeat の read だけを許可 |
+| 設定ファイルの権限 | `~/.config/fire-dashboard/mosquitto/` 内のファイルは mode 644 だが、ディレクトリが mode 700 のため、他のユーザーからは読めない |
+
+### 30.2 指摘
+
+1. **【中】本書の冒頭と前半の記述が§29と食い違っている。** 次の箇所が本番反映前の「本番は変更していない」「未着手」のままで、§29の判定（短時間の実機試験は合格、長期安定性は保留）と一致しない。
+   - L3の「対象は作業ツリー上の未コミット実装」
+   - L6の状態「本番有効化不可」
+   - L7の範囲「本番のMosquitto、gateway、systemd、FireのMQTT設定は変更していない」
+   - §1の結論、§3のPhase 5「未着手」、§5の未証明の範囲、§6の配備状態、§8の推奨順序
+2. **【中】本番で動いているのは、未コミットの作業ツリーからビルドした成果物である。**
+   - 対象は、APIの `dist/aggregator/start.mjs` と画面側の `apps/dashboard/dist`。どの版のソースからビルドしたかを示すコミットやハッシュが記録されていない。
+   - §29のrollbackは設定を戻す手順だけで、コードを前の版へ戻す手順がない。
+   - 実装をコミットして配備したcommitを記録するか、成果物のsha256を記録する。
+   - 本監査では `npm run build:api` を実行し、`start.mjs` を同じソースから作り直した。sha256の先頭16桁は `2010671506a2358c`。aggregatorのソースは06:32以降変わっていない。稼働中のプロセスはすでに読み込み済みのため影響しない。
+3. **【中】ホスト台帳を更新していない（AGENTS.mdのself-healing docs規則に違反）。**
+   - `~/docs/services.md` と `~/docs/notes/network-exposure-audit.md` に、次の記載がない。
+     - `fire-dashboard-mosquitto.service`
+     - 待受 `127.0.0.1:1883`／`127.0.0.1:9001`
+     - 既存の `fire-dashboard-api.service`（`127.0.0.1:18787`）
+   - 常駐サービスとネットワーク露出の正本へ、同じ変更として追記する。
+4. **【低】Quadletのイメージがタグ固定のみで、自動更新の対象になっている。**
+   - `Image=docker.io/library/eclipse-mosquitto:2` に `AutoUpdate=registry` が付いている。
+   - 現在、`podman-auto-update.timer` はuser側が disabled、system側が enabled である。このrootlessコンテナは今は自動更新されない。
+   - user側のtimerを有効にすると、確認しないままbrokerが更新され、`per_listener_settings` などのlistener別ACLの扱いが変わる恐れがある。
+   - 現在のimage digest（`sha256:38c0da4f2ef84284d47b3b3eeea1cb3bdeabe81ee10caf0cd5c5ff61ee3ea408`）で固定するか、`AutoUpdate` を外す。
+
+### 30.3 判定
+
+コードに新しい指摘はない。運用面では、§29の判定（短時間の実機試験は合格、24／72時間連続運転は未完了のため最終判定は保留）は妥当である。
+
+ただし、30.2の指摘1〜3が解消するまで、本番配備の記録・追跡性は不十分とする。次回監査では、連続運転の証拠とあわせて、これら3件の解消を確認する。
