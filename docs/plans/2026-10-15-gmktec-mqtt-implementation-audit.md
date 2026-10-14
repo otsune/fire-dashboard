@@ -1219,3 +1219,18 @@ GMKtecのuser systemd managerから、Claude senderのunit定義と解決済み�
 
 unitの設定値、実行コマンド、稼働状態、snapshotの内容が同時に一致しており、GMKtec上のsender経路が設定上も
 実行上も確認できた。24／72時間連続試験、全体再起動試験は別の残条件であり、最終判定は **保留** とする。
+
+## 46. 第36回再監査 — focused suite再実行（2026-10-15）
+
+Claude aliasテスト追加後、MQTT実装に関係するfocused suiteをsandbox外の昇格環境で再実行した。sandbox内では
+子Node起動とloopback listenが`EPERM`になるため、結果判定には昇格実行の出力を用いる。
+
+| 検証 | 結果 |
+| --- | --- |
+| 対象 | MQTT credentials、offline build、usage delivery／stream／replay、gateway、Claude collector、sender、OpenCode Go ingestion |
+| 結果 | 10 files／66 tests passed |
+| 実行時刻 | 2026-10-15 08:22 JST |
+| 追加確認 | gateway実ソケット、Service Worker資産、Claude `sourceAlias=gmktec` を含む |
+
+focused suiteは全件合格した。これはコードとbuildの検証結果であり、24／72時間の実機連続運転やGMKtec全体
+再起動試験を代替しないため、最終配備判定は **保留** とする。
