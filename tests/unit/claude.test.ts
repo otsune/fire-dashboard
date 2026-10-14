@@ -35,6 +35,22 @@ it("distinguishes missing unsupported and invalid values", () => {
       .buckets[0].windows[0].usedPercent,
   ).toBeNull();
 });
+it("records the GMKtec source alias on the snapshot and usage payload", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "claude-gmktec-"));
+  try {
+    const snapshot = await captureClaude(
+      raw,
+      at,
+      join(dir, "snapshot.json"),
+      "gmktec",
+    );
+    expect(snapshot.sourceAlias).toBe("gmktec");
+    expect(snapshot.payload.sourceAlias).toBe("gmktec");
+    expect(snapshot.payload.provider).toBe("claude");
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
 it("preserves snapshot ID/capturedAt across redraws but sequences changed values", async () => {
   const dir = await mkdtemp(join(tmpdir(), "claude-capture-"));
   try {
