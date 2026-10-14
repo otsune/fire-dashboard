@@ -3,14 +3,14 @@
 本書は `docs/plans/2026-10-14-gmktec-mqtt-usage-plan.md` に基づくMQTT実装の監査の正本。対象は作業ツリー上の未コミット実装で、`07cc993` に対する差分。`07cc993` 以降のコミットは文書のみ。
 いつ見るか: MQTT実装のコミット・レビュー前、Phase 2／3の試験を書く前、本番でgateway／publisherを有効化する前。
 関連: 計画 `docs/plans/2026-10-14-gmktec-mqtt-usage-plan.md`、計画監査 `docs/plans/2026-10-15-gmktec-mqtt-usage-plan-audit.md`、配備 `docs/deployment.md`、`gmktec-change-control`、`gmktec-validation-and-evidence`。
-状態: **初回監査の必須4件、upgrade拒否時の上流cleanup、revision／資格情報／接続数制限／publisher起動分離／状態可視化をコード修正・試験済み。本番有効化不可**（2026-10-15、Asia/Tokyo）。
+状態: **初回監査の必須4件、upgrade拒否時の上流cleanup、revision／資格情報／接続数制限／publisher起動分離／設定・接続状態可視化をコード修正・試験済み。本番有効化不可**（2026-10-15、Asia/Tokyo）。
 範囲: コード・テスト・ビルドのみ。GMKtecへの配備、Mosquitto、Tailscale Serve、systemd、Fire実機は変更・検証していない。
 
 ## 1. 結論
 
 契約、永続 `streamId`／`usageRevision`、HTTP／MQTT共通の順序判定、MQTT publisher、reader認証付きWSS gateway、DashboardのHTTPフォールバックという骨格は実装されている。loopback broker URL、UTF-8 payload上限、Origin必須、`mqtt` サブプロトコル、上流のネゴシエーション確認後に下流101を返す順序もコード上は確認できる。
 
-初回監査で指摘した端末単位のMQTT無効化、gatewayのbackpressure向き、再接続時のretained `offline`、`too_large` 時の古いpending stateはコード修正済みで、今回の修正を含むfocused test 56件が成功している。MQTT opt-in端末だけがchunkを実行時に読み込み、HTTP専用端末のService Worker事前キャッシュからはMQTT chunkを除外した。
+初回監査で指摘した端末単位のMQTT無効化、gatewayのbackpressure向き、再接続時のretained `offline`、`too_large` 時の古いpending state、publisherの接続状態可視化はコード修正済みで、今回の修正を含むfocused test 57件が成功している。MQTT opt-in端末だけがchunkを実行時に読み込み、HTTP専用端末のService Worker事前キャッシュからはMQTT chunkを除外した。
 
 残るのは、publisher／gateway／ブラウザー購読の実broker試験、Mosquitto／Serve／systemd／Fireの配備と24時間以上の実機試験である。upgrade拒否時の保留upstreamはraw TCP socketの終了監視で閉じることを実ソケット回帰試験で確認したが、実ネットワークでの資源上限と運用証拠は未取得である。したがって、計画のPhase 2〜4を完全受け入れ済み、またはPhase 5の本番配備済みとは扱わない。
 
@@ -24,26 +24,26 @@
 | `rtk npm run build` | 成功 | Vite build完了。本体JS 374.31 kB（gzip 115.60 kB）、mqtt chunk 335.62 kB（gzip 99.90 kB）。Service Worker事前キャッシュは59 assetsでMQTT chunkを除外 |
 | `rtk npm run build:api` | 成功 | `mqtt`／`ws`を含むAPI bundle生成 |
 | `rtk npm run build:collectors` | 成功 | collector bundle生成 |
-| `rtk npm test -- --run tests/unit/mqtt-credentials.test.ts tests/unit/offline-build.test.ts tests/unit/usage-delivery.test.ts tests/unit/usage-stream.test.ts tests/integration/mqtt-gateway.test.ts tests/unit/usage.test.ts tests/unit/usage-replay.test.ts tests/unit/opencode-go-ingestion.test.ts` | 成功 | 8 files、56 tests passed。Service WorkerのMQTT chunk除外、表示状態に基づくrevision、資格情報ファイル権限と不備時のHTTP継続、資格情報読取権限エラーの分類、publisher状態API、同revision再送抑止、旧状態のrevision 0 metadata、heartbeat status順序、publisherのoffline単独再接続、PUBACK timeout、LWT、gatewayの認証・Origin・subprotocol・双方向転送・接続数上限・実ソケットupgrade拒否cleanupを含む |
+| `rtk npm test -- --run tests/unit/mqtt-credentials.test.ts tests/unit/offline-build.test.ts tests/unit/usage-delivery.test.ts tests/unit/usage-stream.test.ts tests/integration/mqtt-gateway.test.ts tests/unit/usage.test.ts tests/unit/usage-replay.test.ts tests/unit/opencode-go-ingestion.test.ts` | 成功 | 8 files、57 tests passed。Service WorkerのMQTT chunk除外、表示状態に基づくrevision、資格情報ファイル権限と不備時のHTTP継続、資格情報読取権限エラーの分類、publisher状態API、publisher runtime状態（接続・再接続回数・最終publish・エラー・payload超過）、同revision再送抑止、旧状態のrevision 0 metadata、heartbeat status順序、publisherのoffline単独再接続、PUBACK timeout、LWT、gatewayの認証・Origin・subprotocol・双方向転送・接続数上限・実ソケットupgrade拒否cleanupを含む |
 | `rtk git diff --check` | 成功 | 空白エラーなし |
 
 ### 2.2 全体テストの失敗
 
-全体テストは実行環境によって結果が異なる。今回の確認では権限制約なしで `rtk npm test` を実行し、681件中34件失敗を観測した。失敗は既存のweather／RSS／chime系で、MQTT focused testの失敗は無い。sandbox内の再実行では子プロセス起動・TCP listenのEPERMが追加されるため、以下は権限制約なしの結果を採用する。
+全体テストは実行環境によって結果が異なる。今回の確認では権限制約なしで `rtk npm test` を実行し、682件中34件失敗を観測した。失敗は既存のweather／RSS／chime系で、MQTT focused testの失敗は無い。sandbox内の再実行では子プロセス起動・TCP listenのEPERMが追加されるため、以下は権限制約なしの結果を採用する。
 
 | 実行環境 | 結果 | 内訳 |
 | --- | --- | --- |
-| 今回の確認環境（権限制約なしの `rtk npm test`） | 681件中34件失敗（8ファイル、647 passed） | RSS関連（jsdomの `window.matchMedia` 不足など）、weather catalog、weather settings API、weather status、card、chime。MQTT focused testは成功 |
+| 今回の確認環境（権限制約なしの `rtk npm test`） | 682件中34件失敗（8ファイル、648 passed） | RSS関連（jsdomの `window.matchMedia` 不足など）、weather catalog、weather settings API、weather status、card、chime。MQTT focused testは成功 |
 | focused test追加前の通常環境比較記録 | 652件中34件失敗（8ファイル） | RSS関連、weather catalog、weather settings API、weather status、card、chime。focused test追加後の同条件比較は未実施 |
 
-focused test追加前の34件は、HEAD `07cc993` のクリーンなworktree（`git worktree` + 同じ `node_modules`）でも同じ8ファイル・34件が失敗したという比較記録がある。今回の環境ではその比較を再実行していないため、ここでは過去の証拠として扱う。全体テストの成功をMQTT実装の正しさの根拠にもしない。今回のMQTT固有focused testは56件である。
+focused test追加前の34件は、HEAD `07cc993` のクリーンなworktree（`git worktree` + 同じ `node_modules`）でも同じ8ファイル・34件が失敗したという比較記録がある。今回の環境ではその比較を再実行していないため、ここでは過去の証拠として扱う。全体テストの成功をMQTT実装の正しさの根拠にもしない。今回のMQTT固有focused testは57件である。
 
 ## 3. 計画との対応
 
 | 計画の領域 | 実装 | 判定 |
 | --- | --- | --- |
 | Phase 1 契約・保存・順序 | `packages/contracts/src/usage-delivery.ts`、`store.ts`、`usage/ingest.ts` | 部分完了。基本契約とrevisionはあるが、旧状態移行・サイズ境界・バックアップ復元の受け入れ試験がない |
-| Phase 2 publisher | `services/aggregator/src/mqtt/publisher.ts` | 部分完了。QoS 1、retain、LWT、heartbeat、ACK期限、coalesce、offline単独時の再接続をfocused testで確認。brokerを用いた試験がない |
+| Phase 2 publisher | `services/aggregator/src/mqtt/publisher.ts` | 部分完了。QoS 1、retain、LWT、heartbeat、ACK期限、coalesce、offline単独時の再接続、`mqtt-status.runtime`による実行時状態をfocused testで確認。brokerを用いた試験がない |
 | Phase 3 WSS認証・ACL | `services/aggregator/src/mqtt/gateway.ts`、`server.ts` | 部分完了。認証・Origin・subprotocol・上流確認・双方向転送・上流拒否・接続寿命・設定可能な接続数上限を`injectWS`＋注入上流で確認。実Serve、Mosquitto ACL、実ネットワークでの資源挙動は未確認 |
 | Phase 4 表示端末 | `usage-state.ts`、`usage-stream.ts`、`cache.ts`、`App.tsx` | 部分完了。端末単位の有効化、共通reducer、HTTP fallback、heartbeat照合は実装。Fire WebView、SW更新、実機到着順は未検証 |
 | Phase 5 GMKtec段階導入 | 外部設定 | 未着手。broker、Serve、systemd、Fire設定を変更していない |
@@ -71,6 +71,7 @@ focused test追加前の34件は、HEAD `07cc993` のクリーンなworktree（`
 - 古い接続のcallbackは `active !== client` で無視し、`reconnectPeriod: 0` とアプリ側backoffを併用する。
 - state／heartbeatともPUBACK期限は30秒、意図した切断は最大5秒で正常切断を試み、失敗時に強制終了する。
 - JSON直列化後のUTF-8 byte長を2 MiB候補と比較してからpublishする。
+- `status()` は接続状態、再接続回数、現在revision、直近PUBACK時刻・revision、直近エラー、delivery statusを返し、`/api/v1/mqtt-status` の `runtime` としてreaderへ公開する。
 
 対応済み:
 
@@ -128,6 +129,7 @@ focused test追加前の34件は、HEAD `07cc993` のクリーンなworktree（`
 - 変更された設定例と依存追加はリポジトリ内にある。
 
 `docs/deployment.md` のpublisher／gateway独立制御、資格情報ファイル、gateway接続数上限の説明は実装に合わせて修正した。listener別ACLは引き続き本番配備時の確認項目であり、コードだけでは受け入れ済みとしない。
+`/api/v1/mqtt-status` の `publisher`／`reason` は資格情報の設定状態、`runtime` はbroker接続とpublishの実行状態を表す。runtimeはpull型の確認経路で、自動通知の代替ではない。
 
 ## 5. セキュリティ・公開範囲監査
 
@@ -503,3 +505,56 @@ Phase 0の入口・認証・使用ポートの一部は確認できたが、brok
 ### 21.3 判定
 
 §20の記述は実測と一致し、19.2の4件は解決とする。前回までの低優先指摘はすべて解決し、コード上の課題は21.2-1のみとなった。§10.3の未完了項目（実broker、ACL、Serve、Fire実機、長時間試験）により、本番配備判定は引き続き **不可**。残りはPhase 0／3以降の実環境作業である。
+
+## 22. 第12回再監査 — §21.2対応（2026-10-15）
+
+§21.2の指摘に対応し、設定状態だけでなくpublisherの実行時状態を `GET /api/v1/mqtt-status` へ追加した。認証済みreaderは、次の `runtime` 項目を秘密情報なしで取得できる。
+
+- `state`: `stopped`／`connecting`／`connected`／`reconnecting`
+- `connected`: 現在のbroker接続状態
+- `reconnectCount`: 初回接続後の再接続回数
+- `currentRevision`: publisherが現在扱っているusage revision
+- `lastPublishAt`／`lastPublishRevision`: stateまたはheartbeatの直近PUBACK成功時刻とstate revision
+- `lastError`: `publish_error`／`ack_timeout`、または`null`
+- `deliveryStatus`: `ok`／`too_large`
+
+接続、切断、offline、再接続、state／heartbeatのPUBACK成功、publishエラー、ACK timeout、payload超過の各経路でruntime stateを更新する。古いstateのACKは現行revisionの`too_large`状態を`ok`へ戻さない。従来の `publisher`（`ready`／`disabled`）と`reason`は資格情報の設定状態を表すため、接続状態を示す`runtime`と分けて扱う。
+
+### 22.1 検証結果
+
+| 検証 | 結果 |
+| --- | --- |
+| §21.2対応focused test＋既存usage試験 | 8 files、57 tests passed。runtimeの接続状態、再接続回数、ACK timeout、最終publish、payload超過、古いACKの状態保護を含む |
+| `npm run typecheck`／`npm run build`／`npm run build:api` | 成功。本体buildはMQTT chunkを分離し、Service Worker事前キャッシュは59 assetsでMQTT chunkを除外 |
+| Prettier確認／`git diff --check` | Prettierは実装・監査文書に整形差分あり（自動整形は未適用）。`git diff --check`は成功 |
+| 全体テスト（権限制約なしの通常シェル） | 682件中648 passed、34件失敗。失敗は既存weather／RSS／chime系8ファイルで、MQTT focused testの失敗なし |
+| 実broker、Mosquitto ACL、Tailscale Serve、systemd、Fire実機、24／72時間試験 | 未完了 |
+
+### 22.2 判定
+
+§21.2-1のコード上の指摘は解消した。`mqtt-status` は設定状態と接続状態を別フィールドで返し、監視側が接続断、再接続増加、publish停止、ACK timeout、payload超過をpull型で確認できる。自動通知、実brokerでのPUBACK／LWT／retained順序、ACL・Serve経路、Fire実機の到着順と長時間安定性は未検証である。したがって、本番配備判定は引き続き **不可** とし、Phase 0／3以降の実環境作業を残タスクとする。
+
+## 23. 第13回再監査 — §22の独立確認（2026-10-15）
+
+§22で変わった `services/aggregator/src/mqtt/publisher.ts`、`server.ts`、`docs/deployment.md` と関連試験を読み、修正者とは別に検証を再実行した。
+
+| 検証 | 結果 |
+| --- | --- |
+| focused test＋既存usage試験（mqtt-credentials／offline-build／usage-delivery／usage-stream／mqtt-gateway／usage／usage-replay／opencode-go-ingestion） | 8 files、57 tests passed |
+| `npm run typecheck`／`npm run build:api` | 成功 |
+
+### 23.1 解決を確認した点（21.2-1）
+
+- publisherの `status()` と `GET /api/v1/mqtt-status` の `runtime` が、`state`（`stopped`／`connecting`／`connected`／`reconnecting`）、`connected`、`reconnectCount`、`currentRevision`、`lastPublishAt`、`lastPublishRevision`、`lastError`、`deliveryStatus` を返す。計画§13の監視項目（接続状態、再接続回数、現在revision、最終publish、payload超過）を一通り観測できる。publisher無効時は `runtime: null`。
+- `deliveryStatus` を `ok` に戻すのは、最新revisionを配信できた場合だけになった。
+- 再接続回数は初回接続を数えず、2回目以降の `connect()` だけを数える。
+
+### 23.2 新規の指摘（いずれも低）
+
+1. **`lastError` が消えない。** 値を入れるのは `failPublish()` だけで、その後の成功でも戻らず、時刻も無い。ACKタイムアウトが1回起きると、長期間正常でも `ack_timeout` のまま表示される。`deployment.md` は「直近エラー種別」と書くが、実際は「起動後に最後に起きたエラー」である。成功時に消すか、`lastErrorAt` を付ける。
+2. **`lastPublishAt` と `lastPublishRevision` が同じ時点を指さない。** `lastPublishAt` はheartbeatのPUBACKでも更新されるが、`lastPublishRevision` はstateでしか更新されない。`deployment.md` は「最後にPUBACKを確認した時刻とrevision」と一組で説明している。state配信が止まっても時刻だけは毎分進み、配信できていると読み違え得る。stateとheartbeatで時刻を分けるか、意味を明記する。
+3. **接続自体の失敗が `lastError` に残らない。** broker拒否や認証失敗（CONNACKエラー）では、`state` が `reconnecting`、`reconnectCount` が増えるだけで、`lastError` は `null` のまま。資格情報の誤りとbroker停止を区別できない。`connect_error` などの分類を加える。
+
+### 23.3 判定
+
+§22の記述は実測と一致し、21.2-1は解決とする。新たな指摘は観測項目の意味づけに関する低優先3件。§10.3の未完了項目（実broker、ACL、Serve、Fire実機、長時間試験）により、本番配備判定は引き続き **不可**。
