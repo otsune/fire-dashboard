@@ -1062,3 +1062,34 @@ GMKtecでのClaude計測、API受信、MQTT配信までの短時間受入は合�
 3. Claude Codeのstatuslineが再起動・更新後も計測処理を維持することを、次回の通常セッション開始時に再確認する。
 
 最終配備判定は長期観測が終わるまで **保留** とする。
+
+## 38. 第28回再監査 — ホスト通信量観測のNIC列解析を修正（2026-10-15）
+
+§36の長期リソース観測を確認したところ、`/proc/net/dev` の正規表現がTX列を正しく取得せず、
+`lo`、`enp3s0`、`tailscale0` の `txBytes` がすべて `0` になる記録不具合を見つけた。サービスの
+動作不良ではなく、観測スクリプト `/tmp/fire-dashboard-mqtt-host-monitor.mjs` のパーサー不具合である。
+
+### 38.1 是正
+
+インターフェース名のコロン以後を空白区切りにし、Linuxの `/proc/net/dev` の定義どおり
+`fields[0]` をRX、`fields[8]`をTXとして読む修正版を `/tmp/fire-dashboard-mqtt-host-monitor-v2.mjs`
+に作成した。旧セッション `27951` は停止し、修正版を読み取り専用の長期観測セッション `79562`
+として、`/tmp/fire-dashboard-mqtt-host-observations-20261015-v3.jsonl` に5分間隔・72時間上限で
+開始した。API、Claude sender、Mosquittoの再起動、設定編集、ネットワーク公開変更は行っていない。
+
+### 38.2 修正版の初回証拠
+
+観測時刻は `2026-10-14T22:47:06.303Z`（JST 2026-10-15 07:47:06）である。
+
+| 確認 | 実測結果 |
+| --- | --- |
+| `fire-dashboard-api.service` | `active/running`、PID `704002`、`NRestarts=0`、`MemoryCurrent=63,270,912` bytes |
+| `fire-dashboard-claude-sender.service` | `active/running`、PID `704040`、`NRestarts=0`、`MemoryCurrent=28,557,312` bytes |
+| MQTT reader接続 | `127.0.0.1:9001` の確立済み接続 `2` |
+| NIC累積値 | `lo` RX `20,759,260,924`／TX `20,759,260,924`、`enp3s0` RX `117,240,715,227`／TX `49,109,159,768`、`tailscale0` RX `15,157,485`／TX `105,959,017` bytes |
+| Claude snapshot | `provider=claude`、`status=ok`、`sourceAlias=gmktec`、`sequence=2` |
+
+RX／TXの双方が非ゼロになったことが正の検証である。API／senderの状態、MQTT接続数、Claude snapshotも
+同一サンプルで取得できた。旧ログの `txBytes=0` はパーサー不具合の証跡として残し、長期比較は修正版
+JSONLの有効なサンプルだけを使う。24時間・72時間時点で同じ項目を再取得し、CPU／メモリ／NIC通信量、
+接続数、Claude値、API health、`reconnectCount`を比較する。最終配備判定は引き続き **保留** とする。
