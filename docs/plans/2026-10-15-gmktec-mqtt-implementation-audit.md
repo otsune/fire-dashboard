@@ -3,16 +3,16 @@
 本書は `docs/plans/2026-10-14-gmktec-mqtt-usage-plan.md` に基づくMQTT実装の監査の正本。対象は作業ツリー上の未コミット実装で、`07cc993` に対する差分。`07cc993` 以降のコミットは文書のみ。
 いつ見るか: MQTT実装のコミット・レビュー前、Phase 2／3の試験を書く前、本番でgateway／publisherを有効化する前。
 関連: 計画 `docs/plans/2026-10-14-gmktec-mqtt-usage-plan.md`、計画監査 `docs/plans/2026-10-15-gmktec-mqtt-usage-plan-audit.md`、配備 `docs/deployment.md`、`gmktec-change-control`、`gmktec-validation-and-evidence`。
-状態: **初回監査の必須4件をコード修正済み。再監査（§11）で上流cleanupの不具合が判明。本番有効化不可**（2026-10-15、Asia/Tokyo）。
+状態: **初回監査の必須4件と再監査で見つかったupgrade拒否時の上流cleanupをコード修正・実ソケット試験済み。本番有効化不可**（2026-10-15、Asia/Tokyo）。
 範囲: コード・テスト・ビルドのみ。GMKtecへの配備、Mosquitto、Tailscale Serve、systemd、Fire実機は変更・検証していない。
 
 ## 1. 結論
 
 契約、永続 `streamId`／`usageRevision`、HTTP／MQTT共通の順序判定、MQTT publisher、reader認証付きWSS gateway、DashboardのHTTPフォールバックという骨格は実装されている。loopback broker URL、UTF-8 payload上限、Origin必須、`mqtt` サブプロトコル、上流のネゴシエーション確認後に下流101を返す順序もコード上は確認できる。
 
-初回監査で指摘した端末単位のMQTT無効化、gatewayのbackpressure向き、再接続時のretained `offline`、`too_large` 時の古いpending stateはコード修正済みで、publisher／gatewayの追加試験も含むfocused test 21件が成功している。動的importによりHTTP専用端末はMQTT chunkを読み込まず、通常bundleも縮小した。
+初回監査で指摘した端末単位のMQTT無効化、gatewayのbackpressure向き、再接続時のretained `offline`、`too_large` 時の古いpending stateはコード修正済みで、publisher／gatewayの追加試験も含むfocused test 22件が成功している。動的importによりHTTP専用端末はMQTT chunkを読み込まず、通常bundleも縮小した。
 
-残るのは、publisher／gateway／ブラウザー購読の実broker試験、Mosquitto／Serve／systemd／Fireの配備と24時間以上の実機試験である。したがって、計画のPhase 2〜4を完全受け入れ済み、またはPhase 5の本番配備済みとは扱わない。
+残るのは、publisher／gateway／ブラウザー購読の実broker試験、Mosquitto／Serve／systemd／Fireの配備と24時間以上の実機試験である。upgrade拒否時の保留upstreamはraw TCP socketの終了監視で閉じることを実ソケット回帰試験で確認したが、実ネットワークでの資源上限と運用証拠は未取得である。したがって、計画のPhase 2〜4を完全受け入れ済み、またはPhase 5の本番配備済みとは扱わない。
 
 ## 2. 検証結果
 
@@ -21,10 +21,10 @@
 | コマンド | 結果 | 証拠・範囲 |
 | --- | --- | --- |
 | `rtk npm run typecheck` | 成功 | TypeScript型検査完了 |
-| `rtk npm run build` | 成功 | Vite build完了。JS 708.53 kB、gzip 215.24 kB。500 kB超警告あり |
+| `rtk npm run build` | 成功 | Vite build完了。本体JS 374.28 kB（gzip 115.60 kB）、mqtt chunk 335.62 kB（gzip 99.90 kB） |
 | `rtk npm run build:api` | 成功 | `mqtt`／`ws`を含むAPI bundle生成 |
 | `rtk npm run build:collectors` | 成功 | collector bundle生成 |
-| `rtk npm test -- --run tests/unit/usage-delivery.test.ts tests/unit/usage-stream.test.ts tests/integration/mqtt-gateway.test.ts` | 成功 | 3 files、21 tests passed。publisherのoffline単独再接続、PUBACK timeout、古いcallback、LWT、state／heartbeat独立、gatewayのreader認証・Origin・subprotocol・双方向転送・上流拒否・接続寿命を含む |
+| `rtk npm test -- --run tests/unit/usage-delivery.test.ts tests/unit/usage-stream.test.ts tests/integration/mqtt-gateway.test.ts` | 成功 | 3 files、22 tests passed。publisherのoffline単独再接続、PUBACK timeout、古いcallback、LWT、state／heartbeat独立、gatewayのreader認証・Origin・subprotocol・双方向転送・上流拒否・接続寿命・実ソケットupgrade拒否cleanupを含む |
 | `rtk git diff --check` | 成功 | 空白エラーなし |
 
 ### 2.2 全体テストの失敗
@@ -36,7 +36,7 @@
 | 今回の確認環境（`rtk npm test`） | 670件中47件失敗（12ファイル、623 passed） | RSS関連（jsdomの `window.matchMedia` 不足など）、weather catalog、weather settings API、weather status、card、chimeに加え、offline build／startup／private-audio／collectorの子プロセス起動 `EPERM` |
 | focused test追加前の通常環境比較記録 | 652件中34件失敗（8ファイル） | RSS関連、weather catalog、weather settings API、weather status、card、chime。focused test追加後の同条件比較は未実施 |
 
-focused test追加前の34件は、HEAD `07cc993` のクリーンなworktree（`git worktree` + 同じ `node_modules`）でも同じ8ファイル・34件が失敗したという比較記録がある。今回の環境ではその比較を再実行していないため、ここでは過去の証拠として扱う。全体テストの成功をMQTT実装の正しさの根拠にもしない。MQTT固有のfocused testは21件である。
+focused test追加前の34件は、HEAD `07cc993` のクリーンなworktree（`git worktree` + 同じ `node_modules`）でも同じ8ファイル・34件が失敗したという比較記録がある。今回の環境ではその比較を再実行していないため、ここでは過去の証拠として扱う。全体テストの成功をMQTT実装の正しさの根拠にもしない。今回のMQTT固有focused testは22件である。
 
 ## 3. 計画との対応
 
@@ -96,7 +96,7 @@ focused test追加前の34件は、HEAD `07cc993` のクリーンなworktree（`
 対応済み:
 
 - 各方向の送信先ソケットの `bufferedAmount` を検査するhelperを追加した。
-- preHandler後に下流upgradeが破棄された場合、requestのcloseで保留中の上流WSを閉じるcleanupを追加した。**ただし§11の実ソケット試験では効かず、上流接続が残った（未解決）。**
+- preHandler後に下流upgradeが破棄された場合、requestと`request.raw.socket`の`close`／`error`で保留中の上流WSを閉じるcleanupを追加した。実Fastify＋実TCPソケットで、不正なWebSocket versionの400応答後に上流が閉じることを確認した。
 
 残る試験:
 
@@ -147,7 +147,7 @@ focused test追加前の34件は、HEAD `07cc993` のクリーンなworktree（`
 - 外部から送られた偽の `Tailscale-User-Login` をTailscale Serveが上書き・除去すること。既存の `/api` 中継がWebSocket upgradeと認証ヘッダーを転送すること。
 - Mosquittoのwrite listener／read listener分離、ACL、readerのpublish拒否、管理topic拒否。
 - loopback以外からの到達拒否、Fire WebViewのCSP・WSS・subprotocol挙動。
-- gateway接続数制限。異常upgrade時の保留上流cleanupは`injectWS`試験では通るが、§11の実ソケット試験では上流接続が残った（未解決）。実ネットワークでの資源上限も未確認。
+- gateway接続数制限。異常upgrade時の保留上流cleanupはraw TCP socket監視と実ソケット回帰試験で確認したが、実ネットワークでの資源上限は未確認。
 
 これらは本リポジトリの型検査だけでは証明できず、Phase 0／3の開発環境・GMKtec実測・Fire実機試験が必要である。
 
@@ -190,7 +190,7 @@ focused test追加前の34件は、HEAD `07cc993` のクリーンなworktree（`
 | 型検査・主要buildが通る | 合格（focused修正後に再確認） |
 | 共通契約とrevision順序がある | 部分合格（旧移行安定化を反映） |
 | 端末単位のMQTT opt-in・HTTP切り戻しがある | 合格（実機未確認） |
-| gatewayの送信先backpressure・異常upgrade cleanup | コード修正済み。backpressure helperと`injectWS`転送／接続寿命試験を実施（実ネットワーク未確認） |
+| gatewayの送信先backpressure・異常upgrade cleanup | コード修正済み。backpressure helper、`injectWS`転送／接続寿命、実TCPソケットのupgrade拒否cleanup試験を実施（実ネットワーク未確認） |
 | publisherの再接続offline・too_large pending処理 | コード修正済み。focused test実施（broker試験未実施） |
 | publisherのQoS／LWT／再接続がbrokerで実証された | 未実施 |
 | gatewayの認証・ACL・公開範囲が実機で実証された | 未実施 |
@@ -208,7 +208,7 @@ focused test追加前の34件は、HEAD `07cc993` のクリーンなworktree（`
 - `@fastify/websocket` の `injectWS` で、reader認証、collector拒否、Origin欠落、`mqtt` subprotocol必須、上流subprotocol不一致、双方向転送、上流cleanup、接続寿命を確認した。
 - 本番の15分接続寿命は既定値として維持し、試験では `connectionTimeoutMs` を短縮して両方向切断を観測した。
 - MQTT publisherは、`offline`イベントだけで`close`が来ない場合に古いclientを保持しないよう、明示的な切断・再接続へ進む。stateはQoS 1・retain、heartbeatはQoS 1・非retainで、stateのPUBACK待ち中にもheartbeatを送るfocused testを追加した。
-- gateway cleanupは実IncomingMessageの`raw.once`を使い、テスト用inject requestにそのAPIが無い場合は安全に省略する。実際の本番cleanupの証明は実ネットワーク試験に残る。
+- gateway cleanupは実IncomingMessageと`request.raw.socket`の`close`／`error`を使い、テスト用inject requestにそのAPIが無い場合は安全に省略する。実Fastify＋loopback TCPの回帰試験で、upgrade拒否後の上流切断を確認した。
 
 ### 10.2 Phase 0読み取り専用確認の制約
 
@@ -238,7 +238,7 @@ Phase 0の入口・認証・使用ポートの一部は確認できたが、brok
 
 | 検証 | 結果 |
 | --- | --- |
-| focused test（usage-delivery／usage-stream／mqtt-gateway） | 3 files、21 tests passed |
+| focused test（usage-delivery／usage-stream／mqtt-gateway、追試追加前） | 3 files、21 tests passed |
 | `npm run typecheck` | 成功 |
 | `npm run build` | 成功。本体JS 374.28 kB（gzip 115.60 kB）、mqttは別chunk 335.62 kB（gzip 99.90 kB）。HEADの本体は366.97 kB |
 | 実ソケット試験（実Fastify＋`registerMqttGateway`＋ローカルwsサーバーを上流brokerの代役に使用） | 正常接続: `mqtt` サブプロトコル選択と双方向転送を確認。不正 `Sec-WebSocket-Version` のupgrade: 400応答後も上流接続が残留（下記11.2-1） |
@@ -253,7 +253,7 @@ Phase 0の入口・認証・使用ポートの一部は確認できたが、brok
 
 ### 11.2 残る指摘
 
-1. **【中】upgrade失敗時の上流接続cleanupが実ソケットで効かない。** preHandlerで上流を開いた後に `ws.handleUpgrade` がupgradeを拒否すると（不正なバージョンなど）、400は返るが上流接続は閉じられず、試験プロセスも終了しなかった。cleanupを `request.raw` の `close` に付けているが、upgrade失敗時は `ws` がソケットを直接破棄し、このイベントでは検知できないと考えられる。生ソケット（`request.raw.socket`）の `close` で閉じる方式へ変え、実ソケットの試験で固定する。`injectWS` は実ソケットを通らないため、この不具合を再現しない。§4.3と§5の記述は本節に合わせて訂正済み。
+1. **【解決】upgrade失敗時の上流接続cleanup。** 初回の実ソケット試験では、preHandlerで上流を開いた後に `ws.handleUpgrade` が不正なWebSocket versionを400で拒否すると上流が残留した。`request.raw.socket` の `close`／`error` 監視へcleanup経路を拡張し、実Fastify＋loopback上流で「400応答後に上流が閉じる」回帰試験を追加して確認した。`injectWS` だけでは再現しないため、実ソケット試験を必須の証拠として扱う。
 2. **【低】HTTP専用端末もmqtt chunkを一度ダウンロードする。** Service Workerがdist資産をすべて事前キャッシュするため、`dist/sw.js` にmqtt chunkが含まれる。実行はしないが、インストール時に約336 kBを取得する。事前キャッシュから外すか、許容する理由を記録する。
 3. **【低】配備直後に試験端末のMQTTが止まり得る。** 旧状態ファイルでは最初の受信までrevisionが `0` で、HTTP応答にmetadataが付かない。その間に `?usageMqtt=1` の端末がHTTPを取得すると、`App.tsx` が購読を止め、再読み込みまで戻らない。revision 0でもmetadataを返すか、移行時に一度保存する。
 4. **【低】状態表示が直後に上書きされる。** heartbeatのrevisionが表示中より新しいとき、`App.tsx` は `error` を設定するが、`usage-stream.ts` が直後に `connected` を出す。HTTPでの照合は行われるので実害は無いが、意図を揃える。
@@ -261,4 +261,39 @@ Phase 0の入口・認証・使用ポートの一部は確認できたが、brok
 
 ### 11.3 判定
 
-11.2-1は本番有効化前に修正する。修正後に実ソケットの試験を加え、§10.3の未完了項目（実broker、ACL、Serve、Fire実機、長時間試験）へ進む。本番配備判定は引き続き **不可**。
+11.2-1は解決済み。実broker、ACL、Serve、Fire実機、長時間試験は未完了のため、本番配備判定は引き続き **不可**。
+
+## 12. 追試 — upgrade拒否時cleanupの修正確認（2026-10-15）
+
+### 12.1 修正内容
+
+- `connectUpstream` は保留中のupstreamと解放処理をrequestに紐付ける。
+- 下流のupgradeが成功する前は、`request.raw` と `request.raw.socket` の終了・エラーを監視し、保留upstreamを`terminate`する。
+- 下流upgradeが成功した場合は保留監視を解除し、通常の双方向close処理へ引き渡す。
+- upstream自身の`close`も接続待ちPromiseを終了させ、上流拒否・切断時に503へ収束させる。
+
+### 12.2 実ソケット回帰試験
+
+実Fastifyサーバー、実`ws`上流、loopback TCPクライアントで次を確認した。
+
+1. 下流は`Sec-WebSocket-Version: 12`を送信し、`ws`のupgrade拒否によりHTTP 400を受信する。
+2. preHandlerで先に確立したupstreamの`close`イベントを受信する。
+3. gateway／上流のlistenを試験終了時に閉じ、プロセスが残留しない。
+
+この試験は `tests/integration/mqtt-gateway.test.ts` の `closes an upstream when ws rejects the downstream upgrade` に固定した。broker、Tailscale Serve、Fire WebViewを使う本番相当試験ではないため、§10.3の未完了項目は維持する。
+
+## 13. 第3回再監査 — §12の独立確認（2026-10-15）
+
+§11以降に変わった `gateway.ts`、`tests/integration/mqtt-gateway.test.ts` を読み、§11と同じ実ソケット試験（実Fastify＋`registerMqttGateway`＋ローカルwsサーバーを上流brokerの代役に使用）を、修正者とは別に再実行した。
+
+| 検証 | 結果 |
+| --- | --- |
+| 正常接続 | `mqtt` サブプロトコル選択と双方向転送を確認 |
+| 不正 `Sec-WebSocket-Version` のupgrade | 400で拒否。上流接続は残らない（§11では1本残留） |
+| クライアント切断後 | 上流接続0本 |
+| focused test | 3 files、22 tests passed |
+| `npm run typecheck`／`npm run build:api` | 成功 |
+
+コード確認: 下流のupgrade前は `request.raw` と `request.raw.socket` の `close`／`error` で保留upstreamを `terminate` し、成功時は `release` で監視を外して通常の切断処理へ引き渡す。監視は上流の接続確立後に付けるが、それ以前の下流切断は `destroyed` の確認で拾うため、取りこぼしは無い。
+
+判定: §12の記述は実測と一致し、11.2-1は解決とする。新規の指摘は無い。11.2-2〜5（低）は未対応のまま残る。§10.3の未完了項目（実broker、ACL、Serve、Fire実機、長時間試験）により、本番配備判定は引き続き **不可**。
