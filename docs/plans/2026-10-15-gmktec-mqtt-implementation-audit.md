@@ -3,14 +3,14 @@
 本書は `docs/plans/2026-10-14-gmktec-mqtt-usage-plan.md` に基づくMQTT実装の監査の正本。対象は作業ツリー上の未コミット実装で、`07cc993` に対する差分。`07cc993` 以降のコミットは文書のみ。
 いつ見るか: MQTT実装のコミット・レビュー前、Phase 2／3の試験を書く前、本番でgateway／publisherを有効化する前。
 関連: 計画 `docs/plans/2026-10-14-gmktec-mqtt-usage-plan.md`、計画監査 `docs/plans/2026-10-15-gmktec-mqtt-usage-plan-audit.md`、配備 `docs/deployment.md`、`gmktec-change-control`、`gmktec-validation-and-evidence`。
-状態: **初回監査の必須4件と再監査で見つかったupgrade拒否時の上流cleanupをコード修正・実ソケット試験済み。本番有効化不可**（2026-10-15、Asia/Tokyo）。
+状態: **初回監査の必須4件、upgrade拒否時の上流cleanup、低優先の端末キャッシュ／revision 0／heartbeat表示競合をコード修正・試験済み。本番有効化不可**（2026-10-15、Asia/Tokyo）。
 範囲: コード・テスト・ビルドのみ。GMKtecへの配備、Mosquitto、Tailscale Serve、systemd、Fire実機は変更・検証していない。
 
 ## 1. 結論
 
 契約、永続 `streamId`／`usageRevision`、HTTP／MQTT共通の順序判定、MQTT publisher、reader認証付きWSS gateway、DashboardのHTTPフォールバックという骨格は実装されている。loopback broker URL、UTF-8 payload上限、Origin必須、`mqtt` サブプロトコル、上流のネゴシエーション確認後に下流101を返す順序もコード上は確認できる。
 
-初回監査で指摘した端末単位のMQTT無効化、gatewayのbackpressure向き、再接続時のretained `offline`、`too_large` 時の古いpending stateはコード修正済みで、publisher／gatewayの追加試験も含むfocused test 22件が成功している。動的importによりHTTP専用端末はMQTT chunkを読み込まず、通常bundleも縮小した。
+初回監査で指摘した端末単位のMQTT無効化、gatewayのbackpressure向き、再接続時のretained `offline`、`too_large` 時の古いpending stateはコード修正済みで、今回の低優先修正を含むfocused test 28件が成功している。MQTT opt-in端末だけがchunkを実行時に読み込み、HTTP専用端末のService Worker事前キャッシュからはMQTT chunkを除外した。
 
 残るのは、publisher／gateway／ブラウザー購読の実broker試験、Mosquitto／Serve／systemd／Fireの配備と24時間以上の実機試験である。upgrade拒否時の保留upstreamはraw TCP socketの終了監視で閉じることを実ソケット回帰試験で確認したが、実ネットワークでの資源上限と運用証拠は未取得である。したがって、計画のPhase 2〜4を完全受け入れ済み、またはPhase 5の本番配備済みとは扱わない。
 
@@ -21,10 +21,10 @@
 | コマンド | 結果 | 証拠・範囲 |
 | --- | --- | --- |
 | `rtk npm run typecheck` | 成功 | TypeScript型検査完了 |
-| `rtk npm run build` | 成功 | Vite build完了。本体JS 374.28 kB（gzip 115.60 kB）、mqtt chunk 335.62 kB（gzip 99.90 kB） |
+| `rtk npm run build` | 成功 | Vite build完了。本体JS 374.31 kB（gzip 115.60 kB）、mqtt chunk 335.62 kB（gzip 99.90 kB）。Service Worker事前キャッシュは59 assetsでMQTT chunkを除外 |
 | `rtk npm run build:api` | 成功 | `mqtt`／`ws`を含むAPI bundle生成 |
 | `rtk npm run build:collectors` | 成功 | collector bundle生成 |
-| `rtk npm test -- --run tests/unit/usage-delivery.test.ts tests/unit/usage-stream.test.ts tests/integration/mqtt-gateway.test.ts` | 成功 | 3 files、22 tests passed。publisherのoffline単独再接続、PUBACK timeout、古いcallback、LWT、state／heartbeat独立、gatewayのreader認証・Origin・subprotocol・双方向転送・上流拒否・接続寿命・実ソケットupgrade拒否cleanupを含む |
+| `rtk npm test -- --run tests/unit/offline-build.test.ts tests/unit/usage-delivery.test.ts tests/unit/usage-stream.test.ts tests/integration/mqtt-gateway.test.ts` | 成功 | 4 files、28 tests passed。Service WorkerのMQTT chunk除外、旧状態のrevision 0 metadata、heartbeat status順序、publisherのoffline単独再接続、PUBACK timeout、LWT、gatewayの認証・Origin・subprotocol・双方向転送・実ソケットupgrade拒否cleanupを含む |
 | `rtk git diff --check` | 成功 | 空白エラーなし |
 
 ### 2.2 全体テストの失敗
@@ -36,7 +36,7 @@
 | 今回の確認環境（`rtk npm test`） | 670件中47件失敗（12ファイル、623 passed） | RSS関連（jsdomの `window.matchMedia` 不足など）、weather catalog、weather settings API、weather status、card、chimeに加え、offline build／startup／private-audio／collectorの子プロセス起動 `EPERM` |
 | focused test追加前の通常環境比較記録 | 652件中34件失敗（8ファイル） | RSS関連、weather catalog、weather settings API、weather status、card、chime。focused test追加後の同条件比較は未実施 |
 
-focused test追加前の34件は、HEAD `07cc993` のクリーンなworktree（`git worktree` + 同じ `node_modules`）でも同じ8ファイル・34件が失敗したという比較記録がある。今回の環境ではその比較を再実行していないため、ここでは過去の証拠として扱う。全体テストの成功をMQTT実装の正しさの根拠にもしない。今回のMQTT固有focused testは22件である。
+focused test追加前の34件は、HEAD `07cc993` のクリーンなworktree（`git worktree` + 同じ `node_modules`）でも同じ8ファイル・34件が失敗したという比較記録がある。今回の環境ではその比較を再実行していないため、ここでは過去の証拠として扱う。全体テストの成功をMQTT実装の正しさの根拠にもしない。今回のMQTT固有focused testは28件である。
 
 ## 3. 計画との対応
 
@@ -116,7 +116,7 @@ focused test追加前の34件は、HEAD `07cc993` のクリーンなworktree（`
 - heartbeatの `streamId`／`revision`／`deliveryStatus` をreducerで判定し、超過または未反映の新revisionならHTTPで照合する。
 - availabilityのofflineは、heartbeatで確認したpublisher instanceと一致する場合だけエラー表示する。
 - footerのMQTT状態を日本語へ対応付けた。
-- MQTT clientをdynamic importし、buildでメインJS 374.28 kB（gzip 115.60 kB）、MQTT chunk 335.62 kB（gzip 99.90 kB）へ分割した。
+- MQTT clientをdynamic importし、buildでメインJS 374.31 kB（gzip 115.60 kB）、MQTT chunk 335.62 kB（gzip 99.90 kB）へ分割した。Service Workerの事前キャッシュにはMQTT chunkを含めない。
 
 残る試験:
 
@@ -254,10 +254,10 @@ Phase 0の入口・認証・使用ポートの一部は確認できたが、brok
 ### 11.2 残る指摘
 
 1. **【解決】upgrade失敗時の上流接続cleanup。** 初回の実ソケット試験では、preHandlerで上流を開いた後に `ws.handleUpgrade` が不正なWebSocket versionを400で拒否すると上流が残留した。`request.raw.socket` の `close`／`error` 監視へcleanup経路を拡張し、実Fastify＋loopback上流で「400応答後に上流が閉じる」回帰試験を追加して確認した。`injectWS` だけでは再現しないため、実ソケット試験を必須の証拠として扱う。
-2. **【低】HTTP専用端末もmqtt chunkを一度ダウンロードする。** Service Workerがdist資産をすべて事前キャッシュするため、`dist/sw.js` にmqtt chunkが含まれる。実行はしないが、インストール時に約336 kBを取得する。事前キャッシュから外すか、許容する理由を記録する。
-3. **【低】配備直後に試験端末のMQTTが止まり得る。** 旧状態ファイルでは最初の受信までrevisionが `0` で、HTTP応答にmetadataが付かない。その間に `?usageMqtt=1` の端末がHTTPを取得すると、`App.tsx` が購読を止め、再読み込みまで戻らない。revision 0でもmetadataを返すか、移行時に一度保存する。
-4. **【低】状態表示が直後に上書きされる。** heartbeatのrevisionが表示中より新しいとき、`App.tsx` は `error` を設定するが、`usage-stream.ts` が直後に `connected` を出す。HTTPでの照合は行われるので実害は無いが、意図を揃える。
-5. **【低】前回から変わらない点。** 表示が変わらない受信でもrevisionが進む。publisherの秘密を環境変数から読む（計画§9.3は権限を絞ったファイル）。gatewayに接続数制限が無い。状態ファイルが無い間は読むたびにstreamIdが変わる。
+2. **【解決】HTTP専用端末のmqtt chunk事前取得。** `scripts/build-sw.mjs` で`/assets/mqtt...`をService Workerの事前キャッシュから除外した。`offline-build.test.ts` で生成結果にMQTT chunkが含まれないことを確認した。MQTT opt-in端末はオンライン時のdynamic importで取得する。
+3. **【解決】配備直後に試験端末のMQTTが止まり得る問題。** 旧状態ファイルまたは未作成状態でもStoreがrevision `0`、安定したstreamId、生成時刻のmetadataを返すようにした。`usage-delivery.test.ts` で複数readのmetadata安定性を確認した。metadata自体は最初のusage書き込みまで状態ファイルへ永続化されないため、プロセス再起動前のstreamId安定性はStoreインスタンス内の保証である。
+4. **【解決】状態表示のheartbeat status上書き。** `usage-stream.ts` は通常heartbeatの`connected`通知を`onHeartbeat`より先に行うようにし、heartbeat callbackが`error`へ変更した状態を後続通知で上書きしない。`usage-stream.test.ts` で通知順序を固定した。
+5. **【低】前回から残る点。** 表示が変わらない受信でもrevisionが進む。publisherの秘密を環境変数から読む（計画§9.3は権限を絞ったファイル）。gatewayに接続数制限が無い。これらはbroker／運用導入時の設計判断・設定課題として残す。
 
 ### 11.3 判定
 
@@ -296,4 +296,35 @@ Phase 0の入口・認証・使用ポートの一部は確認できたが、brok
 
 コード確認: 下流のupgrade前は `request.raw` と `request.raw.socket` の `close`／`error` で保留upstreamを `terminate` し、成功時は `release` で監視を外して通常の切断処理へ引き渡す。監視は上流の接続確立後に付けるが、それ以前の下流切断は `destroyed` の確認で拾うため、取りこぼしは無い。
 
-判定: §12の記述は実測と一致し、11.2-1は解決とする。新規の指摘は無い。11.2-2〜5（低）は未対応のまま残る。§10.3の未完了項目（実broker、ACL、Serve、Fire実機、長時間試験）により、本番配備判定は引き続き **不可**。
+判定: §12の記述は実測と一致し、11.2-1は解決とする。新規の重要指摘は無い。11.2-2〜4は§14で解決を確認し、11.2-5の設計・設定課題は残る。§10.3の未完了項目（実broker、ACL、Serve、Fire実機、長時間試験）により、本番配備判定は引き続き **不可**。
+
+## 14. 第4回再監査 — 低優先課題の修正確認（2026-10-15）
+
+§11.2-2〜4に対する修正を実装し、回帰試験を実行した。
+
+| 対象 | 修正 | 検証 |
+| --- | --- | --- |
+| Service Worker | `scripts/build-sw.mjs` がMQTT dynamic-import chunkを事前キャッシュ対象から除外 | `offline-build.test.ts` 5/5 |
+| 旧状態／revision `0` | `createFileStore` が旧状態・未作成状態へ安定したstreamIdとrevision `0` metadataを提供 | `usage-delivery.test.ts` 移行試験を含む |
+| heartbeat status | 通常heartbeatの`connected`通知をcallback前へ移動 | `usage-stream.test.ts` 通知順序試験 |
+
+関連する focused test は `offline-build`、`usage-delivery`、`usage-stream`、`mqtt-gateway` の4 files、28 testsが成功した。型検査・buildの再確認後も、本番配備判定は実broker／ACL、Serve、Fire実機、長時間試験が未完了のため **不可** とする。残る低優先課題は§11.2-5（revision採番方針、資格情報の配置、gateway接続数制限）である。
+
+## 15. 第5回再監査 — §14の独立確認（2026-10-15）
+
+§14で変わった `scripts/build-sw.mjs`、`services/aggregator/src/store.ts`、`apps/dashboard/src/data/usage-stream.ts` と関連試験を読み、修正者とは別に検証を再実行した。
+
+| 検証 | 結果 |
+| --- | --- |
+| focused test（offline-build／usage-delivery／usage-stream／mqtt-gateway） | 4 files、28 tests passed |
+| `npm run typecheck` | 成功 |
+| `npm run build` | 成功。本体JS 374.31 kB（gzip 115.60 kB）、mqtt chunk 335.62 kB（gzip 99.90 kB）。事前キャッシュ59 assets |
+| `dist/sw.js` のmqtt参照 | 0件（chunk自体は `dist/assets` に存在） |
+
+コード確認:
+
+- Service Workerはキャッシュに無い資産をネットワークから取得する（`cache.match(...) || fetch(...)`）。`?usageMqtt=1` の端末はオンライン時に通常どおりmqtt chunkを読み込める。
+- Storeは旧状態・未作成状態でもrevision `0` のmetadataを返し、streamIdと時刻はプロセス内で固定する。最初の保存前にプロセスが再起動するとstreamIdは変わるが、端末は認証済みHTTPで新系列へ切り替えるため問題ない。
+- `usage-stream.ts` は通常heartbeatの `connected` 通知を `onHeartbeat` より前に行う。Appが設定した `error` は上書きされない。
+
+判定: §14の記述は実測と一致し、11.2-2〜4は解決とする。新規の指摘は無い。11.2-5（表示が変わらない受信でのrevision進行、publisher秘密の環境変数読み込み、gateway接続数制限）は残る。§10.3の未完了項目（実broker、ACL、Serve、Fire実機、長時間試験）により、本番配備判定は引き続き **不可**。
