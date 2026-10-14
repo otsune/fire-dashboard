@@ -4,8 +4,14 @@ import {
   type UsageEnvelope,
   type Usage,
 } from "../../../../packages/contracts/src/index";
+import { randomUUID } from "node:crypto";
 import type { Store } from "../store";
-export function createUsageIngestor(
+export type UsageIngestResult = {
+  status: "accepted" | "duplicate" | "older";
+  revisionChanged: boolean;
+};
+
+export function createUsageIngestorWithRevision(
   store: Store,
   preferredSources: Partial<
     Record<Usage["provider"], string | readonly string[]>
@@ -23,18 +29,21 @@ export function createUsageIngestor(
     input: UsageEnvelope,
     receivedAt: string,
     authorizedAlias: string,
-  ): Promise<"accepted" | "duplicate" | "older"> {
+  ): Promise<UsageIngestResult> {
     const envelope = envelopeSchema.parse(input);
     if (
       envelope.sourceAlias !== authorizedAlias ||
       !allowed(envelope.payload.provider, authorizedAlias)
     )
       throw Error("source_denied");
-    return store.update((state) => {
+    return store.update<UsageIngestResult>((state) => {
       const key = `${envelope.payload.provider}:${authorizedAlias}`;
       const previous = state.usageSequences[key];
       if (previous && envelope.sequence < previous.sequence)
-        return { state, result: "older" as const };
+        return {
+          state,
+          result: { status: "older", revisionChanged: false },
+        };
       if (previous && envelope.sequence === previous.sequence) {
         if (
           envelope.snapshotId !== previous.snapshotId ||
@@ -90,6 +99,7 @@ export function createUsageIngestor(
       state.usageValues[key] = value;
       state.usageObservedAt[key] = observed;
       const result = duplicate ? ("duplicate" as const) : ("accepted" as const);
+      const previousDisplayedUsage = JSON.stringify(state.dashboard.usage);
       // One entry per provider is displayed, from whichever PC reported it.
       const shown = state.dashboard.usage.find(
         (u) => u.provider === payload.provider,
@@ -111,7 +121,10 @@ export function createUsageIngestor(
               ) ||
                 observedAt(shown.capturedAt, shown.receivedAt ?? receivedAt))))
       )
-        return { state, result };
+        return {
+          state,
+          result: { status: result, revisionChanged: false },
+        };
       state.dashboard.usage = state.dashboard.usage.filter(
         (u) => u.provider !== payload.provider,
       );
@@ -121,9 +134,50 @@ export function createUsageIngestor(
           usageProviders.indexOf(a.provider) -
           usageProviders.indexOf(b.provider),
       );
-      return { state, result };
+      if (JSON.stringify(state.dashboard.usage) !== previousDisplayedUsage) {
+        const streamId = state.streamId || randomUUID();
+        const currentRevision =
+          /^(?:0|[1-9][0-9]{0,38})$/.test(state.usageRevision ?? "")
+            ? BigInt(state.usageRevision)
+            : 0n;
+        const nextRevision = (currentRevision + 1n).toString();
+        if (nextRevision.length > 39) throw Error("revision_exhausted");
+        const publishedAt = new Date().toISOString();
+        state.streamId = streamId;
+        state.usageRevision = nextRevision;
+        state.usagePublishedAt = publishedAt;
+        state.dashboard.usageDelivery = {
+          schemaVersion: 1,
+          streamId,
+          revision: nextRevision,
+          publishedAt,
+        };
+      }
+      return {
+        state,
+        result: {
+          status: result,
+          revisionChanged:
+            JSON.stringify(state.dashboard.usage) !== previousDisplayedUsage,
+        },
+      };
     });
   };
+}
+
+export function createUsageIngestor(
+  store: Store,
+  preferredSources: Partial<
+    Record<Usage["provider"], string | readonly string[]>
+  >,
+) {
+  const ingest = createUsageIngestorWithRevision(store, preferredSources);
+  return async (
+    input: UsageEnvelope,
+    receivedAt: string,
+    authorizedAlias: string,
+  ): Promise<UsageIngestResult["status"]> =>
+    (await ingest(input, receivedAt, authorizedAlias)).status;
 }
 /**
  * Collector clocks may run ahead; a capture never counts as newer than its

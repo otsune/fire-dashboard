@@ -11,6 +11,7 @@ import {
   envelopeSchema,
   weatherSettingsStateSchema,
   type WeatherSettingsState,
+  usageDeliveryMetadataSchema,
 } from "../../../packages/contracts/src/index";
 export type State = {
   /** Absent only in pre-settings snapshots. Explicit null selection disables weather. */
@@ -20,6 +21,12 @@ export type State = {
   usageValues: Record<string, Usage>;
   /** Per-source comparison time, fixed at a snapshot's first receipt. */
   usageObservedAt: Record<string, string>;
+  /** Stable identity for the persisted usage delivery sequence. */
+  streamId: string;
+  /** Decimal, monotonic delivery revision. */
+  usageRevision: string;
+  /** Timestamp associated with the current usage revision. */
+  usagePublishedAt: string | null;
 };
 export type Store = {
   /** Serialized read callback; side effects can observe a canonical revision
@@ -74,7 +81,14 @@ function storeEngine(
     writeSnapshot: async (value) => {
       const valid = parseDashboard(value);
       await update((state) => ({
-        state: { ...state, dashboard: valid },
+        state: {
+          ...state,
+          dashboard: {
+            ...valid,
+            usageDelivery:
+              valid.usageDelivery ?? state.dashboard.usageDelivery,
+          },
+        },
         result: undefined,
       }));
     },
@@ -87,6 +101,9 @@ export function createMemoryStore(): Store {
     usageSequences: {},
     usageValues: {},
     usageObservedAt: {},
+    streamId: randomUUID(),
+    usageRevision: "0",
+    usagePublishedAt: null,
   };
   return storeEngine(
     async () => state,
@@ -99,6 +116,8 @@ export function createFileStore(
   path: string,
   options: { beforeRename?: () => Promise<void> } = {},
 ): Store {
+  let migratedStreamId: string | undefined;
+  let migratedPublishedAt: string | undefined;
   return storeEngine(
     async () => {
       try {
@@ -141,6 +160,39 @@ export function createFileStore(
             Number.isFinite(Date.parse(value))
           )
             usageObservedAt[key] = value;
+        const storedDelivery = usageDeliveryMetadataSchema.safeParse(
+          raw.dashboard?.usageDelivery,
+        );
+        const streamId =
+          typeof raw.streamId === "string" &&
+          /^[A-Za-z0-9_-]{1,128}$/.test(raw.streamId)
+            ? raw.streamId
+            : storedDelivery.success
+              ? storedDelivery.data.streamId
+              : (migratedStreamId ??= randomUUID());
+        const usageRevision =
+          typeof raw.usageRevision === "string" &&
+          /^(?:0|[1-9][0-9]{0,38})$/.test(raw.usageRevision)
+            ? raw.usageRevision
+            : storedDelivery.success
+              ? storedDelivery.data.revision
+              : "0";
+        const usagePublishedAt =
+          typeof raw.usagePublishedAt === "string" &&
+          Number.isFinite(Date.parse(raw.usagePublishedAt))
+            ? raw.usagePublishedAt
+            : storedDelivery.success
+              ? storedDelivery.data.publishedAt
+              : (migratedPublishedAt ??= new Date().toISOString());
+        const delivery =
+          usagePublishedAt
+            ? {
+                schemaVersion: 1 as const,
+                streamId,
+                revision: usageRevision,
+                publishedAt: usagePublishedAt,
+              }
+            : undefined;
         return {
           ...(Object.hasOwn(raw, "weatherSettings")
             ? {
@@ -149,19 +201,37 @@ export function createFileStore(
                 ),
               }
             : {}),
-          dashboard,
+          dashboard: delivery ? { ...dashboard, usageDelivery: delivery } : dashboard,
           usageSequences: raw.usageSequences ?? {},
           usageValues,
           usageObservedAt,
+          streamId,
+          usageRevision,
+          usagePublishedAt,
         };
       } catch (e) {
-        if ((e as NodeJS.ErrnoException).code === "ENOENT")
+        if ((e as NodeJS.ErrnoException).code === "ENOENT") {
+          const streamId = (migratedStreamId ??= randomUUID());
+          const usagePublishedAt =
+            (migratedPublishedAt ??= new Date().toISOString());
           return {
-            dashboard: emptyDashboard(),
+            dashboard: {
+              ...emptyDashboard(),
+              usageDelivery: {
+                schemaVersion: 1,
+                streamId,
+                revision: "0",
+                publishedAt: usagePublishedAt,
+              },
+            },
             usageSequences: {},
             usageValues: {},
             usageObservedAt: {},
+            streamId,
+            usageRevision: "0",
+            usagePublishedAt,
           };
+        }
         throw Error("storage");
       }
     },

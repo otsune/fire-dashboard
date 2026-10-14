@@ -1,5 +1,8 @@
 import Fastify from "fastify";
-import { createUsageIngestor, createRateLimiter } from "./usage/ingest";
+import {
+  createUsageIngestorWithRevision,
+  createRateLimiter,
+} from "./usage/ingest";
 import type { Usage } from "../../../packages/contracts/src/index";
 import {
   envelopeSchema,
@@ -13,6 +16,18 @@ import {
   createWeatherSettings,
   type WeatherSettingsService,
 } from "./weather/settings";
+import {
+  createMqttPublisher,
+  type MqttPublisherOptions,
+  type UsagePublisher,
+} from "./mqtt/publisher";
+import { registerMqttGateway, type MqttGatewayOptions } from "./mqtt/gateway";
+
+export type MqttPublisherStatus = {
+  state: "disabled" | "ready";
+  reason?: string;
+};
+
 export function createServer(options: {
   store: Store;
   authorize: Authorize;
@@ -24,10 +39,14 @@ export function createServer(options: {
   preferredSources?: Partial<
     Record<Usage["provider"], string | readonly string[]>
   >;
+  mqtt?: MqttPublisherOptions;
+  mqttStatus?: MqttPublisherStatus;
+  usagePublisher?: UsagePublisher;
+  gateway?: MqttGatewayOptions;
 }) {
   if (typeof options.authorize !== "function")
     throw Error("authorization_required");
-  const ingest = createUsageIngestor(
+  const ingest = createUsageIngestorWithRevision(
     options.store,
     options.preferredSources ?? {},
   );
@@ -36,6 +55,12 @@ export function createServer(options: {
   const settings =
     options.weatherSettings ??
     createWeatherSettings({ store: options.store, catalog });
+  const usagePublisher =
+    options.usagePublisher ??
+    (options.mqtt ? createMqttPublisher(options.store, options.mqtt) : undefined);
+  const mqttStatus: MqttPublisherStatus =
+    options.mqttStatus ??
+    (options.mqtt ? { state: "ready" } : { state: "disabled" });
   const canEdit = async (req: Parameters<AuthorizeAdmin>[0]) =>
     req.headers.authorization === undefined &&
     !!(await options.authorizeAdmin?.(req));
@@ -55,6 +80,8 @@ export function createServer(options: {
           : code,
     });
   };
+  const allowedOrigins =
+    options.allowedOrigins ?? options.gateway?.allowedOrigins ?? [];
   const app = Fastify({ logger: false, bodyLimit: 65536, trustProxy: false });
   app.addHook("onRequest", async (req, reply) => {
     reply
@@ -74,7 +101,7 @@ export function createServer(options: {
       req.method === "PUT" &&
       req.routeOptions.url === "/api/v1/weather-settings"
     ) {
-      if (!origin || !(options.allowedOrigins ?? []).includes(origin))
+      if (!origin || !allowedOrigins.includes(origin))
         return reply.code(403).send({ error: "origin_denied" });
       if (
         req.headers["content-type"]?.split(";")[0].trim().toLowerCase() !==
@@ -82,7 +109,7 @@ export function createServer(options: {
       )
         return reply.code(400).send({ error: "invalid_data" });
     }
-    if (origin && !(options.allowedOrigins ?? []).includes(origin))
+    if (origin && !allowedOrigins.includes(origin))
       return reply.code(403).send({ error: "origin_denied" });
     try {
       if (adminRoute) {
@@ -121,10 +148,20 @@ export function createServer(options: {
               : "invalid_request",
       });
   });
+  if (usagePublisher) {
+    app.addHook("onClose", async () => usagePublisher.stop());
+    usagePublisher.start();
+  }
   app.get("/api/v1/dashboard", async () =>
     parseDashboard(await options.store.readSnapshot()),
   );
   app.get("/api/v1/health", async () => ({ status: "ok", schemaVersion: 1 }));
+  app.get("/api/v1/mqtt-status", async () => ({
+    schemaVersion: 1,
+    publisher: mqttStatus.state,
+    reason: mqttStatus.reason ?? null,
+    runtime: usagePublisher?.status?.() ?? null,
+  }));
   app.get("/api/v1/weather-settings", async (req, reply) => {
     try {
       const saved = await settings.read();
@@ -176,8 +213,14 @@ export function createServer(options: {
         .header("retry-after", "1")
         .send({ error: "rate_limited" });
     try {
+      const result = await ingest(
+        parsed.data,
+        new Date().toISOString(),
+        alias,
+      );
+      if (result.revisionChanged) usagePublisher?.notify();
       return {
-        status: await ingest(parsed.data, new Date().toISOString(), alias),
+        status: result.status,
       };
     } catch (error) {
       const code = (error as Error).message;
@@ -186,5 +229,6 @@ export function createServer(options: {
       });
     }
   });
+  if (options.gateway) registerMqttGateway(app, options.gateway);
   return app;
 }

@@ -33,6 +33,58 @@ config.example.jsonの初期天気地域・RSS・優先取得元を、実環境�
 - 外部から偽の `Tailscale-User-Login` を付けて送り、serve が上書きまたは削除することを確認します。この確認が済むまで、このヘッダーを信頼しないでください。
 - APIは127.0.0.1で待ち受けるため、同じ機械の他プロセスはヘッダーを偽装できます。管理者を有効にする場合は地域設定の書き込み権限も得られるため、同居プロセスを信頼でき、入口が確認済みの Tailscale Serve に限定されていることが前提です。ログイン名はユーザーを識別するもので、Fire と同一ユーザーの別端末を区別しません。
 
+## usage の MQTT 配信
+
+MQTT 配信は `FIRE_CONFIG` で指定する設定ファイル（例
+`services/aggregator/config.example.json`）の `mqtt.enabled` と
+`gateway.enabled` を個別に有効化できます。どちらも既定値は無効で、両方を無効に
+した場合は従来どおり HTTPS の usage 集約だけを行います。publisherだけ、または
+gatewayだけを有効にした状態は開発・検証用とし、本番ではbrokerとWSS経路の両方を
+確認してから有効化してください。
+
+`mqtt.url` は母艦の loopback MQTT listener（例 `mqtt://127.0.0.1:1883`）、
+`gateway.url` は MQTT over WebSocket listener（例
+`ws://127.0.0.1:9001/mqtt`）を指定します。publisher の資格情報は
+`mqtt.credentialsFile` に指定したJSONファイルから読み込み、ブラウザーへ渡しません。
+設定例の `/home/<service-user>/.config/fire-dashboard/mqtt-credentials.json` は
+userサービスの実行ユーザーへ置き換えるプレースホルダーです。`/etc` 配下はsudoを
+要するため、このuser層サービスの既定配置には使いません。このファイルはサービスユーザー
+だけが読めるmode 0600相当で配置し、形式は
+`{"username":"…","password":"…"}` とします。MQTT publisherを有効にする場合は
+このファイルを必ず指定します。ファイルが欠落・不正な場合はpublisherだけを無効化して
+APIとHTTP usage収集を起動し、サーバーログへ資格情報を含まない分類コードを出します。
+認証済みreaderから `GET /api/v1/mqtt-status` を確認すると、publisherの状態（`ready`／
+`disabled`）と安全な分類コードを取得できます。`runtime` には接続状態、接続回数、現在の
+usage revision、stateの最後のPUBACK時刻とrevision、heartbeatの最後のPUBACK時刻、直近エラー種別（`publish_error`／`ack_timeout`／`connect_error`）と時刻、payload超過状態を
+含めます。systemd userサービスでは同じ分類コードをjournalでも確認できます。読取権限エラーは
+`mqtt_credentials_permissions` として分類します。
+gatewayの同時接続数は `gateway.maxConnections`（既定8、最大256）で制限し、上限到達時は
+WebSocket upgrade前に503を返します。切断後は枠を解放します。トピック接頭辞は
+`fire-dashboard/v1/main` です。state と availability は QoS 1・retain、heartbeat は
+QoS 1・非 retain で送信します。
+
+表示端末は同一オリジンの `wss://<origin>/api/v1/usage/stream` へ `mqtt` サブプロトコルを
+要求します。gateway は Tailscale の reader 認証と許可済み Origin を upgrade 前に検証し、
+loopback broker の `mqtt` ネゴシエーションを確認してから下流へ 101 を返します。既存の
+Tailscale Serve や Mosquitto の listener／ACL はこのリポジトリから変更しません。導入時は
+publisher 用 write listener と gateway 用 read listener を分離し、reader が state 以外を
+購読・publish できないことを確認してください。gateway は MQTT の username／password を
+上流へ注入せず raw WebSocket frame を中継するため、read listener は loopback からだけ到達
+できる匿名 read-only listener とし、ACLファイル先頭の匿名用 topic 行を state／availability／
+heartbeat の read に限定します。TCP listener は `allow_anonymous false`、publisher用資格情報、
+write ACLにします。ホストのport mappingもloopbackに限定し、`ss` と localhost／LANの正負疎通を
+別々に取得してください。Mosquitto 2.1以降の listener別設定はバージョンの非推奨項目を確認し、
+採用版の `listener_allow_anonymous` またはACL pluginの手順に合わせます。
+
+ブラウザーのMQTT購読は既定で無効です。検証対象の端末だけURLに `?usageMqtt=1` を付けて
+明示的に有効化します。指定がない端末は従来どおりHTTP pollingを使うため、gatewayを
+無効化した状態でもMQTTへ再接続し続けません。
+
+配信データの正本は `FIRE_STATE_FILE` の `streamId`／`usageRevision` です。MQTT state の
+UTF-8 サイズ上限を超えた場合は state を途中送信せず、端末へ `too_large` heartbeat を通知し、
+端末は HTTPS の revision を照合します。MQTT を有効化する前に開発用 broker で QoS、LWT、
+切断復帰、reader 認証、Origin 欠落、`mqtt` 以外の subprotocol、上限超過を検証してください。
+
 ## Fully Kiosk 内での天気地域設定
 
 天気カードまたは設定画面から、同じ画面内で予報地域と気温の代表地点を選びます。新しいタブ・位置情報権限・ブラウザーへの管理用秘密情報の保存は使いません。地域一覧は集約APIが気象庁の固定URLから取得し、ブラウザーは同一オリジンのAPIだけを利用します。

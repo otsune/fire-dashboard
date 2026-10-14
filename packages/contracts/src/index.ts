@@ -4,6 +4,22 @@ import {
   readUsageVisibility,
   type UsageVisibility,
 } from "./display-settings";
+const deliveryRevision = z.string().regex(/^(?:0|[1-9][0-9]{0,38})$/);
+const deliveryStreamId = z
+  .string()
+  .min(1)
+  .max(128)
+  .regex(/^[A-Za-z0-9_-]+$/);
+const deliveryTimestamp = z.string().datetime({ offset: true });
+export const usageDeliveryMetadataSchema = z.object({
+  schemaVersion: z.literal(1),
+  streamId: deliveryStreamId,
+  revision: deliveryRevision,
+  publishedAt: deliveryTimestamp,
+});
+export type UsageDeliveryMetadata = z.infer<
+  typeof usageDeliveryMetadataSchema
+>;
 export const usageProviders = [
   "claude",
   "codex",
@@ -146,12 +162,36 @@ export type Weather = z.infer<typeof weatherSchema>;
 export type Feed = z.infer<typeof feedSchema>;
 export type Usage = z.infer<typeof usageSchema>;
 export type UsageEnvelope = z.infer<typeof envelopeSchema>;
+const uniqueDeliveryUsage = z
+  .array(usageSchema)
+  .max(usageProviders.length)
+  .superRefine((values, ctx) => {
+    const seen = new Set<string>();
+    for (const [index, value] of values.entries()) {
+      if (seen.has(value.provider))
+        ctx.addIssue({
+          code: "custom",
+          path: [index, "provider"],
+          message: "duplicate_provider",
+        });
+      seen.add(value.provider);
+    }
+  });
+export const usageDeliverySchema = z.object({
+  schemaVersion: z.literal(1),
+  streamId: deliveryStreamId,
+  revision: deliveryRevision,
+  publishedAt: deliveryTimestamp,
+  usage: uniqueDeliveryUsage,
+});
+export type UsageDelivery = z.infer<typeof usageDeliverySchema>;
 export type Common = z.infer<typeof commonSchema>;
 export type Dashboard = {
   schemaVersion: 1;
   weather: Weather;
   rss: Feed[];
   usage: Usage[];
+  usageDelivery?: import("./usage-delivery").UsageDeliveryMetadata;
 };
 export function emptyCommon(status: Common["status"] = "unconfigured"): Common {
   return {
@@ -203,10 +243,14 @@ export function parseDashboard(input: unknown): Dashboard {
       weather: z.unknown(),
       rss: z.array(z.unknown()).max(32),
       usage: z.array(z.unknown()).max(64),
+      usageDelivery: z.unknown().optional(),
     })
     .parse(input);
   const w = weatherSchema.safeParse(root.weather);
-  return {
+  const delivery = root.usageDelivery
+    ? usageDeliveryMetadataSchema.safeParse(root.usageDelivery)
+    : undefined;
+  const dashboard: Dashboard = {
     schemaVersion: 1,
     weather: w.success
       ? skew(w.data)
@@ -243,6 +287,8 @@ export function parseDashboard(input: unknown): Dashboard {
       ];
     }),
   };
+  if (delivery?.success) dashboard.usageDelivery = delivery.data;
+  return dashboard;
 }
 const zone = z
   .string()
@@ -306,3 +352,13 @@ export function parseSettings(input: unknown): AppSettings {
 }
 export * from "./weather-settings";
 export * from "./display-settings";
+export {
+  compareUsageRevision,
+  isUsageDeliveryMetadata,
+  usageAvailabilitySchema,
+  usageHeartbeatSchema,
+} from "./usage-delivery";
+export type {
+  UsageAvailability,
+  UsageHeartbeat,
+} from "./usage-delivery";

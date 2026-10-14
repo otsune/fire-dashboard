@@ -28,6 +28,10 @@ beforeEach(async () => {
   );
   await writeFile(join(root, "apps/dashboard/dist/assets/app.js"), "bootstrap");
   await writeFile(join(root, "apps/dashboard/dist/assets/app.css"), "styles");
+  await writeFile(
+    join(root, "apps/dashboard/dist/assets/mqtt.esm-test.js"),
+    "mqtt client",
+  );
 });
 afterEach(async () => {
   await rm(root, { recursive: true, force: true });
@@ -61,6 +65,9 @@ it("keeps repeated generation deterministic and excludes its generated worker", 
     "/assets/app.js",
     "/index.html",
   ]);
+    expect(identity(second).assets).not.toContain(
+      "/assets/mqtt.esm-test.js",
+    );
 });
 it("includes asset URL identity even when renamed files have identical bytes", async () => {
   const original = identity(await build());

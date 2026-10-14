@@ -16,7 +16,13 @@ const paths = (await files(root))
     path,
     url: "/" + relative(root, path).split(sep).join("/"),
   }))
-  .filter((asset) => asset.url !== "/sw.js")
+  .filter(
+    (asset) =>
+      asset.url !== "/sw.js" &&
+      // MQTT is an explicit online opt-in. Keep the HTTP-only shell from
+      // downloading its dynamic client chunk during Service Worker install.
+      !/^\/assets\/mqtt(?:[.-]|\/)/.test(asset.url),
+  )
   .sort((a, b) => (a.url < b.url ? -1 : a.url > b.url ? 1 : 0));
 const source = await readFile("apps/dashboard/src/sw.ts", "utf8");
 const assetHashes = await Promise.all(

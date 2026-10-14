@@ -4,6 +4,7 @@ import {
   type Common,
 } from "../../../../packages/contracts/src/index";
 import { openDatabase } from "./db";
+import { applyUsageDelivery, usageDeliveryFromDashboard } from "./usage-state";
 let cacheGeneration = 0;
 const writes = new Set<IDBTransaction>();
 export function invalidateDashboardCache(): void {
@@ -66,7 +67,7 @@ export function mergeDashboard(
   next: Dashboard,
 ): Dashboard {
   if (!previous) return next;
-  return {
+  const merged: Dashboard = {
     ...next,
     weather:
       previous.weather.configurationRevision ===
@@ -91,6 +92,16 @@ export function mergeDashboard(
       ),
     ),
   };
+  const delivery = usageDeliveryFromDashboard(next);
+  if (delivery) {
+    const usageResult = applyUsageDelivery(previous, delivery, "http");
+    merged.usage = usageResult.dashboard.usage;
+    merged.usageDelivery = usageResult.dashboard.usageDelivery;
+  } else if (previous.usageDelivery) {
+    merged.usage = previous.usage;
+    merged.usageDelivery = previous.usageDelivery;
+  }
+  return merged;
 }
 export async function saveDashboard(value: Dashboard): Promise<void> {
   const valid = parseDashboard(value);
@@ -98,16 +109,20 @@ export async function saveDashboard(value: Dashboard): Promise<void> {
     s.put(valid.weather, "weather");
     s.put(valid.rss, "rss");
     s.put(valid.usage, "usage");
+    if (valid.usageDelivery) s.put(valid.usageDelivery, "usageDelivery");
+    else s.delete("usageDelivery");
     done();
   });
 }
 export function loadDashboard(): Promise<Dashboard | null> {
   return cacheTransaction<Dashboard | null>("readonly", (store, done) => {
-    const requests = ["weather", "rss", "usage"].map((key) => store.get(key));
+    const requests = ["weather", "rss", "usage", "usageDelivery"].map((key) =>
+      store.get(key),
+    );
     let count = 0;
     for (const request of requests) {
       request.onsuccess = () => {
-        if (++count === 3) {
+        if (++count === requests.length) {
           try {
             done(
               parseDashboard({
@@ -115,6 +130,7 @@ export function loadDashboard(): Promise<Dashboard | null> {
                 weather: requests[0].result,
                 rss: requests[1].result,
                 usage: requests[2].result,
+                usageDelivery: requests[3].result,
               }),
             );
           } catch {

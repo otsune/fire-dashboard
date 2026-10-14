@@ -31,6 +31,24 @@ import { AudioControls } from "./audio/Controls";
 import { evaluateHour, isQuiet, type Tick } from "./clock/hourly";
 import { prepareOffline } from "./data/offline";
 import { requestWakeLock } from "./data/wake-lock";
+import {
+  createUsageStream,
+  isUsageMqttEnabled,
+  type UsageStream,
+  type UsageStreamStatus,
+} from "./data/usage-stream";
+import {
+  applyUsageDelivery,
+  shouldRefreshUsageForHeartbeat,
+} from "./data/usage-state";
+
+const mqttStatusLabels: Record<UsageStreamStatus, string> = {
+  disconnected: "未接続",
+  connecting: "接続中",
+  connected: "接続済み",
+  stale: "停止検知",
+  error: "エラー",
+};
 export function App() {
   const [initial] = useState(loadSettings);
   const [settings, setSettings] = useState(initial.value);
@@ -45,6 +63,9 @@ export function App() {
   const refreshDashboard = useRef<() => Promise<void>>(async () => {});
   const [data, setData] = useState<Dashboard>(emptyDashboard);
   const [connection, setConnection] = useState("集約サービスに接続中");
+  const [mqttConnection, setMqttConnection] = useState<UsageStreamStatus>(
+    "disconnected",
+  );
   const [cardNow, setCardNow] = useState(Date.now());
   const [offline, setOffline] = useState("オフライン準備中");
   const [waiting, setWaiting] = useState<ServiceWorker | null>(null);
@@ -56,7 +77,10 @@ export function App() {
     generation = useRef(0),
     previousAudioTick = useRef<Tick | null>(null),
     skipNextAudioAnnouncement = useRef(false),
-    current = useRef(data);
+    current = useRef(data),
+    liveUsage = useRef(false),
+    usageStreamRef = useRef<UsageStream | null>(null),
+    mqttPublisherInstance = useRef<string | null>(null);
   useEffect(() => {
     // Display-only visibility must not interrupt playback or alter an in-flight
     // announcement's settings signature. Keep the existing audio fields live.
@@ -94,6 +118,56 @@ export function App() {
     return () => {
       cancelled = true;
       controller?.dispose();
+    };
+  }, []);
+  useEffect(() => {
+    if (!isUsageMqttEnabled(location.search)) {
+      setMqttConnection("disconnected");
+      return;
+    }
+    const stream = createUsageStream({
+      enabled: true,
+      onStatus: (status) => {
+        if (status === "connecting" || status === "disconnected")
+          mqttPublisherInstance.current = null;
+        setMqttConnection(status);
+      },
+      onDelivery: (delivery) => {
+        liveUsage.current = true;
+        const result = applyUsageDelivery(current.current, delivery, "mqtt");
+        if (!result.accepted) return;
+        current.current = {
+          ...current.current,
+          usage: result.dashboard.usage,
+          usageDelivery: result.dashboard.usageDelivery,
+        };
+        setData(current.current);
+        setCardNow(Date.now());
+        void saveDashboard(current.current).catch(() => {
+          setWarning("カードを保存できません。通信中の表示は続けます");
+        });
+      },
+      onHeartbeat: (heartbeat) => {
+        mqttPublisherInstance.current = heartbeat.instanceId;
+        if (shouldRefreshUsageForHeartbeat(current.current, heartbeat)) {
+          setMqttConnection("error");
+          void refreshDashboard.current();
+          return;
+        }
+        setMqttConnection("connected");
+      },
+      onAvailability: (availability) => {
+        if (
+          availability.status === "offline" &&
+          mqttPublisherInstance.current === availability.instanceId
+        )
+          setMqttConnection("error");
+      },
+    });
+    usageStreamRef.current = stream;
+    return () => {
+      usageStreamRef.current = null;
+      stream.stop();
     };
   }, []);
   useEffect(() => {
@@ -155,6 +229,12 @@ export function App() {
         const next = await fetchDashboard(controller.signal);
         if (!active()) return;
         hydratedFromNetwork = true;
+        liveUsage.current = true;
+        if (!next.usageDelivery) {
+          usageStreamRef.current?.stop();
+          usageStreamRef.current = null;
+          setMqttConnection("disconnected");
+        }
         current.current = mergeDashboard(current.current, next);
         setData(current.current);
         setConnection("集約サービス接続済み");
@@ -189,8 +269,15 @@ export function App() {
           !hydratedFromNetwork &&
           cached
         ) {
-          current.current = cached;
-          setData(cached);
+          const restored = liveUsage.current
+            ? {
+                ...cached,
+                usage: current.current.usage,
+                usageDelivery: current.current.usageDelivery,
+              }
+            : cached;
+          current.current = restored;
+          setData(restored);
         }
       })
       .catch(() => {
@@ -423,7 +510,9 @@ export function App() {
       )}
       <footer>
         <span>{offline}</span>
-        <span>Fire HD 10 Plus · 前面表示用 · 実機試験前</span>
+        <span>
+          Fire HD 10 Plus · 前面表示用 · MQTT {mqttStatusLabels[mqttConnection]}
+        </span>
       </footer>
     </main>
   );

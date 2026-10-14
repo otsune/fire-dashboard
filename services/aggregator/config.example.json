@@ -1,1 +1,1 @@
-{"weather":null,"feeds":[],"preferredSources":{}}
+{"weather":null,"feeds":[],"preferredSources":{},"mqtt":{"enabled":false,"url":"mqtt://127.0.0.1:1883","topicPrefix":"fire-dashboard/v1/main","maxPayloadBytes":2097152,"credentialsFile":"/home/<service-user>/.config/fire-dashboard/mqtt-credentials.json"},"gateway":{"enabled":false,"url":"ws://127.0.0.1:9001/mqtt","path":"/api/v1/usage/stream","maxPayloadBytes":2097152,"maxConnections":8}}

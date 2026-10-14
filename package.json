@@ -21,11 +21,14 @@
     "build:private-audio": "node --import tsx scripts/build-private-audio.ts"
   },
   "dependencies": {
+    "@fastify/websocket": "11.3.4",
     "fast-xml-parser": "5.11.2",
     "fastify": "5.12.5",
     "ipaddr.js": "2.5.0",
+    "mqtt": "5.16.1",
     "react": "19.3.0",
     "react-dom": "19.3.0",
+    "ws": "8.22.0",
     "zod": "4.6.5"
   },
   "devDependencies": {
