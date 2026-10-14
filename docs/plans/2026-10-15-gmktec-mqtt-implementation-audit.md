@@ -3,14 +3,14 @@
 本書は `docs/plans/2026-10-14-gmktec-mqtt-usage-plan.md` に基づくMQTT実装の監査の正本。対象は作業ツリー上の未コミット実装で、`07cc993` に対する差分。`07cc993` 以降のコミットは文書のみ。
 いつ見るか: MQTT実装のコミット・レビュー前、Phase 2／3の試験を書く前、本番でgateway／publisherを有効化する前。
 関連: 計画 `docs/plans/2026-10-14-gmktec-mqtt-usage-plan.md`、計画監査 `docs/plans/2026-10-15-gmktec-mqtt-usage-plan-audit.md`、配備 `docs/deployment.md`、`gmktec-change-control`、`gmktec-validation-and-evidence`。
-状態: **初回監査の必須4件、upgrade拒否時の上流cleanup、低優先の端末キャッシュ／revision 0／heartbeat表示競合をコード修正・試験済み。本番有効化不可**（2026-10-15、Asia/Tokyo）。
+状態: **初回監査の必須4件、upgrade拒否時の上流cleanup、revision／資格情報／接続数制限／publisher起動分離をコード修正・試験済み。本番有効化不可**（2026-10-15、Asia/Tokyo）。
 範囲: コード・テスト・ビルドのみ。GMKtecへの配備、Mosquitto、Tailscale Serve、systemd、Fire実機は変更・検証していない。
 
 ## 1. 結論
 
 契約、永続 `streamId`／`usageRevision`、HTTP／MQTT共通の順序判定、MQTT publisher、reader認証付きWSS gateway、DashboardのHTTPフォールバックという骨格は実装されている。loopback broker URL、UTF-8 payload上限、Origin必須、`mqtt` サブプロトコル、上流のネゴシエーション確認後に下流101を返す順序もコード上は確認できる。
 
-初回監査で指摘した端末単位のMQTT無効化、gatewayのbackpressure向き、再接続時のretained `offline`、`too_large` 時の古いpending stateはコード修正済みで、今回の低優先修正を含むfocused test 28件が成功している。MQTT opt-in端末だけがchunkを実行時に読み込み、HTTP専用端末のService Worker事前キャッシュからはMQTT chunkを除外した。
+初回監査で指摘した端末単位のMQTT無効化、gatewayのbackpressure向き、再接続時のretained `offline`、`too_large` 時の古いpending stateはコード修正済みで、今回の修正を含むfocused test 54件が成功している。MQTT opt-in端末だけがchunkを実行時に読み込み、HTTP専用端末のService Worker事前キャッシュからはMQTT chunkを除外した。
 
 残るのは、publisher／gateway／ブラウザー購読の実broker試験、Mosquitto／Serve／systemd／Fireの配備と24時間以上の実機試験である。upgrade拒否時の保留upstreamはraw TCP socketの終了監視で閉じることを実ソケット回帰試験で確認したが、実ネットワークでの資源上限と運用証拠は未取得である。したがって、計画のPhase 2〜4を完全受け入れ済み、またはPhase 5の本番配備済みとは扱わない。
 
@@ -24,19 +24,19 @@
 | `rtk npm run build` | 成功 | Vite build完了。本体JS 374.31 kB（gzip 115.60 kB）、mqtt chunk 335.62 kB（gzip 99.90 kB）。Service Worker事前キャッシュは59 assetsでMQTT chunkを除外 |
 | `rtk npm run build:api` | 成功 | `mqtt`／`ws`を含むAPI bundle生成 |
 | `rtk npm run build:collectors` | 成功 | collector bundle生成 |
-| `rtk npm test -- --run tests/unit/offline-build.test.ts tests/unit/usage-delivery.test.ts tests/unit/usage-stream.test.ts tests/unit/mqtt-credentials.test.ts tests/integration/mqtt-gateway.test.ts` | 成功 | 5 files、32 tests passed。Service WorkerのMQTT chunk除外、表示状態に基づくrevision、資格情報ファイル権限、旧状態のrevision 0 metadata、heartbeat status順序、publisherのoffline単独再接続、PUBACK timeout、LWT、gatewayの認証・Origin・subprotocol・双方向転送・接続数上限・実ソケットupgrade拒否cleanupを含む |
+| `rtk npm test -- --run tests/unit/mqtt-credentials.test.ts tests/unit/offline-build.test.ts tests/unit/usage-delivery.test.ts tests/unit/usage-stream.test.ts tests/integration/mqtt-gateway.test.ts tests/unit/usage.test.ts tests/unit/usage-replay.test.ts tests/unit/opencode-go-ingestion.test.ts` | 成功 | 8 files、54 tests passed。Service WorkerのMQTT chunk除外、表示状態に基づくrevision、資格情報ファイル権限と不備時のHTTP継続、同revision再送抑止、旧状態のrevision 0 metadata、heartbeat status順序、publisherのoffline単独再接続、PUBACK timeout、LWT、gatewayの認証・Origin・subprotocol・双方向転送・接続数上限・実ソケットupgrade拒否cleanupを含む |
 | `rtk git diff --check` | 成功 | 空白エラーなし |
 
 ### 2.2 全体テストの失敗
 
-全体テストは実行環境によって結果が異なる。今回の確認では権限制約なしで `rtk npm test` を実行し、676件中34件失敗を観測した。失敗は既存のweather／RSS／chime系で、MQTT focused testの失敗は無い。sandbox内の再実行では子プロセス起動・TCP listenのEPERMが追加されるため、以下は権限制約なしの結果を採用する。
+全体テストは実行環境によって結果が異なる。今回の確認では権限制約なしで `rtk npm test` を実行し、679件中34件失敗を観測した。失敗は既存のweather／RSS／chime系で、MQTT focused testの失敗は無い。sandbox内の再実行では子プロセス起動・TCP listenのEPERMが追加されるため、以下は権限制約なしの結果を採用する。
 
 | 実行環境 | 結果 | 内訳 |
 | --- | --- | --- |
-| 今回の確認環境（権限制約なしの `rtk npm test`） | 676件中34件失敗（8ファイル、642 passed） | RSS関連（jsdomの `window.matchMedia` 不足など）、weather catalog、weather settings API、weather status、card、chime。MQTT focused testは成功 |
+| 今回の確認環境（権限制約なしの `rtk npm test`） | 679件中34件失敗（8ファイル、645 passed） | RSS関連（jsdomの `window.matchMedia` 不足など）、weather catalog、weather settings API、weather status、card、chime。MQTT focused testは成功 |
 | focused test追加前の通常環境比較記録 | 652件中34件失敗（8ファイル） | RSS関連、weather catalog、weather settings API、weather status、card、chime。focused test追加後の同条件比較は未実施 |
 
-focused test追加前の34件は、HEAD `07cc993` のクリーンなworktree（`git worktree` + 同じ `node_modules`）でも同じ8ファイル・34件が失敗したという比較記録がある。今回の環境ではその比較を再実行していないため、ここでは過去の証拠として扱う。全体テストの成功をMQTT実装の正しさの根拠にもしない。今回のMQTT固有focused testは32件である。
+focused test追加前の34件は、HEAD `07cc993` のクリーンなworktree（`git worktree` + 同じ `node_modules`）でも同じ8ファイル・34件が失敗したという比較記録がある。今回の環境ではその比較を再実行していないため、ここでは過去の証拠として扱う。全体テストの成功をMQTT実装の正しさの根拠にもしない。今回のMQTT固有focused testは54件である。
 
 ## 3. 計画との対応
 
@@ -387,3 +387,62 @@ Phase 0の入口・認証・使用ポートの一部は確認できたが、brok
 ### 17.3 判定
 
 §16の記述は実測と一致し、11.2-5は解決とする。17.2-1は有効化前に方針を決める。§10.3の未完了項目（実broker、ACL、Serve、Fire実機、長時間試験）により、本番配備判定は引き続き **不可**。
+
+## 18. 第8回再監査 — §17の指摘対応（2026-10-15）
+
+§17.2で残った3点を実装・試験し、監査本文を現行コードへ更新した。
+
+### 18.1 MQTT資格情報不備時の起動分離
+
+- `loadMqttPublisherOptions` が資格情報ファイルを検証し、欠落・権限不備・JSON不正時はpublisher設定を`undefined`として返す。
+- `prepareServer` はその場合もgatewayとHTTP APIを起動し、`Fire Dashboard MQTT publisher disabled: <分類コード>` の1行だけをstderrへ出す。資格情報の値や接続文字列は出力しない。
+- `mqtt-credentials.test.ts` で資格情報欠落時にpublisherを無効化することを確認した。HTTP収集の継続は同テストの設定経路と既存API試験で確認し、実systemd再起動は未実施である。
+
+### 18.2 設定例の汎用化
+
+- `services/aggregator/config.example.json` の資格情報パスを個人ホームディレクトリから`/etc/fire-dashboard/mqtt-credentials.json`へ変更した。
+- 実環境のパス、所有者、modeはGMKtecへ配備するときに確定する。本作業では資格情報ファイルを作成・読取していない。
+
+### 18.3 同revision再publishの抑止
+
+- usage POST前後の保存済みrevisionを比較し、revisionが変化した場合だけ`usagePublisher.notify()`を呼ぶ。
+- 表示を変えないaccepted／duplicateでは同じstateをretained更新しない。表示中duplicateなどrevisionが進む受信は従来どおり通知する。
+- `usage-delivery.test.ts` に表示revisionが変わらないaccepted受信でnotifyしない試験を追加した。
+
+### 18.4 検証結果と判定
+
+| 検証 | 結果 |
+| --- | --- |
+| §17対応focused test | 8 files、54 tests passed |
+| `npm run typecheck` | 成功 |
+| `npm run build`／`npm run build:api` | 成功 |
+| 全体test | 679件中645 passed、34件失敗。既存weather／RSS／chime系でMQTT失敗なし |
+| 実broker、Mosquitto ACL、Tailscale Serve、Fire実機、24／72時間試験 | 未完了 |
+
+§17.2のコード・設定例上の指摘は解消した。実環境の資格情報配置と外部依存の受入証拠が無いため、本番配備判定は引き続き **不可** とする。
+
+## 19. 第9回再監査 — §18の独立確認（2026-10-15）
+
+§18で変わった `start.ts`、`server.ts`、`config.example.json`、`docs/deployment.md` と関連試験を読み、修正者とは別に検証を再実行した。
+
+| 検証 | 結果 |
+| --- | --- |
+| focused test＋既存usage試験（mqtt-credentials／offline-build／usage-delivery／usage-stream／mqtt-gateway／usage／usage-replay／opencode-go-ingestion） | 8 files、54 tests passed |
+| `npm run typecheck`／`npm run build:api` | 成功 |
+
+### 19.1 解決を確認した点（17.2）
+
+1. 資格情報の不備: `loadMqttPublisherOptions` が例外を受け止め、publisherだけを無効化して、資格情報を含まない分類コード（`mqtt_credentials_*`）をstderrへ出す。APIとHTTP usage収集は起動する。試験2件と `deployment.md` に反映済み。計画§5.2と一致する。
+2. 設定例の個人パス: `/etc/fire-dashboard/mqtt-credentials.json` に置き換えた（19.2-1を参照）。
+3. 同一revisionの再送: `server.ts` が受信前後のrevisionを比べ、変化時だけ `notify()` を呼ぶ。revisionは単調増加のため、自身の受信で進めば必ず差が出て、通知漏れは無い。並行受信で余分な通知が1回出得るが、内容が同一のため無害。試験で固定済み。
+
+### 19.2 新規の指摘（いずれも低）
+
+1. **設定例の `/etc/...` がGMKtecのuser層サービスと合わない。** サービスユーザーのファイルを `/etc` 下に作るにはsudoが要り、change-controlの承認対象になる。root所有の0600ではサービスから読めない。設定例はサービスユーザー配下の絶対パスのプレースホルダーとし、配置先は `deployment.md` で説明する。
+2. **読めないファイルが `invalid` に分類される。** `stat` は通るが読めない（他ユーザー所有の0600など、`EACCES`）場合、分類が `mqtt_credentials_invalid` になる。実際は `unavailable`／`permissions` で、障害時の切り分けを誤らせる。
+3. **publisher無効化に気づきにくい。** 通知はstderrの1行だけで、OnFailureは発火しない。gatewayが有効のままだと、端末はheartbeatを受けられず「停止検知」になるだけ。journal監視か、状態を確認する手段を用意する。
+4. **POSTごとに読み込みが2回増える（無視できる程度）。** 受信前後の `store.inspect` により、ファイルStoreでは読み込みが2回増える。現在の約1回/分の受信では問題ない。ingestがrevision変化を返せば不要になる。
+
+### 19.3 判定
+
+§18の記述は実測と一致し、17.2の3件は解決とする。コード上の指摘は低優先のみとなった。§10.3の未完了項目（実broker、ACL、Serve、Fire実機、長時間試験）により、本番配備判定は引き続き **不可**。残りはPhase 0／3以降の実環境作業である。
