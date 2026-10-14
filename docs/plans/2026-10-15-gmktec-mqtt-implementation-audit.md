@@ -293,7 +293,7 @@ Phase 0の入口・認証・使用ポートの一部は確認できたが、brok
 | 不正 `Sec-WebSocket-Version` のupgrade | 400で拒否。上流接続は残らない（§11では1本残留） |
 | クライアント切断後 | 上流接続0本 |
 | focused test | 3 files、22 tests passed |
-| `npm run typecheck`／`npm run build:api` | 成功 |
+| `npm run typecheck`／`npm run build`／`npm run build:api` | 成功 |
 
 コード確認: 下流のupgrade前は `request.raw` と `request.raw.socket` の `close`／`error` で保留upstreamを `terminate` し、成功時は `release` で監視を外して通常の切断処理へ引き渡す。監視は上流の接続確立後に付けるが、それ以前の下流切断は `destroyed` の確認で拾うため、取りこぼしは無い。
 
@@ -558,3 +558,46 @@ Phase 0の入口・認証・使用ポートの一部は確認できたが、brok
 ### 23.3 判定
 
 §22の記述は実測と一致し、21.2-1は解決とする。新たな指摘は観測項目の意味づけに関する低優先3件。§10.3の未完了項目（実broker、ACL、Serve、Fire実機、長時間試験）により、本番配備判定は引き続き **不可**。
+
+## 24. 第14回再監査 — §23対応（2026-10-15）
+
+§23のruntime観測項目に関する3件を修正し、§23と同じfocused test群で独立確認した。
+
+### 24.1 修正を確認した点（23.2）
+
+1. `lastError` に `lastErrorAt` を追加した。`lastError` は起動後に最後に観測したエラー種別、`lastErrorAt` はその発生時刻として意味を明示できる。接続失敗は `connect_error`、publish失敗は `publish_error`、PUBACK期限超過は `ack_timeout` に分類する。
+2. stateとheartbeatの成功時刻を分離した。`lastPublishAt`／`lastPublishRevision` はusage stateのPUBACK成功だけを示し、`lastHeartbeatAt` はheartbeatのPUBACK成功を示す。heartbeatだけが継続してもstate配信時刻は進まない。
+3. broker接続前のMQTT `error` イベントも `connect_error` として記録してから、既存の再接続処理へ進む。`state`／`connected`／`reconnectCount` と併読することで、接続失敗とpublish失敗を区別できる。
+
+### 24.2 検証結果
+
+| 検証 | 結果 |
+| --- | --- |
+| §23対応focused test＋既存usage試験 | 8 files、57 tests passed。state／heartbeat時刻分離、`lastErrorAt`、`connect_error`、再接続を含む |
+| `npm run typecheck`／`npm run build`／`npm run build:api` | 成功 |
+| 全体テスト（権限制約なしの通常シェル） | 682件中648 passed、34件失敗。既存weather／RSS／chime系8ファイルで、MQTT focused testの失敗なし |
+| `git diff --check` | 成功 |
+| 実broker、Mosquitto ACL、Tailscale Serve、systemd、Fire実機、24／72時間試験 | 未完了 |
+
+### 24.3 判定
+
+§23.2の3件は解消した。`mqtt-status.runtime` の時刻とエラー項目は、state配信、heartbeat、接続失敗、publish失敗、ACK timeoutを混同しない意味になった。Prettierの整形差分は既存実装・監査文書に残っており自動整形していない。実broker、ACL、Serve、Fire実機、長時間試験が未完了のため、本番配備判定は引き続き **不可**。
+
+## 25. 第15回再監査 — §24の独立確認（2026-10-15）
+
+§24で変わった `services/aggregator/src/mqtt/publisher.ts`、`docs/deployment.md`、`tests/unit/usage-delivery.test.ts` を読み、修正者とは別に検証を再実行した。導入済みmqtt.js 5.16.1の `build/lib/client.js` も確認した。
+
+| 検証 | 結果 |
+| --- | --- |
+| focused test＋既存usage試験（mqtt-credentials／offline-build／usage-delivery／usage-stream／mqtt-gateway／usage／usage-replay／opencode-go-ingestion） | 8 files、57 tests passed（`lastHeartbeatAt`／`lastErrorAt`／`connect_error` の確認を含む） |
+| `npm run typecheck`／`npm run build:api` | 成功 |
+
+### 25.1 解決を確認した点（23.2）
+
+1. `lastError`: `lastErrorAt` を追加し、種別と時刻を一組で残す。種別は成功後も残るが、時刻と `lastPublishAt` 等を比べれば回復済みかを判断できる。`deployment.md` の「直近エラー種別と時刻」は実装と一致する。
+2. 時刻の対応: `lastPublishAt` はstateのPUBACKだけで更新し、heartbeatは新設の `lastHeartbeatAt` に分けた。`lastPublishAt` と `lastPublishRevision` は同じstateを指し、state配信が止まればheartbeatが続いても `lastPublishAt` は進まない。
+3. 接続失敗: 接続前の `error` を `connect_error` として記録する。mqtt.js 5.16.1の `streamErrorHandler` は `code` を持つソケットエラー（`ECONNREFUSED` など）も `error` として通知するため、broker停止と認証失敗（CONNACKエラー）の両方が記録される。`error` で切り離した後の `close` は別接続のイベントとして無視され、再接続の予約は `reconnectTimer` により一つに保たれる。
+
+### 25.2 判定
+
+§24の記述は実測と一致し、23.2の3件は解決とする。新規の指摘は無く、コード上の監査指摘はすべて解決した。§10.3の未完了項目（実broker、ACL、Serve、Fire実機、長時間試験）により、本番配備判定は引き続き **不可**。残りはPhase 0／3以降の実環境作業である。
