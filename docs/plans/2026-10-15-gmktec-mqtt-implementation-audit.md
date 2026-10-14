@@ -928,3 +928,26 @@ Start URL保持は確認済みとする。最終配備判定は次の残タス�
 1. 24／72時間連続運転で `mqtt-status` の接続状態、PUBACK時刻、Fire footer、API healthを定点記録する。
 2. 2台以上の表示端末を同時に `?usageMqtt=1` で接続し、gateway接続数・broker負荷・revision収束を確認する。
 3. 実ネットワーク負荷を含む長時間安定性を確認する。
+
+## 34. 第24回再監査 — 72時間観測開始と並行reader試験（2026-10-15）
+
+§33.3の残タスクを進め、Fire実機を含むruntime観測を開始した。観測プロセスはセッション `20454`、
+5分間隔、72時間上限で、`/tmp/fire-dashboard-mqtt-observations-20261015.jsonl` に追記する。
+各サンプルはFire WebView同一オリジンから取得し、URL、MQTT footer、Service Worker controller、
+`mqtt-status`、healthを同じ時点で記録する。開始直後の有効なサンプルは次のとおりである。
+
+| 確認 | 実測結果 |
+| --- | --- |
+| Fire URL | `https://gmktec.taila8b10.ts.net:8444/?usageMqtt=1` |
+| Fire footer / Service Worker | `MQTT 接続済み`、controllerは `https://gmktec.taila8b10.ts.net:8444/sw.js` |
+| `mqtt-status` | `state=connected`、`connected=true`、`deliveryStatus=ok`、`currentRevision=110`、`reconnectCount=0`、エラーなし |
+| API health | `{"status":"ok","schemaVersion":1}` |
+
+同時接続の確認として、母艦から2つのraw MQTT readerをServe経由で並行接続し、CONNECT、SUBSCRIBE、
+retained state受信まで行った。reader A/Bともに接続成功、同じ`streamId`、revision `114`、payload
+2999 bytesを受信し、revision／streamの一致を確認した。これはgatewayの複数接続・revision収束を示す
+補助試験であり、物理的な表示端末2台の同時試験ではない。
+
+最終配備判定は引き続き **保留** とする。72時間観測が24時間・72時間の各基準を満たすまで待機し、
+別の物理表示端末を用意できた時点で同じreader収束試験を実端末2台でも行う。実ネットワーク負荷を
+含む長時間安定性も観測ログで判定する。
