@@ -1322,3 +1322,21 @@ retained stateを受信してから20秒間隔のPINGへ2回応答を受けた�
 
 同一母艦からのreader負荷は再現できたが、物理的な複数表示端末の代替にはならない。24／72時間連続運転、
 複数物理端末、GMKtec全体再起動試験は未完了のため、最終配備判定は **保留** とする。
+
+## 52. 第42回再監査 — コミット済みHEADからのartifact再生成（2026-10-15）
+
+本番artifactが未コミット作業ツリー由来という§31.3-4の残指摘を確認するため、コミット済みHEAD
+`026e1d112295664607cbe90f2acb9d4ed3e0bdaa`から `npm run build:api` と `npm run build` を再実行した。
+両buildは成功し、生成後のSHA256は§31.2の記録と一致した。
+
+| artifact | 生成後SHA256 | §31.2との一致 |
+| --- | --- | --- |
+| `dist/aggregator/start.mjs` | `2010671506a2358c0a3435ef005157ab9309a944c26bbeb27a843e9a6ad1003d` | 一致 |
+| `apps/dashboard/dist/index.html` | `478f206a199369973135d86e0f51b24aaff5ad5cd2248984d24e6ef8d642c6f4` | 一致 |
+| `apps/dashboard/dist/assets/index-DJEd_oPD.js` | `81b31b857a9fbd4e56ebc441dea9d2f65331e2e1f33cf9266e82dfe8087fcbe4` | 一致 |
+| `apps/dashboard/dist/assets/mqtt.esm-B8uQR_Hq.js` | `3c1e32d61041d718fe3d6fbf25024204ffef1ebba39e3d080080935b17651cba` | 一致 |
+
+稼働中APIのcmdlineは `/usr/bin/node dist/aggregator/start.mjs`、API unitは`active/running`かつ
+`NRestarts=0`である。これによりartifactのソースcommit固定と再生成同一性は確認できた。buildは
+artifactを再生成しただけで、GMKtecサービスの再起動・配備切替は行っていない。物理複数端末、24／72時間、
+GMKtec全体再起動の残条件は継続するため、最終配備判定は **保留** とする。
