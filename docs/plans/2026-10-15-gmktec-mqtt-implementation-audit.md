@@ -1,6 +1,6 @@
 # GMKtec MQTT usage配信 実装監査記録
 
-本書は `docs/plans/2026-10-14-gmktec-mqtt-usage-plan.md` に基づくMQTT実装の監査の正本。対象は作業ツリー上の未コミット実装で、`07cc993` に対する差分（現在のHEADは文書だけのコミット `2eac257`）。
+本書は `docs/plans/2026-10-14-gmktec-mqtt-usage-plan.md` に基づくMQTT実装の監査の正本。対象は作業ツリー上の未コミット実装で、`07cc993` に対する差分。`07cc993` 以降のコミットは文書のみ。
 いつ見るか: MQTT実装のコミット・レビュー前、Phase 2／3の試験を書く前、本番でgateway／publisherを有効化する前。
 関連: 計画 `docs/plans/2026-10-14-gmktec-mqtt-usage-plan.md`、計画監査 `docs/plans/2026-10-15-gmktec-mqtt-usage-plan-audit.md`、配備 `docs/deployment.md`、`gmktec-change-control`、`gmktec-validation-and-evidence`。
 状態: **実装監査完了。ただし本番有効化不可**（2026-10-15、Asia/Tokyo）。
@@ -34,14 +34,14 @@
 
 ### 2.2 全体テストの失敗
 
-全体テストは実行環境によって結果が異なる。
+全体テストは実行環境によって結果が異なる。今回の確認では `rtk proxy npm test` でも子プロセス起動制約が残ったため、47件の結果を直接観測した。34件の結果は、別の通常環境で取得された比較記録として扱う。
 
 | 実行環境 | 結果 | 内訳 |
 | --- | --- | --- |
-| 子プロセスを起動できない環境 | 652件中47件失敗（12ファイル） | 下記34件に加え、offline build／startup／private-audio／collectorの試験が子プロセス起動の `EPERM` で失敗。実行環境の制約によるもの |
-| 通常のシェル | 652件中34件失敗（8ファイル） | RSS関連（jsdomの `window.matchMedia` 不足など）、weather catalog、weather settings API、weather status、card、chime |
+| 今回の確認環境（`rtk proxy npm test`） | 652件中47件失敗（12ファイル） | RSS関連（jsdomの `window.matchMedia` 不足など）、weather catalog、weather settings API、weather status、card、chimeに加え、offline build／startup／private-audio／collectorの子プロセス起動 `EPERM` |
+| 別の通常環境での比較記録 | 652件中34件失敗（8ファイル） | RSS関連、weather catalog、weather settings API、weather status、card、chime。今回の環境では再現未確認 |
 
-通常のシェルで失敗した34件は、HEAD `07cc993` のクリーンなworktree（`git worktree` + 同じ `node_modules`）でも同じ8ファイル・34件が失敗した。したがって、これはMQTT変更による退行ではない。一方、全体テストの成功をMQTT実装の正しさの根拠にもしない。MQTT固有のfocused testは3件だけである。
+別の通常環境で失敗した34件は、HEAD `07cc993` のクリーンなworktree（`git worktree` + 同じ `node_modules`）でも同じ8ファイル・34件が失敗したという比較記録がある。今回の環境ではその比較を再実行していないため、ここでは過去の証拠として扱う。全体テストの成功をMQTT実装の正しさの根拠にもしない。MQTT固有のfocused testは3件だけである。
 
 ## 3. 計画との対応
 
