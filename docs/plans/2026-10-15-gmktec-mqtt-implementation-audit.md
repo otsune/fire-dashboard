@@ -1203,3 +1203,19 @@ Claude計測の本番設定値に依存する `sourceAlias=gmktec` を汎用値�
 
 このテストはGMKtec aliasの取り違えを将来のcollector変更で検出する。24／72時間の実機観測は別の受入条件で
 あり、最終配備判定は引き続き **保留** とする。
+
+## 45. 第35回再監査 — Claude sender unitの実効設定確認（2026-10-15）
+
+GMKtecのuser systemd managerから、Claude senderのunit定義と解決済み実行状態を読み取った。資格情報ファイルの
+値は取得していない。
+
+| 確認 | 実測結果 |
+| --- | --- |
+| snapshot入力 | `FIRE_SNAPSHOT_PATHS=%h/.local/state/fire-dashboard/claude-snapshot.json` |
+| 送信先 | `FIRE_ENDPOINT=https://gmktec.taila8b10.ts.net:8444/api/v1/usage` |
+| 実行 | `/usr/bin/node dist/collectors/send-snapshot.mjs`、`Restart=on-failure`、`RestartSec=30` |
+| unit状態 | `fire-dashboard-claude-sender.service` は `active/running`、PID `704040`、`NRestarts=0` |
+| snapshot | 外側・payloadとも`sourceAlias=gmktec`、sequence `3`、provider `claude`、status `ok` |
+
+unitの設定値、実行コマンド、稼働状態、snapshotの内容が同時に一致しており、GMKtec上のsender経路が設定上も
+実行上も確認できた。24／72時間連続試験、全体再起動試験は別の残条件であり、最終判定は **保留** とする。
