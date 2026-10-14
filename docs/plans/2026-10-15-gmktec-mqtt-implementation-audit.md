@@ -24,19 +24,19 @@
 | `rtk npm run build` | 成功 | Vite build完了。本体JS 374.31 kB（gzip 115.60 kB）、mqtt chunk 335.62 kB（gzip 99.90 kB）。Service Worker事前キャッシュは59 assetsでMQTT chunkを除外 |
 | `rtk npm run build:api` | 成功 | `mqtt`／`ws`を含むAPI bundle生成 |
 | `rtk npm run build:collectors` | 成功 | collector bundle生成 |
-| `rtk npm test -- --run tests/unit/offline-build.test.ts tests/unit/usage-delivery.test.ts tests/unit/usage-stream.test.ts tests/integration/mqtt-gateway.test.ts` | 成功 | 4 files、28 tests passed。Service WorkerのMQTT chunk除外、旧状態のrevision 0 metadata、heartbeat status順序、publisherのoffline単独再接続、PUBACK timeout、LWT、gatewayの認証・Origin・subprotocol・双方向転送・実ソケットupgrade拒否cleanupを含む |
+| `rtk npm test -- --run tests/unit/offline-build.test.ts tests/unit/usage-delivery.test.ts tests/unit/usage-stream.test.ts tests/unit/mqtt-credentials.test.ts tests/integration/mqtt-gateway.test.ts` | 成功 | 5 files、32 tests passed。Service WorkerのMQTT chunk除外、表示状態に基づくrevision、資格情報ファイル権限、旧状態のrevision 0 metadata、heartbeat status順序、publisherのoffline単独再接続、PUBACK timeout、LWT、gatewayの認証・Origin・subprotocol・双方向転送・接続数上限・実ソケットupgrade拒否cleanupを含む |
 | `rtk git diff --check` | 成功 | 空白エラーなし |
 
 ### 2.2 全体テストの失敗
 
-全体テストは実行環境によって結果が異なる。今回の確認では `rtk npm test` で子プロセス起動制約が残ったため、現在の670件中47件失敗を直接観測した。34件の結果は、focused testを追加する前の別の通常環境で取得された比較記録として扱う。
+全体テストは実行環境によって結果が異なる。今回の確認では権限制約なしで `rtk npm test` を実行し、676件中34件失敗を観測した。失敗は既存のweather／RSS／chime系で、MQTT focused testの失敗は無い。sandbox内の再実行では子プロセス起動・TCP listenのEPERMが追加されるため、以下は権限制約なしの結果を採用する。
 
 | 実行環境 | 結果 | 内訳 |
 | --- | --- | --- |
-| 今回の確認環境（`rtk npm test`） | 670件中47件失敗（12ファイル、623 passed） | RSS関連（jsdomの `window.matchMedia` 不足など）、weather catalog、weather settings API、weather status、card、chimeに加え、offline build／startup／private-audio／collectorの子プロセス起動 `EPERM` |
+| 今回の確認環境（権限制約なしの `rtk npm test`） | 676件中34件失敗（8ファイル、642 passed） | RSS関連（jsdomの `window.matchMedia` 不足など）、weather catalog、weather settings API、weather status、card、chime。MQTT focused testは成功 |
 | focused test追加前の通常環境比較記録 | 652件中34件失敗（8ファイル） | RSS関連、weather catalog、weather settings API、weather status、card、chime。focused test追加後の同条件比較は未実施 |
 
-focused test追加前の34件は、HEAD `07cc993` のクリーンなworktree（`git worktree` + 同じ `node_modules`）でも同じ8ファイル・34件が失敗したという比較記録がある。今回の環境ではその比較を再実行していないため、ここでは過去の証拠として扱う。全体テストの成功をMQTT実装の正しさの根拠にもしない。今回のMQTT固有focused testは28件である。
+focused test追加前の34件は、HEAD `07cc993` のクリーンなworktree（`git worktree` + 同じ `node_modules`）でも同じ8ファイル・34件が失敗したという比較記録がある。今回の環境ではその比較を再実行していないため、ここでは過去の証拠として扱う。全体テストの成功をMQTT実装の正しさの根拠にもしない。今回のMQTT固有focused testは32件である。
 
 ## 3. 計画との対応
 
@@ -44,7 +44,7 @@ focused test追加前の34件は、HEAD `07cc993` のクリーンなworktree（`
 | --- | --- | --- |
 | Phase 1 契約・保存・順序 | `packages/contracts/src/usage-delivery.ts`、`store.ts`、`usage/ingest.ts` | 部分完了。基本契約とrevisionはあるが、旧状態移行・サイズ境界・バックアップ復元の受け入れ試験がない |
 | Phase 2 publisher | `services/aggregator/src/mqtt/publisher.ts` | 部分完了。QoS 1、retain、LWT、heartbeat、ACK期限、coalesce、offline単独時の再接続をfocused testで確認。brokerを用いた試験がない |
-| Phase 3 WSS認証・ACL | `services/aggregator/src/mqtt/gateway.ts`、`server.ts` | 部分完了。認証・Origin・subprotocol・上流確認・双方向転送・上流拒否・接続寿命を`injectWS`＋注入上流で確認。実Serve、Mosquitto ACL、実ネットワーク接続数制限は未確認 |
+| Phase 3 WSS認証・ACL | `services/aggregator/src/mqtt/gateway.ts`、`server.ts` | 部分完了。認証・Origin・subprotocol・上流確認・双方向転送・上流拒否・接続寿命・設定可能な接続数上限を`injectWS`＋注入上流で確認。実Serve、Mosquitto ACL、実ネットワークでの資源挙動は未確認 |
 | Phase 4 表示端末 | `usage-state.ts`、`usage-stream.ts`、`cache.ts`、`App.tsx` | 部分完了。端末単位の有効化、共通reducer、HTTP fallback、heartbeat照合は実装。Fire WebView、SW更新、実機到着順は未検証 |
 | Phase 5 GMKtec段階導入 | 外部設定 | 未着手。broker、Serve、systemd、Fire設定を変更していない |
 | Phase 6 常設運用 | 運用・長時間試験 | 未着手。24／72時間試験、負荷、復旧、台帳更新なし |
@@ -57,11 +57,9 @@ focused test追加前の34件は、HEAD `07cc993` のクリーンなworktree（`
 - `compareUsageRevision` は同一streamだけを比較し、異なるstreamは `null` を返す。
 - provider重複、revisionの先頭ゼロ、heartbeat／availabilityの時刻・instanceIdをZodで検証する。
 - `Store` は `streamId`、`usageRevision`、`usagePublishedAt` を状態ファイルへ保存し、atomic renameを使う。
-- `ingestUsage` は accepted／duplicateでrevisionを進め、olderでは進めない。`store.inspect` により保存確定状態からpublisherが値を読む。
+- `ingestUsage` は表示用usageが変化する accepted／duplicateでrevisionを進め、表示に反映されない受信やolderでは進めない。表示中のduplicateはreceivedAtが変わるため対象になる。`store.inspect` により保存確定状態からpublisherが値を読む。
 
 旧状態ファイルに `streamId` もdelivery metadataもない場合のIDは、最初の保存までStoreインスタンス内で保持し、保存後は状態ファイルへ永続化するよう修正した。移行前ファイルの読み出し安定性をfocused testで確認している。
-
-また、表示値が実際には変わらない非表示sourceの受信でもrevisionを進める。計画の「表示用状態が変化する保存で増やす」と実装の挙動をどちらかへ統一する必要がある。
 
 ### 4.2 publisher
 
@@ -126,10 +124,10 @@ focused test追加前の34件は、HEAD `07cc993` のクリーンなworktree（`
 
 - `configSchema` はpublisherとgatewayを独立した `enabled` で制御し、既定値は双方false。
 - publisher／gatewayの接続先はloopback URLに限定する。
-- publisher資格情報は `FIRE_MQTT_USERNAME`／`FIRE_MQTT_PASSWORD` をサーバー側だけで読む。ブラウザーへ渡していない。
+- publisher資格情報は `mqtt.credentialsFile` のowner-only JSONファイルからサーバー側だけで読む。ブラウザーへ渡していない。
 - 変更された設定例と依存追加はリポジトリ内にある。
 
-`docs/deployment.md` のpublisher／gateway独立制御の説明は実装に合わせて修正した。資格情報の配置、gateway接続数制限、listener別ACLは引き続き本番配備時の確認項目であり、コードだけでは受け入れ済みとしない。
+`docs/deployment.md` のpublisher／gateway独立制御、資格情報ファイル、gateway接続数上限の説明は実装に合わせて修正した。listener別ACLは引き続き本番配備時の確認項目であり、コードだけでは受け入れ済みとしない。
 
 ## 5. セキュリティ・公開範囲監査
 
@@ -138,7 +136,7 @@ focused test追加前の34件は、HEAD `07cc993` のクリーンなworktree（`
 - reader認証は既存Fastify onRequestを経由する。
 - Originは欠落も拒否し、許可済みOriginとの完全一致を要求する。
 - `Sec-WebSocket-Protocol` に `mqtt` がなければ拒否する。
-- publisherのusername／passwordはサーバー環境変数からのみ読む。
+- publisherのusername／passwordはowner-onlyのサーバー資格情報ファイルからのみ読む。
 - MQTT／WSSのURLはloopbackに制限し、ブラウザーへpublisher write credentialを渡さない。
 - payload byte上限をpublisher、gateway、Dashboardで持つ。
 
@@ -147,7 +145,7 @@ focused test追加前の34件は、HEAD `07cc993` のクリーンなworktree（`
 - 外部から送られた偽の `Tailscale-User-Login` をTailscale Serveが上書き・除去すること。既存の `/api` 中継がWebSocket upgradeと認証ヘッダーを転送すること。
 - Mosquittoのwrite listener／read listener分離、ACL、readerのpublish拒否、管理topic拒否。
 - loopback以外からの到達拒否、Fire WebViewのCSP・WSS・subprotocol挙動。
-- gateway接続数制限。異常upgrade時の保留上流cleanupはraw TCP socket監視と実ソケット回帰試験で確認したが、実ネットワークでの資源上限は未確認。
+- gatewayの実ネットワークでの資源上限挙動。コード上の接続数制限と異常upgrade時の保留上流cleanupは確認したが、Serve経路を含む負荷試験は未確認。
 
 これらは本リポジトリの型検査だけでは証明できず、Phase 0／3の開発環境・GMKtec実測・Fire実機試験が必要である。
 
@@ -158,7 +156,7 @@ focused test追加前の34件は、HEAD `07cc993` のクリーンなworktree（`
 - GMKtecのMosquitto／Podman／quadlet。
 - Tailscale Serve、HTTPS入口、listener、ACL。
 - `fire-dashboard-api.service` などのsystemd unit。
-- `FIRE_CONFIG`、`FIRE_MQTT_USERNAME`、`FIRE_MQTT_PASSWORD` の本番値。
+- `FIRE_CONFIG`、`mqtt.credentialsFile` の本番パスや資格情報ファイル。
 - Fireタブレット、Fully Kiosk、他の表示端末。
 - brokerの本番topicやretained message。
 
@@ -188,9 +186,10 @@ focused test追加前の34件は、HEAD `07cc993` のクリーンなworktree（`
 | --- | --- |
 | 実装コードが存在する | 合格 |
 | 型検査・主要buildが通る | 合格（focused修正後に再確認） |
-| 共通契約とrevision順序がある | 部分合格（旧移行安定化を反映） |
+| 共通契約とrevision順序がある | 合格（表示用usage変化時のみ進行、旧移行安定化を反映） |
 | 端末単位のMQTT opt-in・HTTP切り戻しがある | 合格（実機未確認） |
 | gatewayの送信先backpressure・異常upgrade cleanup | コード修正済み。backpressure helper、`injectWS`転送／接続寿命、実TCPソケットのupgrade拒否cleanup試験を実施（実ネットワーク未確認） |
+| gatewayの接続数上限・切断後の枠再利用 | コード修正済み。既定8／最大256、upgrade前の503拒否とfocused integration testを実施（Serve負荷未確認） |
 | publisherの再接続offline・too_large pending処理 | コード修正済み。focused test実施（broker試験未実施） |
 | publisherのQoS／LWT／再接続がbrokerで実証された | 未実施 |
 | gatewayの認証・ACL・公開範囲が実機で実証された | 未実施 |
@@ -257,7 +256,7 @@ Phase 0の入口・認証・使用ポートの一部は確認できたが、brok
 2. **【解決】HTTP専用端末のmqtt chunk事前取得。** `scripts/build-sw.mjs` で`/assets/mqtt...`をService Workerの事前キャッシュから除外した。`offline-build.test.ts` で生成結果にMQTT chunkが含まれないことを確認した。MQTT opt-in端末はオンライン時のdynamic importで取得する。
 3. **【解決】配備直後に試験端末のMQTTが止まり得る問題。** 旧状態ファイルまたは未作成状態でもStoreがrevision `0`、安定したstreamId、生成時刻のmetadataを返すようにした。`usage-delivery.test.ts` で複数readのmetadata安定性を確認した。metadata自体は最初のusage書き込みまで状態ファイルへ永続化されないため、プロセス再起動前のstreamId安定性はStoreインスタンス内の保証である。
 4. **【解決】状態表示のheartbeat status上書き。** `usage-stream.ts` は通常heartbeatの`connected`通知を`onHeartbeat`より先に行うようにし、heartbeat callbackが`error`へ変更した状態を後続通知で上書きしない。`usage-stream.test.ts` で通知順序を固定した。
-5. **【低】前回から残る点。** 表示が変わらない受信でもrevisionが進む。publisherの秘密を環境変数から読む（計画§9.3は権限を絞ったファイル）。gatewayに接続数制限が無い。これらはbroker／運用導入時の設計判断・設定課題として残す。
+5. **【低】前回から残る点。** 表示が変わらない受信でrevisionを進める挙動、publisher秘密の配置、gateway接続数制限。これらは§16で実装・試験済みとし、実broker／運用導入時の確認は残す。
 
 ### 11.3 判定
 
@@ -308,7 +307,7 @@ Phase 0の入口・認証・使用ポートの一部は確認できたが、brok
 | 旧状態／revision `0` | `createFileStore` が旧状態・未作成状態へ安定したstreamIdとrevision `0` metadataを提供 | `usage-delivery.test.ts` 移行試験を含む |
 | heartbeat status | 通常heartbeatの`connected`通知をcallback前へ移動 | `usage-stream.test.ts` 通知順序試験 |
 
-関連する focused test は `offline-build`、`usage-delivery`、`usage-stream`、`mqtt-gateway` の4 files、28 testsが成功した。型検査・buildの再確認後も、本番配備判定は実broker／ACL、Serve、Fire実機、長時間試験が未完了のため **不可** とする。残る低優先課題は§11.2-5（revision採番方針、資格情報の配置、gateway接続数制限）である。
+関連する focused test は `offline-build`、`usage-delivery`、`usage-stream`、`mqtt-gateway` の4 files、28 testsが成功した。型検査・buildの再確認後も、本番配備判定は実broker／ACL、Serve、Fire実機、長時間試験が未完了のため **不可** とする。残る低優先課題は§11.2-5だったが、実装課題は§16で対応した。
 
 ## 15. 第5回再監査 — §14の独立確認（2026-10-15）
 
@@ -327,4 +326,64 @@ Phase 0の入口・認証・使用ポートの一部は確認できたが、brok
 - Storeは旧状態・未作成状態でもrevision `0` のmetadataを返し、streamIdと時刻はプロセス内で固定する。最初の保存前にプロセスが再起動するとstreamIdは変わるが、端末は認証済みHTTPで新系列へ切り替えるため問題ない。
 - `usage-stream.ts` は通常heartbeatの `connected` 通知を `onHeartbeat` より前に行う。Appが設定した `error` は上書きされない。
 
-判定: §14の記述は実測と一致し、11.2-2〜4は解決とする。新規の指摘は無い。11.2-5（表示が変わらない受信でのrevision進行、publisher秘密の環境変数読み込み、gateway接続数制限）は残る。§10.3の未完了項目（実broker、ACL、Serve、Fire実機、長時間試験）により、本番配備判定は引き続き **不可**。
+判定: §14の記述は実測と一致し、11.2-2〜4は解決とする。新規の重要指摘は無い。11.2-5の実装課題は§16で解決した。§10.3の未完了項目（実broker、ACL、Serve、Fire実機、長時間試験）により、本番配備判定は引き続き **不可**。
+
+## 16. 第6回再監査 — 残りのコード課題（2026-10-15）
+
+§15で残っていた実装可能な3課題を、計画の明記に合わせて修正した。
+
+### 16.1 revision採番
+
+- `ingestUsage` は保存された`usageValues`のうち、表示中の`dashboard.usage`が変化した場合だけ`usageRevision`と`publishedAt`を更新する。
+- 表示中sourceのduplicateは`receivedAt`が変わるためrevision対象である。別sourceのacceptedが表示選択を変えない場合は、sourceの履歴・受信時刻だけを保存し、revisionを進めない。
+- `usage-delivery.test.ts` に、表示中sourceのduplicateと非表示sourceのacceptedを分けて確認する試験を追加した。
+
+### 16.2 publisher資格情報
+
+- `services/aggregator/src/mqtt/credentials.ts` を追加し、`mqtt.credentialsFile` のJSONを読み込む。
+- MQTT publisher有効時は資格情報ファイルを必須とし、通常ファイルかつgroup／otherのPOSIX権限ビットが無いことを検査する。内容はログへ出さない。
+- `FIRE_MQTT_USERNAME`／`FIRE_MQTT_PASSWORD` はpublisher設定経路から削除した。実環境の資格情報ファイルはこの作業では作成・読取していない。
+- `mqtt-credentials.test.ts` でowner-onlyファイルの読取と`0640`拒否を確認した。
+
+### 16.3 gateway接続数
+
+- `gateway.maxConnections` を追加し、既定8、最大256とした。予約中のupstreamも接続枠として数えるため、upstream接続待ちの並列upgradeで上限を迂回できない。
+- 上限到達時はupgrade前に503と`Retry-After: 5`を返し、下流・上流のclose／errorまたはupstream接続失敗で枠を解放する。
+- `mqtt-gateway.test.ts` で上限拒否と切断後の枠再利用を確認した。実Serve・Mosquitto経路の同時接続負荷は未確認である。
+
+### 16.4 検証結果と判定
+
+| 検証 | 結果 |
+| --- | --- |
+| revision／資格情報／gateway上限 focused test | 成功（追加分を含む） |
+| `npm run typecheck` | 成功 |
+| offline-build／実TCPソケット試験 | この環境では子プロセス／TCP listen制限により再実行時の失敗あり。既存の成功記録は§15・§13を参照 |
+| 実broker、Mosquitto ACL、Tailscale Serve、Fire実機、24／72時間試験 | 未完了 |
+
+コード上の残り3課題は解消したが、外部依存の受入証拠が無いため、本番配備判定は引き続き **不可** とする。
+
+## 17. 第7回再監査 — §16の独立確認（2026-10-15）
+
+§16で変わった `mqtt/credentials.ts`、`config.ts`、`start.ts`、`usage/ingest.ts`、`mqtt/gateway.ts`、`config.example.json`、`docs/deployment.md` と関連試験を読み、修正者とは別に検証を再実行した。
+
+| 検証 | 結果 |
+| --- | --- |
+| focused test＋既存usage試験（mqtt-credentials／offline-build／usage-delivery／usage-stream／mqtt-gateway／usage／usage-replay／opencode-go-ingestion） | 8 files、51 tests passed |
+| `npm run typecheck`／`npm run build:api` | 成功 |
+| 実ソケット試験（§11と同じ手順） | 正常接続は双方向転送、不正upgrade後に上流残留なし、切断後の上流0本 |
+
+### 17.1 解決を確認した点（11.2-5）
+
+- 資格情報ファイル: `readMqttCredentials` は通常ファイル・owner-only（`mode & 0o077 === 0`）・厳格なJSON形式を検証し、エラー内容をログに出さない。計画§9.3に沿う。
+- revision: 表示中のusageが変わった場合だけ進める。表示を変えない早期returnでは進めず、表示中sourceの重複受信で `receivedAt` が変わる場合は進む。計画§7.1と一致する。
+- gateway接続数: 既定8・最大256、上限で503と `retry-after: 5`。確保した枠は、上流接続失敗、upgrade失敗（`dispose` → `onDisposed`）、上流なし、通常切断（`closeBoth`）のいずれでも一度だけ解放される。
+
+### 17.2 新規の指摘
+
+1. **【低〜中】資格情報ファイルの不備でHTTPS API全体が起動しない。** `prepareServer` 内の `readMqttCredentials` が例外を出すと `main` が終了コード1で終わる。ファイル欠落・0640などの権限・JSON不正のいずれでも、ダッシュボードAPIと収集受付が止まり、systemdが再起動を繰り返す。計画§5.2「MQTT停止によってusage受信APIを失敗させない」と食い違う。publisherだけ無効化して分類ログを出し起動を続けるか、fail-fastを意図した仕様として `deployment.md` と計画に明記し、有効化前のファイル確認手順を加える。
+2. **【低】設定例に個人環境の絶対パス。** `config.example.json` の `credentialsFile` が `/home/otsune/.config/fire-dashboard/mqtt-credentials.json`。汎用的なパスか説明に置き換える。
+3. **【低】同じrevisionの再送。** `server.ts` は受信が `older` 以外なら毎回 `notify()` を呼ぶため、revisionが進まない受信でも同じrevisionのstateを再publishする。payloadと `publishedAt` は同一で端末は重複として捨てるが、revision変化時だけ通知すればretained更新を減らせる。
+
+### 17.3 判定
+
+§16の記述は実測と一致し、11.2-5は解決とする。17.2-1は有効化前に方針を決める。§10.3の未完了項目（実broker、ACL、Serve、Fire実機、長時間試験）により、本番配備判定は引き続き **不可**。
