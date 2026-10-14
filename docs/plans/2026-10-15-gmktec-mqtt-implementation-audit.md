@@ -1154,3 +1154,22 @@ systemdの読み取り専用属性と、直近のFire同一オリジン観測を
 snapshot、送信サービス、API正本、MQTT、Fire画面の一連の経路は現時点で継続している。これは長期試験の
 中間確認であり、24／72時間連続運転の合格証明には置き換えない。観測セッション `7382`（Claude付き）、
 `20454`（通常Fire）、`79562`（ホスト資源）は停止せず継続する。最終配備判定は引き続き **保留** とする。
+
+## 42. 第32回再監査 — 5分間隔のClaude付きFire観測継続（2026-10-15）
+
+観測セッション `7382` の次の定点サンプルを取得し、§40以降も同じ経路が継続していることを確認した。
+サンプル時刻は `2026-10-14T23:18:24.968Z`（JST 2026-10-15 08:18:24）である。
+
+| 確認 | 実測結果 |
+| --- | --- |
+| Fire URL／Service Worker | `?usageMqtt=1` を保持。controllerは `https://gmktec.taila8b10.ts.net:8444/sw.js` |
+| Fire表示 | MQTT接続済み。切断表示なし |
+| MQTT runtime | `state=connected`、`reconnectCount=0`、`deliveryStatus=ok`、`currentRevision=208`、`lastError=null` |
+| API health | `status=ok`、`schemaVersion=1` |
+| Claude usage | `sourceAlias=gmktec`、capturedAt `2026-10-14T23:08:44.420Z`、5時間枠8%、7日枠27% |
+| 受信時刻 | `receivedAt=2026-10-14T23:17:57.616Z`。前回 `23:12:56.316Z` から更新 |
+| ホスト観測 | `23:17:06.537Z` にAPI／Claude senderとも`active/running`、`NRestarts=0`、snapshot sequence 3 |
+
+前回サンプルから5分間隔でFireの画面、API、MQTT、Claude値が連続して取得でき、state revisionも199から
+208へ進んだ。これは短時間の継続証拠であり、24／72時間試験の代替ではない。観測は継続し、最終判定は
+**保留** とする。
