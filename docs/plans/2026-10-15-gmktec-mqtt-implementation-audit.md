@@ -1134,7 +1134,7 @@ JSONLの有効なサンプルだけを使う。24時間・72時間時点で同�
 
 | 確認 | 実測結果 |
 | --- | --- |
-| Claude collectorテスト | `tests/unit/claude.test.ts` と `tests/unit/send-service.test.ts`、2 files／7 tests passed |
+| Claude collectorテスト | `tests/unit/claude.test.ts` と `tests/unit/send-service.test.ts`、2 files／8 tests passed |
 | 型・shell検査 | `npm run typecheck` 成功、`statusline-command.sh` の `sh -n` 成功、`git diff --check` 成功 |
 | snapshot | `provider=claude`、`status=ok`、`sourceAlias=gmktec`、`sequence=3`、`capturedAt=2026-10-14T23:08:44.420Z` |
 | usage値 | 5時間枠 `8%`（reset `2026-10-15T02:30:00Z`）、7日枠 `27%`（reset `2026-10-18T04:00:00Z`） |
@@ -1188,3 +1188,18 @@ snapshot、送信サービス、API正本、MQTT、Fire画面の一連の経路�
 不合格行を隠さず、通常Fireの初期未確定行を有効サンプルから分離した。現時点の有効サンプルには切断、
 health異常、Claude source逸脱、JSON破損、サービス再起動はない。ただし連続観測の経過時間はまだ24時間
 未満であり、最終判定は引き続き **保留** とする。
+
+## 44. 第34回再監査 — GMKtec source aliasの回帰テスト固定（2026-10-15）
+
+Claude計測の本番設定値に依存する `sourceAlias=gmktec` を汎用値のままにせず、collectorのテストで明示的に
+固定した。`captureClaude` のsnapshot外側とpayload内側の両方が `gmktec` で、providerが `claude` であることを
+検証する。
+
+| 検証 | 結果 |
+| --- | --- |
+| テスト | `tests/unit/claude.test.ts`、`tests/unit/send-service.test.ts`、2 files／8 tests passed |
+| 型検査 | `npm run typecheck` 成功 |
+| 変更 | commit `772e883`、テストのみ。稼働中のAPI／broker／Fire設定は変更していない |
+
+このテストはGMKtec aliasの取り違えを将来のcollector変更で検出する。24／72時間の実機観測は別の受入条件で
+あり、最終配備判定は引き続き **保留** とする。
