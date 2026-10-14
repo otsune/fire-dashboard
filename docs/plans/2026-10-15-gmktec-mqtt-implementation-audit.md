@@ -1250,3 +1250,21 @@ Claude付きFire観測の次の5分間隔サンプルを取得した。観測時
 
 §42のrevision 208から217へ進み、5分継続後もFire・API・MQTT・Claudeの状態は崩れていない。短時間の
 連続性証拠であり、24／72時間判定と全体再起動試験は未完了のため、最終判定は **保留** とする。
+
+## 48. 第38回再監査 — 観測検査器をリポジトリへ固定（2026-10-15）
+
+24／72時間判定を同じ基準で再現できるよう、`scripts/validate-mqtt-observations.mjs` を追加した。Claude、
+通常Fire、ホスト資源のJSONLを引数で受け取り、JSON破損、接続状態、health、Claudeの `sourceAlias`、service
+状態、NIC RX/TXを検査する。Fireのページ遷移直後の未確定行だけは `pageUrl` がありMQTT状態がない場合に限り
+`ignored` として明示し、その他の不完全行は失敗にする。再接続回数は失敗扱いにせず最大値を出力する。
+
+現行ログへの実行結果（2026-10-15 08:24 JST）は次のとおり。
+
+| ログ | 結果 |
+| --- | --- |
+| Claude付きFire | 9/9 accepted、parse error 0、failure 0、`reconnectCountMax=0` |
+| 通常Fire | 11/11 accepted、初期1行をignored、parse error 0、failure 0 |
+| ホスト資源 | 8/8 accepted、parse error 0、failure 0 |
+
+検査器追加はcommit `befe52e`。次の24／72時間判定では同じCLIを使い、判定基準の手作業差をなくす。
+この補助ツールの合格は長期試験そのものの完了を意味しないため、最終判定は **保留** とする。
