@@ -1093,3 +1093,17 @@ RX／TXの双方が非ゼロになったことが正の検証である。API／s
 同一サンプルで取得できた。旧ログの `txBytes=0` はパーサー不具合の証跡として残し、長期比較は修正版
 JSONLの有効なサンプルだけを使う。24時間・72時間時点で同じ項目を再取得し、CPU／メモリ／NIC通信量、
 接続数、Claude値、API health、`reconnectCount`を比較する。最終配備判定は引き続き **保留** とする。
+
+## 39. 第29回再監査 — 観測JSONLの機械検査（2026-10-15）
+
+長期観測ログをJSONとして全行読み込みし、初期ページ遷移などの未確定行と有効な定点サンプルを分けて
+検査した。検査時点の有効範囲はまだ24時間未満である。
+
+| ログ | 件数・範囲 | 機械検査結果 |
+| --- | --- | --- |
+| `/tmp/fire-dashboard-mqtt-claude-observations-20261015.jsonl` | 5行、22:43:24〜23:03:24 UTC | 全行JSON妥当、MQTT `connected`、health `ok`、Claude `status=ok`／`sourceAlias=gmktec`、MQTTエラーなし |
+| `/tmp/fire-dashboard-mqtt-observations-20261015.jsonl` | 9行。先頭22:29:16 UTCはページURLだけの初期行、残り8行は22:29:40〜23:04:40 UTC | 有効8行すべてMQTT `connected`、health `ok`、footer接続済み、MQTTエラーなし。先頭の未確定行は失敗として数えない |
+| `/tmp/fire-dashboard-mqtt-host-observations-20261015-v3.jsonl` | 4行、22:47:06〜23:02:06 UTC | 全行JSON妥当、API／Claude sender `active/running`、`NRestarts=0`、対象NICのTX非ゼロ、Claude `sourceAlias=gmktec` |
+
+この検査は短時間のログ整合性と現在状態を確認するもので、24／72時間の連続運転を代替しない。長期観測の
+最終判定では、有効サンプルの連続性、PUBACK／heartbeat、再接続数、CPU／メモリ／NIC差分を同じ基準で比較する。
