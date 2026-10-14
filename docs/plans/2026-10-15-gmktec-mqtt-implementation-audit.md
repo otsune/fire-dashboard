@@ -1,18 +1,18 @@
 # GMKtec MQTT usage配信 実装監査記録
 
-本書は `docs/plans/2026-10-14-gmktec-mqtt-usage-plan.md` に基づくMQTT実装の監査の正本。対象は作業ツリー上の未コミット実装で、`07cc993` に対する差分。`07cc993` 以降のコミットは文書のみ。
-いつ見るか: MQTT実装のコミット・レビュー前、Phase 2／3の試験を書く前、本番でgateway／publisherを有効化する前。
+本書は `docs/plans/2026-10-14-gmktec-mqtt-usage-plan.md` に基づくMQTT実装の監査の正本。実装ソースは現在も作業ツリー上の未コミット差分（基準 `07cc993`）で、本番artifactはその作業ツリーから生成した。`07cc993` 以降のコミットは文書のみ。
+いつ見るか: MQTT実装の変更・再配備前、Phase 2／3の試験記録、長期運用試験の更新時。
 関連: 計画 `docs/plans/2026-10-14-gmktec-mqtt-usage-plan.md`、計画監査 `docs/plans/2026-10-15-gmktec-mqtt-usage-plan-audit.md`、配備 `docs/deployment.md`、`gmktec-change-control`、`gmktec-validation-and-evidence`。
-状態: **初回監査の必須4件、upgrade拒否時の上流cleanup、revision／資格情報／接続数制限／publisher起動分離／設定・接続状態可視化をコード修正・試験済み。本番有効化不可**（2026-10-15、Asia/Tokyo）。
-範囲: 初回監査はコード・テスト・ビルドのみ。後続の§10／§26／§27でGMKtecの既存Serve入口、Fire実機の読み取り、隔離した一時Mosquitto／gateway統合試験を追加した。本番のMosquitto、gateway、systemd、FireのMQTT設定は変更していない。
+状態: **コード修正・focused test、開発broker、GMKtec本番broker／API／Serve、Fire HD 10の短時間MQTT実機試験まで完了。24／72時間連続運転、Wi-Fi切替、複数端末同時試験は保留**（2026-10-15、Asia/Tokyo）。
+範囲: §10以前は本番反映前の履歴である。§27で隔離broker、§29で本番Mosquitto／API／Serve／Fireを検証し、§31でdigest固定、台帳更新、artifact hashを追記する。本番artifactは未コミット作業ツリー由来で、API artifact SHA256 prefixは `2010671506a2358c`。
 
 ## 1. 結論
 
-契約、永続 `streamId`／`usageRevision`、HTTP／MQTT共通の順序判定、MQTT publisher、reader認証付きWSS gateway、DashboardのHTTPフォールバックという骨格は実装されている。loopback broker URL、UTF-8 payload上限、Origin必須、`mqtt` サブプロトコル、上流のネゴシエーション確認後に下流101を返す順序もコード上は確認できる。
+契約、永続 `streamId`／`usageRevision`、HTTP／MQTT共通の順序判定、MQTT publisher、reader認証付きWSS gateway、DashboardのHTTPフォールバックという骨格は実装されている。loopback broker URL、UTF-8 payload上限、Origin必須、`mqtt` サブプロトコル、上流のネゴシエーション確認後に下流101を返す順序もコードと実WebSocketで確認できる。
 
-初回監査で指摘した端末単位のMQTT無効化、gatewayのbackpressure向き、再接続時のretained `offline`、`too_large` 時の古いpending state、publisherの接続状態可視化はコード修正済みで、今回の修正を含むfocused test 57件が成功している。MQTT opt-in端末だけがchunkを実行時に読み込み、HTTP専用端末のService Worker事前キャッシュからはMQTT chunkを除外した。
+初回監査で指摘した端末単位のMQTT無効化、gatewayのbackpressure向き、再接続時のretained `offline`、`too_large` 時の古いpending state、publisherの接続状態可視化はコード修正済みで、native timerと高速接続raceの修正を含むfocused test 58件が成功している。MQTT opt-in端末だけがchunkを実行時に読み込み、HTTP専用端末のService Worker事前キャッシュからはMQTT chunkを除外した。
 
-隔離した一時Mosquittoと一時APIを使い、publisher、ACL、gateway、MQTT.js reader、LWT、broker停止後の再接続を§27で確認した。残るのは本番Mosquitto／Serve／systemdへの段階配備、Fire HD 10での `?usageMqtt=1` 実機試験、24時間以上の実機試験、実ネットワークでの資源上限と運用証拠である。したがって、開発broker上のPhase 2／3統合試験は受け入れ済みとするが、計画のPhase 4完全受け入れ、Phase 5本番配備済みとは扱わない。
+隔離brokerと本番brokerの双方でpublisher、ACL、gateway、MQTT.js reader、LWT、broker停止後の再接続を確認し、Fire HD 10ではTailscale Serve経由のWSS、CONNECT/CONNACK、SUBSCRIBE、retained state、heartbeat、HTTP fallbackを確認した。本番Mosquittoはdigest固定、台帳は更新済みである。24／72時間連続運転、Wi-Fi切替、Service Worker更新後の長時間安定性、複数表示端末同時試験、実ネットワーク負荷は残っているため、最終配備判定は **保留** とする。
 
 ## 2. 検証結果
 
@@ -21,10 +21,10 @@
 | コマンド | 結果 | 証拠・範囲 |
 | --- | --- | --- |
 | `rtk npm run typecheck` | 成功 | TypeScript型検査完了 |
-| `rtk npm run build` | 成功 | Vite build完了。本体JS 374.31 kB（gzip 115.60 kB）、mqtt chunk 335.62 kB（gzip 99.90 kB）。Service Worker事前キャッシュは59 assetsでMQTT chunkを除外 |
+| `rtk npm run build` | 成功 | Vite build完了。本体JS 374.37 kB（gzip 115.64 kB）、mqtt chunk 335.62 kB（gzip 99.90 kB）。Service Worker事前キャッシュは59 assetsでMQTT chunkを除外 |
 | `rtk npm run build:api` | 成功 | `mqtt`／`ws`を含むAPI bundle生成 |
 | `rtk npm run build:collectors` | 成功 | collector bundle生成 |
-| `rtk npm test -- --run tests/unit/mqtt-credentials.test.ts tests/unit/offline-build.test.ts tests/unit/usage-delivery.test.ts tests/unit/usage-stream.test.ts tests/integration/mqtt-gateway.test.ts tests/unit/usage.test.ts tests/unit/usage-replay.test.ts tests/unit/opencode-go-ingestion.test.ts` | 成功 | 8 files、57 tests passed。Service WorkerのMQTT chunk除外、表示状態に基づくrevision、資格情報ファイル権限と不備時のHTTP継続、資格情報読取権限エラーの分類、publisher状態API、publisher runtime状態（接続・再接続回数・最終publish・エラー・payload超過）、同revision再送抑止、旧状態のrevision 0 metadata、heartbeat status順序、publisherのoffline単独再接続、PUBACK timeout、LWT、gatewayの認証・Origin・subprotocol・双方向転送・接続数上限・実ソケットupgrade拒否cleanupを含む |
+| `rtk npm test -- --run tests/unit/mqtt-credentials.test.ts tests/unit/offline-build.test.ts tests/unit/usage-delivery.test.ts tests/unit/usage-stream.test.ts tests/integration/mqtt-gateway.test.ts tests/unit/usage.test.ts tests/unit/usage-replay.test.ts tests/unit/opencode-go-ingestion.test.ts` | 成功 | 8 files、58 tests passed。Service WorkerのMQTT chunk除外、表示状態に基づくrevision、資格情報ファイル権限と不備時のHTTP継続、資格情報読取権限エラーの分類、publisher状態API、publisher runtime状態（接続・再接続回数・最終publish・エラー・payload超過）、同revision再送抑止、旧状態のrevision 0 metadata、heartbeat status順序、publisherのoffline単独再接続、PUBACK timeout、LWT、gatewayの認証・Origin・subprotocol・双方向転送・接続数上限・実ソケットupgrade拒否cleanup、Fire向けnative timer・高速接続race対策を含む |
 | `rtk git diff --check` | 成功 | 空白エラーなし |
 
 ### 2.2 全体テストの失敗
@@ -36,18 +36,18 @@
 | 今回の確認環境（権限制約なしの `rtk npm test`） | 682件中34件失敗（8ファイル、648 passed） | RSS関連（jsdomの `window.matchMedia` 不足など）、weather catalog、weather settings API、weather status、card、chime。MQTT focused testは成功 |
 | focused test追加前の通常環境比較記録 | 652件中34件失敗（8ファイル） | RSS関連、weather catalog、weather settings API、weather status、card、chime。focused test追加後の同条件比較は未実施 |
 
-focused test追加前の34件は、HEAD `07cc993` のクリーンなworktree（`git worktree` + 同じ `node_modules`）でも同じ8ファイル・34件が失敗したという比較記録がある。今回の環境ではその比較を再実行していないため、ここでは過去の証拠として扱う。全体テストの成功をMQTT実装の正しさの根拠にもしない。今回のMQTT固有focused testは57件である。
+focused test追加前の34件は、HEAD `07cc993` のクリーンなworktree（`git worktree` + 同じ `node_modules`）でも同じ8ファイル・34件が失敗したという比較記録がある。今回の環境ではその比較を再実行していないため、ここでは過去の証拠として扱う。全体テストの成功をMQTT実装の正しさの根拠にもしない。今回のMQTT固有focused testは58件である。
 
 ## 3. 計画との対応
 
 | 計画の領域 | 実装 | 判定 |
 | --- | --- | --- |
 | Phase 1 契約・保存・順序 | `packages/contracts/src/usage-delivery.ts`、`store.ts`、`usage/ingest.ts` | 部分完了。基本契約とrevisionはあるが、旧状態移行・サイズ境界・バックアップ復元の受け入れ試験がない |
-| Phase 2 publisher | `services/aggregator/src/mqtt/publisher.ts` | 開発broker統合まで完了。QoS 1、retain、LWT、heartbeat、ACK期限、coalesce、offline単独時の再接続、`mqtt-status.runtime`をfocused testと一時Mosquittoで確認。本番brokerでの受け入れは未実施 |
-| Phase 3 WSS認証・ACL | `services/aggregator/src/mqtt/gateway.ts`、`server.ts` | 開発broker／一時API統合まで完了。実WebSocketのreader認証、Origin、subprotocol、ACL、上流確認、LWT後の再接続を確認。実Serve、本番listener、実ネットワークでの資源挙動は未確認 |
-| Phase 4 表示端末 | `usage-state.ts`、`usage-stream.ts`、`cache.ts`、`App.tsx` | 部分完了。端末単位の有効化、共通reducer、HTTP fallback、heartbeat照合は実装。Fully KioskのHTTP表示は§26で確認済みだが、MQTT/WSS、SW更新、実機到着順は未検証 |
-| Phase 5 GMKtec段階導入 | 外部設定 | 未着手。broker、Serve、systemd、Fire設定を変更していない |
-| Phase 6 常設運用 | 運用・長時間試験 | 未着手。24／72時間試験、負荷、復旧、台帳更新なし |
+| Phase 2 publisher | `services/aggregator/src/mqtt/publisher.ts` | 本番brokerまで完了。QoS 1、retain、LWT、heartbeat、ACK期限、coalesce、offline単独時の再接続、`mqtt-status.runtime`をfocused test、隔離broker、本番broker停止／復旧で確認 |
+| Phase 3 WSS認証・ACL | `services/aggregator/src/mqtt/gateway.ts`、`server.ts` | 本番Serveまで完了。実WebSocketのreader認証、Origin、subprotocol、ACL、上流確認、拒否時cleanup、loopback公開範囲を確認。実ネットワーク負荷は保留 |
+| Phase 4 表示端末 | `usage-state.ts`、`usage-stream.ts`、`cache.ts`、`App.tsx` | 短時間実機まで完了。Fire HD 10／Fully KioskでWSS、retained state、heartbeat、native timer、HTTP fallbackを確認。Wi-Fi切替、SW更新後の長時間安定性、複数端末同時試験は保留 |
+| Phase 5 GMKtec段階導入 | 外部設定 | 完了。broker、API config／credentials、user service、Serve経路を反映し、Quadletはdigest固定。台帳も更新済み |
+| Phase 6 常設運用 | 運用・長時間試験 | 保留。24／72時間試験、Wi-Fi切替、複数端末、実ネットワーク負荷の証拠待ち |
 
 ## 4. 実装確認
 
@@ -80,7 +80,7 @@ focused test追加前の34件は、HEAD `07cc993` のクリーンなworktree（`
 
 実broker試験で確認した点:
 
-- publisherのfocused testに加え、§27のMosquitto 2.1.2でstate／availabilityのretain、heartbeatの非retain、PUBACK、強制終了時のLWT offline、broker停止後の `connect_error`／再接続／復旧を確認した。本番brokerの同じ証拠は別途取得する。
+- publisherのfocused testに加え、§27のMosquitto 2.1.2と§29の本番brokerでstate／availabilityのretain、heartbeatの非retain、PUBACK、強制終了時のLWT offline、broker停止後の `connect_error`／再接続／復旧を確認した。
 
 ### 4.3 gateway
 
@@ -99,7 +99,7 @@ focused test追加前の34件は、HEAD `07cc993` のクリーンなworktree（`
 
 実broker試験で確認した点:
 
-- `injectWS` と注入上流に加え、§27で実WebSocketの `mqtt` upgrade、gateway経由のretained state、Origin／reader／subprotocol拒否を確認した。実Serve経路、payload上限・backpressure・接続数上限の実ネットワーク負荷は未確認である。
+- `injectWS` と注入上流に加え、§27で実WebSocketの `mqtt` upgrade、gateway経由のretained state、Origin／reader／subprotocol拒否を確認し、§29でTailscale Serve経路をFireから確認した。payload上限・backpressure・接続数上限の実ネットワーク負荷と長時間資源挙動は未確認である。
 
 ### 4.4 Dashboard
 
@@ -115,11 +115,11 @@ focused test追加前の34件は、HEAD `07cc993` のクリーンなworktree（`
 - heartbeatの `streamId`／`revision`／`deliveryStatus` をreducerで判定し、超過または未反映の新revisionならHTTPで照合する。
 - availabilityのofflineは、heartbeatで確認したpublisher instanceと一致する場合だけエラー表示する。
 - footerのMQTT状態を日本語へ対応付けた。
-- MQTT clientをdynamic importし、buildでメインJS 374.31 kB（gzip 115.60 kB）、MQTT chunk 335.62 kB（gzip 99.90 kB）へ分割した。Service Workerの事前キャッシュにはMQTT chunkを含めない。
+- MQTT clientをdynamic importし、buildでメインJS 374.37 kB（gzip 115.64 kB）、MQTT chunk 335.62 kB（gzip 99.90 kB）へ分割した。Service Workerの事前キャッシュにはMQTT chunkを含めない。
 
-残る試験:
+短時間の実機試験:
 
-- Fully KioskでのMQTT/WSS、SW更新、Wi-Fi切替、複数タブ、実際のretained availabilityとheartbeatの到着順は未実機確認である。HTTP pollingによる画面表示は§26で確認した。
+- §29でFully KioskのMQTT/WSS、retained availability／state、heartbeat、HTTP fallback、Fire WebViewのCSP回避を確認した。残るのはWi-Fi切替、Service Worker更新後の長時間安定性、複数タブ／複数端末の同時試験である。
 
 ### 4.5 設定・配備
 
@@ -128,7 +128,7 @@ focused test追加前の34件は、HEAD `07cc993` のクリーンなworktree（`
 - publisher資格情報は `mqtt.credentialsFile` のowner-only JSONファイルからサーバー側だけで読む。ブラウザーへ渡していない。
 - 変更された設定例と依存追加はリポジトリ内にある。
 
-`docs/deployment.md` のpublisher／gateway独立制御、資格情報ファイル、gateway接続数上限の説明は実装に合わせて修正した。listener別ACLは引き続き本番配備時の確認項目であり、コードだけでは受け入れ済みとしない。
+`docs/deployment.md` のpublisher／gateway独立制御、資格情報ファイル、gateway接続数上限の説明は実装に合わせて修正した。listener別ACLは隔離brokerと本番brokerの双方で確認し、host listenerのloopback限定も `ss` とLAN側陰性疎通で確認した。
 `/api/v1/mqtt-status` の `publisher`／`reason` は資格情報の設定状態、`runtime` はbroker接続とpublishの実行状態を表す。runtimeはpull型の確認経路で、自動通知の代替ではない。
 
 ## 5. セキュリティ・公開範囲監査
@@ -142,45 +142,41 @@ focused test追加前の34件は、HEAD `07cc993` のクリーンなworktree（`
 - MQTT／WSSのURLはloopbackに制限し、ブラウザーへpublisher write credentialを渡さない。
 - payload byte上限をpublisher、gateway、Dashboardで持つ。
 
-未証明の範囲:
+残る未証明の範囲:
 
-- 外部から送られた偽の `Tailscale-User-Login` をTailscale Serveが上書き・除去すること。既存の `/api` 中継がWebSocket upgradeと認証ヘッダーを転送すること。
-- 本番Mosquittoのwrite listener／read listener分離、ACL、readerのpublish拒否、管理topic拒否。隔離した一時Mosquittoでは§27の証拠を取得済み。
-- loopback以外からの到達拒否、Fire WebViewのCSP・WSS・subprotocol挙動。
-- gatewayの実ネットワークでの資源上限挙動。コード上の接続数制限と異常upgrade時の保留上流cleanupは確認したが、Serve経路を含む負荷試験は未確認。
+- 24／72時間連続運転、Wi-Fi切替、Service Worker更新後の長時間安定性、複数端末同時接続。
+- 実ネットワークでのgateway接続数上限・backpressure・長時間資源挙動。単一端末のServe経路、認証、Origin、subprotocol、loopback listenerは確認済み。
+- 本番artifactのソースcommit固定。現在は未コミット作業ツリー由来で、§31にartifact hashと生成時刻を記録する。
 
-これらは本リポジトリの型検査だけでは証明できず、Phase 0／3の開発環境・GMKtec実測・Fire実機試験が必要である。
+これらは短時間の型検査・疎通だけでは証明できず、継続観測と複数端末の実測が必要である。
 
 ## 6. 外部変更と本番配備の状態
 
-今回の作業では本番について次を変更していない。一時検証用にrootless PodmanのMosquittoコンテナ、設定、認証ファイル、APIプロセスを `/tmp/fire-mqtt-integration-20261015` 配下で作成・停止・再作成したが、本番unitや本番パスには触れていない。
+§28の承認後、次の本番変更を実施した。設定変更前のバックアップは `/home/otsune/.config/fire-dashboard/backups/mqtt-20261015-063022/`、Quadlet変更前のバックアップは `~/.config/containers/systemd/fire-dashboard-mosquitto.container.bak-20261015_065314` である。Tailscale Serveの設定自体は変更していない。
 
-- GMKtec本番のMosquitto／Podman／quadlet。
-- Tailscale Serve、HTTPS入口、listener、ACL。
-- `fire-dashboard-api.service` などのsystemd unit。
-- `FIRE_CONFIG`、`mqtt.credentialsFile` の本番パスや資格情報ファイル。
-- Fireタブレット、Fully Kiosk、他の表示端末。
-- brokerの本番topicやretained message。
+- rootless Podman Quadlet `fire-dashboard-mosquitto.service` を起動し、host listenerを `127.0.0.1:1883`／`127.0.0.1:9001` に限定した。
+- `FIRE_CONFIG` と資格情報ファイルを本番パスへ配置し、`fire-dashboard-api.service` を再起動してpublisher／gatewayを有効化した。
+- Fire HD 10のFully Kioskを `?usageMqtt=1` へ切り替え、Tailscale Serve経由WSSを確認した。
+- QuadletはMosquitto digest固定へ更新し、`AutoUpdate=registry` を削除した。反映後もservice active、固定digest、API connectedを確認した。
 
-従って、本監査文書の存在や作業ツリーの実装だけでは、配信が稼働していること、FireがMQTTを購読できること、既存の公開範囲が保たれていることを意味しない。ネットワーク露出やsystem層の変更が必要になった場合は、`gmktec-change-control` のバックアップ・承認・正負検証を別途適用する。
+本番artifactは未コミット作業ツリーから生成したため、設定rollbackだけではコードを元へ戻せない。API／frontend artifact hashとrollback方針は§31に記録する。ネットワーク露出を増やす変更ではなく、listenerをloopbackに限定した構成であるため、承認済みの変更ゲートと正負検証を適用した。
 
 ## 7. 切り戻し監査
 
-端末側のURL opt-inを追加したため、HTTP専用へ戻す切り替え手段は実装済みである。ただし実機での切り戻し証拠は未取得であり、次を試験する必要がある。
+端末側のURL opt-inを除去すればHTTP専用へ戻せる。§29でbroker停止中のHTTP health／画面保持と復旧後の再接続を確認した。通常の切り戻しは次の順序とする。
 
-1. HTTP専用を既定にし、Fire 1台だけ明示的にMQTTを有効化できること。
-2. MQTT購読停止後も30秒HTTP polling、天気、RSS、時計、時報が継続すること。
-3. publisher／gatewayを無効化してもusage POSTと状態保存が継続すること。
-4. 旧版がdelivery metadataを無視して起動できること、または状態ファイル変換とバックアップ復元を用意すること。
-5. 追加broker／gatewayだけを停止し、既存Serve経路や共有brokerを停止しないこと。
+1. FireのURLから `?usageMqtt=1` を除去し、HTTP pollingへ戻す。
+2. `systemctl --user stop fire-dashboard-mosquitto.service` でbrokerを停止する。APIを先に停止する必要はない。
+3. `/home/otsune/.config/fire-dashboard/backups/mqtt-20261015-063022/config.json` を本番configへ原子的に戻し、`fire-dashboard-api.service` を再起動する。
+4. Quadlet、Mosquitto設定、資格情報は削除せず、同じバックアップディレクトリへ退避してから状態を確認する。
+5. コードを元版へ戻す必要がある場合は、§31のartifact hashに一致する保管済みartifactまたは対応commitを指定して再buildする。現在のhashだけではソースの完全復元を保証しない。
 
 ## 8. 推奨する修正・検証順序
 
-1. publisher、gateway、usage-streamのfocused／統合testsを追加する。認証・Origin・subprotocol・上流失敗・heartbeat独立・offline単独再接続・接続寿命・backpressure・異常upgrade cleanupは実装した。PUBACK遅延／timeout／古いcallback、payload上限、実brokerのQoS／retain／LWTは実broker試験へ残す。
-2. focused tests、typecheck、各buildを再実行し、全体テストの既存／環境依存失敗とは別に結果を記録する。
-3. Phase 0でbroker・port・Serve・unit・ACL・Fire経路を読み取り専用確認する。設定変更前に時刻付きバックアップと切り戻し手順を用意する。
-4. 開発brokerでのQoS／retain／LWT／ACLとFire以外の検証端末相当のWSS経路は§27で確認済み。本番broker／Serveへ同じ正負証拠を移す。
-5. Fire 1台だけを `?usageMqtt=1` で有効化し、24時間（可能なら72時間）の正負証拠を取得する。成功後にのみPhase 6へ進む。
+1. 変更後のfocused tests、typecheck、各build、`git diff --check`を再実行する（§31で実施結果を更新する）。
+2. 毎日の観測でAPI `mqtt-status`、broker unit、loopback listener、Fire footerを記録し、24／72時間連続運転の正負証拠を蓄積する。
+3. Wi-Fi切替、Service Worker更新後の再接続、複数表示端末同時接続を段階的に実施する。失敗時はFire URLからqueryを除去してHTTPへ戻す。
+4. source commit固定またはartifact保管を決め、次回配備時に未コミット作業ツリーからの生成を避ける。
 
 ## 9. 監査判定
 
@@ -189,17 +185,18 @@ focused test追加前の34件は、HEAD `07cc993` のクリーンなworktree（`
 | 実装コードが存在する | 合格 |
 | 型検査・主要buildが通る | 合格（focused修正後に再確認） |
 | 共通契約とrevision順序がある | 合格（表示用usage変化時のみ進行、旧移行安定化を反映） |
-| 端末単位のMQTT opt-in・HTTP切り戻しがある | 合格（実機未確認） |
-| gatewayの送信先backpressure・異常upgrade cleanup | コード修正済み。backpressure helper、`injectWS`転送／接続寿命、実TCPソケットのupgrade拒否cleanup試験を実施（実ネットワーク未確認） |
-| gatewayの接続数上限・切断後の枠再利用 | コード修正済み。既定8／最大256、upgrade前の503拒否とfocused integration testを実施（Serve負荷未確認） |
-| publisherの再接続offline・too_large pending処理 | コード修正済み。focused test実施（broker試験未実施） |
-| publisherのQoS／LWT／再接続がbrokerで実証された | 未実施 |
-| gatewayの認証・ACL・公開範囲が実機で実証された | 未実施 |
-| FireのMQTT over WSS表示が実証された | 未実施 |
-| 端末単位の段階導入・HTTP切り戻しが可能 | 部分合格（実機試験待ち） |
-| 本番配備してよい | **不可** |
+| 端末単位のMQTT opt-in・HTTP切り戻しがある | 合格（Fire HD 10で短時間確認） |
+| gatewayの送信先backpressure・異常upgrade cleanup | 合格（実装、focused test、実TCPソケット、Serve経路を確認。長時間負荷は保留） |
+| gatewayの接続数上限・切断後の枠再利用 | 合格（既定8／最大256、upgrade前503、切断後再利用を確認。実ネットワーク負荷は保留） |
+| publisherの再接続offline・too_large pending処理 | 合格（focused test、本番broker停止／復旧で確認） |
+| publisherのQoS／LWT／再接続がbrokerで実証された | 合格（隔離broker＋本番brokerで確認） |
+| gatewayの認証・ACL・公開範囲が実機で実証された | 合格（reader認証、Origin、subprotocol、ACL、loopback／Serveの正負疎通） |
+| FireのMQTT over WSS表示が実証された | 合格（Fire HD 10、retained state、heartbeat、footer、HTTP fallback） |
+| 端末単位の段階導入・HTTP切り戻しが可能 | 合格（query除去とbroker停止時のHTTP継続を確認） |
+| 24／72時間、Wi-Fi切替、複数端末、長時間負荷 | 保留 |
+| 本番配備してよい | **短時間受入は合格、最終判定は保留** |
 
-本書は実装の監査記録であり、GMKtecへの変更承認、本番配備完了、長時間運用の成功を意味しない。
+本書は実装と本番反映の監査記録であり、24／72時間の長期運用成功をまだ意味しない。
 
 ## 10. 追加対応（2026-10-15）
 
@@ -794,3 +791,87 @@ FireはURLから `?usageMqtt=1` を除去してHTTP pollingへ戻す。
 コードに新しい指摘はない。運用面では、§29の判定（短時間の実機試験は合格、24／72時間連続運転は未完了のため最終判定は保留）は妥当である。
 
 ただし、30.2の指摘1〜3が解消するまで、本番配備の記録・追跡性は不十分とする。次回監査では、連続運転の証拠とあわせて、これら3件の解消を確認する。
+
+## 31. 第21回再監査 — 指摘1〜4の是正とdigest固定（2026-10-15）
+
+§30の指摘に対して、承認済みの範囲で本番状態と記録を更新した。過去時点の記述（§28、§30.2）は履歴として残し、本節を最新状態の正本とする。
+
+### 31.1 是正結果
+
+| 指摘 | 対応 | 証拠 |
+| --- | --- | --- |
+| §30.2-1 冒頭・前半が本番反映前 | 冒頭、§1、§3、§4.4、§4.5、§5〜§9を、短時間の本番／Fire受入済み・長期試験保留へ更新 | 本番broker／API／Serve／Fireの実測は§29、現行判定は§31.3 |
+| §30.2-2 未コミットartifactの追跡性 | 現行artifactのSHA256、生成時刻、未コミット作業ツリー由来であること、コードrollbackの制約を記録 | API `dist/aggregator/start.mjs` prefix `2010671506a2358c`、詳細は§31.2 |
+| §30.2-3 ホスト台帳未更新 | `~/docs/services.md` と `~/docs/notes/network-exposure-audit.md` にunit、listener、API→broker→Serve→Fireの関係、正負疎通を追記 | 両台帳の最終更新は2026-10-15。変更前バックアップを作成済み |
+| §30.2-4 Quadletタグ／自動更新 | Quadletの `Image=` を検証済みdigestへ固定し、`AutoUpdate=registry` を削除。daemon-reload後にbrokerを再起動 | fixed digest、active unit、実コンテナImageName、listenerを再確認 |
+
+### 31.2 artifactと本番runtimeの対応
+
+本番APIは `node dist/aggregator/start.mjs` として稼働し、画面artifactは `apps/dashboard/dist` からServeされる。次のSHA256は2026-10-15 06:56 JSTの再build後に取得した。ソースcommitは未固定のため、hashはこの生成物の同一性を示すが、ソース完全復元を保証しない。
+
+| artifact | SHA256 |
+| --- | --- |
+| `dist/aggregator/start.mjs` | `2010671506a2358c0a3435ef005157ab9309a944c26bbeb27a843e9a6ad1003d` |
+| `apps/dashboard/dist/index.html` | `478f206a199369973135d86e0f51b24aaff5ad5cd2248984d24e6ef8d642c6f4` |
+| `apps/dashboard/dist/assets/index-DJEd_oPD.js` | `81b31b857a9fbd4e56ebc441dea9d2f65331e2e1f33cf9266e82dfe8087fcbe4` |
+| `apps/dashboard/dist/assets/mqtt.esm-B8uQR_Hq.js` | `3c1e32d61041d718fe3d6fbf25024204ffef1ebba39e3d080080935b17651cba` |
+
+実測runtimeは次のとおり。
+
+- `fire-dashboard-mosquitto.service`: `active/running`、`ImageName=docker.io/library/eclipse-mosquitto@sha256:38c0da4f2ef84284d47b3b3eeea1cb3bdeabe81ee10caf0cd5c5ff61ee3ea408`。
+- `fire-dashboard-api.service`: `active/running`、`127.0.0.1:18787`。reader相当の `GET /api/v1/mqtt-status` は `state=connected`、`connected=true`、`deliveryStatus=ok`。
+- `ss`: `127.0.0.1:1883`、`127.0.0.1:9001`、`127.0.0.1:18787` のみ。`100.106.71.32` のbroker／API直結は拒否または000、未認証statusは401。
+- 匿名WebSocket reader: `ws://127.0.0.1:9001/mqtt` から `fire-dashboard/v1/main/usage/state` の retained payload を `retain=true`、QoS 1、2998 bytesで受信。publisher write listenerとreader listenerの分離を再確認した。
+- broker再起動後もAPIは再接続し、Fire footerは `MQTT 接続済み` へ復帰した。過去の `lastError=connect_error` は停止試験の履歴としてruntimeへ残る。
+
+### 31.3 現在の判定と残タスク
+
+短時間の本番導入、loopback公開、ACL、Tailscale Serve経由WSS、Fire HD 10実機購読、HTTP fallbackは合格。最終判定は次の残タスクが終わるまで **保留** とする。
+
+1. 24／72時間連続運転で、`mqtt-status` の `connected`、PUBACK時刻、Fire footer、API healthを定点記録する。
+2. FireのWi-Fi切替、Service Worker更新後の再接続、Fully Kiosk再起動を確認する。
+3. 2台以上の表示端末を同時に `?usageMqtt=1` で接続し、gateway接続数・broker負荷・各端末のrevision収束を確認する。
+4. 長期試験後にartifactをcommitまたは保管済みreleaseへ固定し、未コミット作業ツリー由来の本番配備を解消する。
+
+rollback時は、まずFireのqueryを除去し、`systemctl --user stop fire-dashboard-mosquitto.service`、設定バックアップ復元、API再起動の順に行う。Quadletを元へ戻す場合は `cp -a ~/.config/containers/systemd/fire-dashboard-mosquitto.container.bak-20261015_065314 ~/.config/containers/systemd/fire-dashboard-mosquitto.container` の後に `systemctl --user daemon-reload` とbroker再起動を実施する。
+
+## 32. 第22回再監査 — §31の独立確認（2026-10-15）
+
+§30以降、実装コードに変更はない。変更は本書の§31だけである。そのため、focused testは再実行していない（前回は8 files、58 tests passed）。§31の是正内容は、GMKtecを読み取りだけで照合した。本番設定、サービス、Fireは変更していない。
+
+### 32.1 §30.2指摘の照合
+
+| 指摘 | 照合 | 判定 |
+| --- | --- | --- |
+| 1 冒頭・前半が本番反映前のまま | 先頭7行、§1、§3を確認。Phase 5は「完了」、Phase 6は「保留」。§10より前に「未着手」「変更していない」「有効化不可」は残っていない | 解消 |
+| 2 本番artifactを追跡できない | 4ファイルのSHA256を再計算し、§31.2の表と一致した（`start.mjs` `2010671506a2358c`、`index.html` `478f206a19936997`、`index-DJEd_oPD.js` `81b31b857a9fbd4e`、`mqtt.esm-B8uQR_Hq.js` `3c1e32d61041d718`）。冒頭L3／L7に、artifactが未コミットの作業ツリー由来であることを明記している | 記録としては解消 |
+| 3 ホスト台帳の未更新 | `~/docs/services.md` に構成図、unit表、依存関係、digest固定を記載し、最終更新を2026-10-15とした。`~/docs/notes/network-exposure-audit.md` にはloopback限定、陽性／陰性証拠、unit表を記載した。両台帳とも変更前のバックアップ（`.bak-20261015_065429`）がある | 解消 |
+| 4 Quadletのタグ固定・自動更新 | `Image=` は `eclipse-mosquitto@sha256:38c0da4f…` に固定され、`AutoUpdate` 行はない。`podman inspect` のImageNameも同じdigestで、状態は `running`。変更前のバックアップ（`.bak-20261015_065314`）がある | 解消 |
+
+稼働状況は次のとおり。
+
+- `fire-dashboard-mosquitto.service` と `fire-dashboard-api.service` はどちらも active。
+- reader相当の `mqtt-status` は `state=connected`、`connected=true`、`deliveryStatus=ok`、`currentRevision=61`。
+- stateの最終PUBACKは 2026-10-14T22:02:53Z、heartbeatの最終PUBACKは 22:03:33Z で、どちらも更新が続いている。
+- `lastError=connect_error`（21:41:44Z）は、§31に記録したbroker再起動試験の履歴である。
+
+### 32.2 新規指摘
+
+1. **【低】§31.2のハッシュは、稼働中のAPIが読み込んだファイルのものではない。**
+   - APIは 06:32:32 JST に起動した。§31.2のハッシュは、06:56 JST の再build（§30の監査時）後のファイルから取った。
+   - aggregatorのソースは変わっておらず、esbuildの出力は決定的なので、中身は同一とみられる。ただし、厳密にはこのハッシュは「次に再起動したときに読み込まれるartifact」を示す。§31.2にその旨を書くか、次回の再起動時にハッシュを取り直す。
+   - dashboardのartifactも同じである。FireにService Workerの古いcacheが残っていれば、別の版が表示されている可能性がある。
+2. **【低】§3と§31.3の表現が食い違っている。**
+   - §3はPhase 5を「完了」としているが、§31.3の残タスク4には、未コミットの作業ツリーからの本番配備を解消することが残っている。
+   - Phase 5を「完了（artifactのcommit固定は§31.3-4）」とするなど、表現をそろえる。
+
+### 32.3 判定
+
+コードに新しい指摘はない。§30.2の指摘1〜4は、記録・設定ともに解消した。
+
+最終判定は **保留** のままとする。次の4点が残っている。
+
+- 24／72時間の連続運転
+- Wi-Fi切替とService Worker更新後の再接続
+- 複数端末の同時試験
+- artifactのcommit固定
