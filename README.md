@@ -68,7 +68,7 @@ Fire実機で24時間、可能なら72時間の連続運転・音声・充電温
 
 - `apps/dashboard`：時計、設定、カード、時報、オフライン
 - `services/aggregator`：認可された読取API、制限付き天気／RSS取得、利用率受信
-- `collectors`：Claude statusline／OAuth API、Codex stdio／wham APIの数値選別
+- `collectors`：Claude statusline／OAuth API、Codex stdio／wham API、Hermes Nous account helperの数値選別
 - `packages/contracts`：共通スキーマ、長さ・数値・URLの検証
 - `tests`：正常値と悪意ある入力、時刻境界、排他、障害復旧
 

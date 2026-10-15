@@ -2,7 +2,7 @@
 
 Windows等の収集元PCへの導入と認証接続は未実施です。GMKtec上のClaude Codeについては、2026-10-15にstatuslineからのsnapshot保存と専用senderの常駐を実施しました（詳細は実装監査§37）。アダプターの固定データ試験とGMKtecの実アカウント入力による受信確認が完了しています。プロンプト、回答、作業パス、メール、トークン、生のstdinは保存・送信しません。送信対象は許可された区分、率、リセット予定、状態、エイリアス、時刻だけです。
 
-Antigravity・OpenCode Go・Hermes／Nousは[追加サービスの収集手順](provider-usage.md)を参照してください。
+Antigravity・OpenCode Go・Hermes／Nousは[追加サービスの収集手順](provider-usage.md)を参照してください。NousはHermes account helper経路と`usage.bars` stdin経路を選べます。
 
 ## Claude Code
 

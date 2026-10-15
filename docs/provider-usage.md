@@ -112,6 +112,24 @@ FIRE_SOURCE_ALIAS="primary-pc" \
 
 プログラムからは `collectors/hermes-nous/capture.ts` の `captureHermesNous` を使えます。`available: false` は「利用情報が取得できない」という意味で、残高0ではありません。AntigravityとNousのstdinは最大1MiBです。CLIの終了成功は入力を選別・保存できたことを表し、取得元へライブ接続できたという意味ではありません。
 
+### Hermes account helper取得経路
+
+[provider-usageの`plugin_api.py`](https://github.com/PhoeniXAbhisheK/hermes-plugin-provider-usage/blob/main/dashboard/plugin_api.py) と同じく、Nousは独立した公開残高APIを仮定せず、Hermesの `get_nous_portal_account_info(force_fresh=True)` と `build_nous_credits_snapshot` を使います。指定したHermes Python環境で読み取りを行い、Fireへ渡す前にUSD残高、月次枠、利用率、更新時刻だけへ選別します。アカウントオブジェクト、OAuth token、メール、portal URL、トップアップURL、例外本文は出力・snapshot・ログへ残しません。取得は10秒（collector全体は最大60秒設定）で打ち切り、認証未設定・未取得・timeout・Python／Hermes不備を分類済み状態へ変換します。
+
+常駐collectorはstdin経路と別のsnapshotファイルを使います。Hermesの共有venvを明示して起動してください。
+
+```sh
+npm run build:collectors
+FIRE_SNAPSHOT_PATH="$HOME/.local/state/fire-dashboard/hermes-nous-api.json" \
+FIRE_SOURCE_ALIAS="gmktec" \
+FIRE_HERMES_PYTHON="$HOME/.hermes/hermes-agent/venv/bin/python" \
+FIRE_ENDPOINT="https://<gmktec>/api/v1/usage" \
+FIRE_COLLECTOR_TOKEN_FILE="$HOME/.config/fire-dashboard/collector-token" \
+node dist/collectors/hermes-nous-api-service.mjs
+```
+
+`FIRE_POLL_SECONDS` は30〜280秒（既定60秒）です。単発保存は `FIRE_SNAPSHOT_PATH`、`FIRE_SOURCE_ALIAS`、`FIRE_HERMES_PYTHON` を指定して `npx tsx collectors/hermes-nous/api-capture.ts` を実行します。Hermesのバージョン更新で内部helperの形が変わる可能性があるため、まず固定応答試験とGMKtec上の実アカウント受信確認を行い、正常値を得られない場合にstdin経路へ戻せるようsnapshotとserviceを分離します。
+
 ## 保存・送信・取得元の選択
 
 3つの追加CLIは `FIRE_SNAPSHOT_PATH` と `FIRE_SOURCE_ALIAS` を必要とします。プロバイダーごとに別のsnapshotファイルを指定してください。エイリアスは `primary-pc` のような、個人を識別しない英数字・ハイフン・アンダースコアに限定します。氏名、メール、ホスト名、アカウントIDを転用しないでください。

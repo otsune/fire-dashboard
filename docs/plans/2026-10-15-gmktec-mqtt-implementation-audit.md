@@ -1369,3 +1369,18 @@ snapshot・ログ・母艦へ送らない。リセット予定はAPIの相対秒
 `rtk npm test` 全体はこの実行環境で既存weather／RSS／音声／子プロセス・TCP権限制約を含む失敗が
 49件あり、Codex API focused testは成功した。今回のcollector追加はローカルコードと固定応答の検証までで、
 GMKtecでの実アカウント切り替え、24／72時間運転、Fire HD 10表示確認は別作業として保留する。
+
+## 54. Hermes Nous account helper collector追加（2026-10-16）
+
+提示された[Hermes provider-usage `plugin_api.py`](https://github.com/PhoeniXAbhisheK/hermes-plugin-provider-usage/blob/main/dashboard/plugin_api.py)を確認した。Nousは独立した公開JSON APIを直接叩く実装ではなく、Hermesの
+`get_nous_portal_account_info(force_fresh=True)` と `build_nous_credits_snapshot` を使う構成だったため、同じ経路を採用した。
+
+`collectors/hermes-nous/api.ts` はHermes共有venvのPythonを起動し、Python側で上記helperを10秒以内に実行する。PythonからNodeへ返すJSONは、USD残高、月次枠、利用率、更新時刻だけに限定し、アカウントオブジェクト・token・メール・portal URL・トップアップURL・例外本文を破棄する。Node側は既存の `hermes_nous` Usage／snapshot／HTTPS senderへ変換し、stdinの`usage.bars` collectorとは別snapshotを要求する。
+
+| 検証 | 結果 |
+| --- | --- |
+| Nous API normalizer／bridge focused test | `tests/unit/hermes-nous-api.test.ts`、7 tests passed |
+| 実Hermes Python helper・実Nous OAuth・GMKtec配備 | 未実施 |
+| fallback | helper不備・認証未設定・timeout時は分類済みエラーを保存し、既存のstdin経路へ戻せる |
+
+Hermes内部helperはバージョン依存であり、固定応答試験だけでは実アカウント接続を証明しない。GMKtecではまず `FIRE_HERMES_PYTHON` を共有venvへ向けた単発captureで受信を確認し、その後に常駐serviceへ切り替える。24／72時間運転とFire HD 10表示確認は別の残条件である。

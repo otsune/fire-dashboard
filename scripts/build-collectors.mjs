@@ -7,6 +7,7 @@ const entries = {
   "claude-api-service": "collectors/claude/api-service.ts",
   "codex-service": "collectors/codex/service.ts",
   "codex-api-service": "collectors/codex/api-service.ts",
+  "hermes-nous-api-service": "collectors/hermes-nous/api-service.ts",
   "send-snapshot": "collectors/shared/send-service.ts",
 };
 await build({
