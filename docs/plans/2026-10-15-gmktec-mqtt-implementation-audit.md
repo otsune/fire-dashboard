@@ -1384,3 +1384,61 @@ GMKtecでの実アカウント切り替え、24／72時間運転、Fire HD 10表
 | fallback | helper不備・認証未設定・timeout時は分類済みエラーを保存し、既存のstdin経路へ戻せる |
 
 Hermes内部helperはバージョン依存であり、固定応答試験だけでは実アカウント接続を証明しない。GMKtecではまず `FIRE_HERMES_PYTHON` を共有venvへ向けた単発captureで受信を確認し、その後に常駐serviceへ切り替える。24／72時間運転とFire HD 10表示確認は別の残条件である。
+
+## 55. GMKtecへのNous API経路配備（2026-10-16）
+
+GMKtec上の実Hermes環境で単発capture、専用user unit、集約API受信を順に確認した。配備時のコードHEADは
+`e0029ea`（`fix: run Hermes Nous bridge from checkout`）で、branch
+`codex-gmktec-mqtt-implementation`へpush済みである。
+
+### 55.1 実機で判明した起動条件と修正
+
+最初の単発実行は、Nodeプロセスの作業ディレクトリが`fire-dashboard`のままだったため、Hermes checkoutにある
+`pm`等のruntime moduleをimportできず失敗した。collectorを修正し、Python childへ次を明示して起動するようにした。
+
+| 設定 | 実効値 |
+| --- | --- |
+| `FIRE_HERMES_PYTHON` | `/home/otsune/.hermes/hermes-agent/venv/bin/python` |
+| `FIRE_HERMES_HOME` | `/home/otsune/.hermes` |
+| `FIRE_HERMES_AGENT_ROOT` | `/home/otsune/.hermes/hermes-agent` |
+| Python `sys.path[0]` | Hermes agent root |
+| focused test | `tests/unit/hermes-nous-api.test.ts`、7 tests passed |
+| type/build | `npm run typecheck`、`npm run build:collectors` 成功 |
+
+### 55.2 user unitと経路切替
+
+`~/.config/systemd/user/fire-dashboard-hermes-nous-api.service`を追加し、設定前に
+`fire-dashboard-hermes-nous-api.service.bak-20261016_062615`（同名既存ファイルなしを示す空backup marker）を作成した。
+unitは専用snapshot `~/.local/state/fire-dashboard/hermes-nous-api.json`、既存のcollector token、HTTPS
+`/api/v1/usage`、`FIRE_POLL_SECONDS=240`を使用する。`fire-dashboard-hermes-nous.service`本体と
+`hermes-nous.json`は変更しない。
+
+旧`fire-dashboard-hermes-nous.timer`は、同じ`provider=hermes_nous`／`sourceAlias=gmktec`で旧経路と新経路の
+sequenceが衝突するため、06:27 JSTに`disable --now`した。旧snapshotはロールバック用に残してある。
+新snapshotは旧API受信済みsequence `2`から`3`へ移行し、移行前の
+`hermes-nous-api.json.bak-20261016_062731`を保存した。sequence移行後の再送はHTTP `200`を返し、集約APIの
+正本stateで`hermes_nous:gmktec`がsequence `3`、status `unconfigured`、receivedAt付きとして確認できた。
+
+### 55.3 配備後の検証
+
+| 確認 | 実測結果 |
+| --- | --- |
+| unit | `enabled`、`active/running`、`NRestarts=0`、MainPID `1710909` |
+| 解決済みExecStart | `/usr/bin/node dist/collectors/hermes-nous-api-service.mjs` |
+| API送信 | `POST /api/v1/usage` HTTP `200` |
+| 専用snapshot | `provider=hermes_nous`、`sourceAlias=gmktec`、`status=unconfigured`、`errorCode=unconfigured`、sequence `3` |
+| 旧snapshot | `hermes-nous.json`は`status=missing`のまま、旧timer停止後の更新なし |
+| 集約state | `hermes_nous:gmktec`受信、usage revision `2814`、`lastSuccessAt=null` |
+
+現在の`~/.hermes/auth.json`のNous providerには`access_token`がなく、実アカウント利用値はまだ取得できない。
+これはcollectorの失敗ではなく、認証未設定を明示する安全な状態である。認証を行う場合はHermes側の通常の
+Nous login手順を別途実施し、再度snapshotの`status=ok`、balance／window、Fire/MQTT表示を確認する。
+
+### 55.4 ロールバックと残条件
+
+旧経路へ戻す場合は、新unitを`systemctl --user disable --now fire-dashboard-hermes-nous-api.service`で停止し、
+旧timerを`systemctl --user enable --now fire-dashboard-hermes-nous.timer`で再開する。新unit設定を撤去する場合は、
+`fire-dashboard-hermes-nous-api.service.bak-20261016_062615`が空markerであることを確認したうえでunitを削除する。
+
+今回の配備で実装・起動・API受信までは確認できたが、Nous OAuthの実値、24／72時間連続運転、Fire HD 10の
+Nousカード表示、GMKtec全体再起動後の復帰は未完了である。最終配備判定は引き続き **保留** とする。
