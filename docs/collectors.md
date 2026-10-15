@@ -49,6 +49,25 @@ startCodexCollector({path, sourceAlias, send}) は読み取り完了から60秒�
 
 常駐させる場合は `npx tsx collectors/codex/service.ts`、または `npm run build:collectors` 後の `node dist/collectors/codex-service.mjs` を使います。環境変数は `FIRE_SNAPSHOT_PATH`、`FIRE_SOURCE_ALIAS`(英数字・ハイフン・アンダースコアの1〜64文字。違反すると起動しません)、`FIRE_ENDPOINT`(集約APIの `https://…/api/v1/usage`)、`FIRE_COLLECTOR_TOKEN_FILE`(Bearerトークンを書いたファイル)、任意の `FIRE_POLL_SECONDS`(読み取り間隔、30〜280秒、既定60秒)です。読み取りのたびに `codex app-server` を起動するため(1回約0.5秒のCPU)、間隔が長いほど軽くなります。ただし読み取りのたびに受信時刻も更新されるので、画面の「取得元に未接続」(受信から5分)を超えない範囲に制限しています。トークンは環境変数やユニットファイルに書かず、送信のたびにファイルから読みます。失敗時は読み取り・保存・送信の区分だけを標準エラーへ出します。`codex` コマンドが PATH 上にあり、ログイン済みである必要があります。ログインが切れていると Codex は `-32603`(取得先の 401)を返し、カードは `invalid_data` のエラーになります。画面のない機械では `codex login --device-auth` で再ログインします。
 
+### ChatGPT wham usage API（API取得経路）
+
+App Serverを起動できない収集元では、読み取り専用の固定エンドポイント `GET https://chatgpt.com/backend-api/wham/usage` も使えます。`rate_limit.primary_window` と `secondary_window` の `used_percent` だけを5時間／7日間の利用率へ変換し、`reset_after_seconds` は収集時刻からのリセット予定に変換します。`plan_type` やアカウント情報などの応答フィールドはFireへ転送しません。会話、モデル実行、購入、アカウント変更は行いません。
+
+tokenは既存の `~/.codex/auth.json` の `tokens.access_token` を読み取り専用で使います。ファイルに無い場合だけ、サービス起動時に明示した `OPENAI_API_KEY` をフォールバックとして使えます。認証情報とAPI応答本文はsnapshot・ログ・母艦へ送らず、既存契約の利用率、リセット予定、状態、エイリアス、時刻だけを保存します。401/403、404、429、タイムアウト、過大応答、不正JSONは分類済み状態へ変換し、最後の正常値は集約側の契約に従って保持します。
+
+App Server経路とは別の常駐collectorです。両方を同じsnapshotファイルへ同時に書き込まないでください。起動例は次のとおりです。
+
+```sh
+npm run build:collectors
+FIRE_SNAPSHOT_PATH="$HOME/.local/state/fire-dashboard/codex-api.json" \
+FIRE_SOURCE_ALIAS="gmktec" \
+FIRE_ENDPOINT="https://<gmktec>/api/v1/usage" \
+FIRE_COLLECTOR_TOKEN_FILE="$HOME/.config/fire-dashboard/collector-token" \
+node dist/collectors/codex-api-service.mjs
+```
+
+任意の `FIRE_CODEX_CREDENTIALS_FILE` でCodex認証ファイルの読み取り先を、`FIRE_POLL_SECONDS` で読み取り間隔（30〜280秒、既定60秒）を指定できます。単発保存だけなら `FIRE_SNAPSHOT_PATH` と `FIRE_SOURCE_ALIAS` を指定して `npx tsx collectors/codex/api-capture.ts` を実行します。実アカウントへの接続、systemd登録、既存App Server経路からの切り替えは別途の運用作業です。
+
 ## 送信と保存
 
 createHttpSenderの接続先は承認済みHTTPS `/api/v1/usage` に限ります。認証情報はPC側の承認済みモジュールから注入してください。本プロジェクトはキーを作りません。送信は変化時または60秒ハートビートで、送信失敗時は同じsnapshotを次回再送します。サーバー側はproviderごとに許可したsourceAlias（一つまたは複数）だけを受け入れ、同一アカウントを合算しません。複数PCの場合は最も新しい観測を表示します。逆順sequenceはPCごとに判定して破棄し、同一sequenceの内容変更は拒否します。

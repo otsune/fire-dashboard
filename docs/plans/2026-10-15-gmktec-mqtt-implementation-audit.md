@@ -1340,3 +1340,32 @@ retained stateを受信してから20秒間隔のPINGへ2回応答を受けた�
 `NRestarts=0`である。これによりartifactのソースcommit固定と再生成同一性は確認できた。buildは
 artifactを再生成しただけで、GMKtecサービスの再起動・配備切替は行っていない。物理複数端末、24／72時間、
 GMKtec全体再起動の残条件は継続するため、最終配備判定は **保留** とする。
+
+## 53. Codex ChatGPT wham usage API collector追加（2026-10-16）
+
+Codex App Serverのstdio経路とは別に、固定エンドポイント
+`GET https://chatgpt.com/backend-api/wham/usage` を読むAPI collectorを追加した。
+`~/.codex/auth.json` の `tokens.access_token` を優先し、無い場合だけ明示した
+`OPENAI_API_KEY` をフォールバックに使う。応答から `rate_limit.primary_window`／
+`secondary_window` の `used_percent` と `reset_after_seconds` だけを選別し、5時間／
+7日間の既存 `codex` Usageへ変換する。`plan_type`、アカウント情報、token、レスポンス本文は
+snapshot・ログ・母艦へ送らない。リセット予定はAPIの相対秒数を収集時刻へ加算して作るため、
+`sourceObservedAt` は従来どおり `null` とする。
+
+追加ファイルは `collectors/codex/api.ts`、`api-capture.ts`、`api-service.ts`。
+`dist/collectors/codex-api-service.mjs` をbuild entryへ追加し、App Server経路と同じsnapshotへ
+同時に書き込まないことを運用文書へ明記した。collectorは固定HTTPS origin、redirect拒否、
+1 MiB応答上限、10秒（最大60秒）timeout、401／403／404／429／network等の分類を持つ。
+
+| 検証 | 結果 |
+| --- | --- |
+| Codex API focused test | `tests/unit/codex-api.test.ts`、10 tests passed |
+| 既存Codex／Claude／collector focused suite | 4 files、26 tests passed |
+| `rtk npm run typecheck` | 成功 |
+| `rtk npm run build:collectors` | 成功。5 entry（`codex-api-service`を含む） |
+| `rtk npm run build` / `rtk npm run build:api` | 成功 |
+| 実ChatGPT API、実Codex token、systemd登録、GMKtec配備 | 未実施（live credentials・外部設定を変更しない） |
+
+`rtk npm test` 全体はこの実行環境で既存weather／RSS／音声／子プロセス・TCP権限制約を含む失敗が
+49件あり、Codex API focused testは成功した。今回のcollector追加はローカルコードと固定応答の検証までで、
+GMKtecでの実アカウント切り替え、24／72時間運転、Fire HD 10表示確認は別作業として保留する。

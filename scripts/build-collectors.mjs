@@ -6,6 +6,7 @@ const entries = {
   "claude-statusline": "collectors/claude/statusline.ts",
   "claude-api-service": "collectors/claude/api-service.ts",
   "codex-service": "collectors/codex/service.ts",
+  "codex-api-service": "collectors/codex/api-service.ts",
   "send-snapshot": "collectors/shared/send-service.ts",
 };
 await build({
@@ -18,4 +19,6 @@ await build({
   target: "node22",
   logLevel: "warning",
 });
-console.log(`Collectors: ${Object.keys(entries).join(", ")} -> dist/collectors`);
+console.log(
+  `Collectors: ${Object.keys(entries).join(", ")} -> dist/collectors`,
+);
