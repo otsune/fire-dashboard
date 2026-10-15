@@ -1,6 +1,55 @@
 import type { Weather } from "../../../../packages/contracts/src/index";
 import { deriveStatus, formatTime } from "../data/status";
 import { forecastRegionLabel } from "../data/prefectures";
+
+type WeatherKind = "clear" | "cloud" | "rain";
+
+function weatherKind(period: Weather["periods"][number]): WeatherKind {
+  const code = period.weatherCode?.trim() ?? "";
+  if (code.startsWith("1")) return "clear";
+  if (code.startsWith("2")) return "cloud";
+  if (code.startsWith("3") || code.startsWith("4")) return "rain";
+
+  const summary = period.summary?.trim() ?? "";
+  if (/^(雨|雪)/.test(summary)) return "rain";
+  if (/^(曇り|くもり)/.test(summary)) return "cloud";
+  if (/^晴れ/.test(summary)) return "clear";
+  if (summary.includes("雨") || summary.includes("雪")) return "rain";
+  if (summary.includes("曇") || summary.includes("くもり")) return "cloud";
+  return "cloud";
+}
+
+function isNight(instant: string, timeZone: string): boolean {
+  try {
+    const hour = Number(
+      new Intl.DateTimeFormat("en", {
+        timeZone,
+        hour: "numeric",
+        hourCycle: "h23",
+      }).format(new Date(instant)),
+    );
+    return hour >= 18 || hour < 6;
+  } catch {
+    return false;
+  }
+}
+
+function weatherSymbol(
+  period: Weather["periods"][number],
+  timeZone: string,
+): { glyph: string; label: string } {
+  switch (weatherKind(period)) {
+    case "rain":
+      return { glyph: "☂️", label: "雨" };
+    case "cloud":
+      return { glyph: "☁️", label: "曇り" };
+    case "clear":
+      return isNight(period.startsAt, timeZone)
+        ? { glyph: "✨️", label: "夜の晴れ" }
+        : { glyph: "☀️", label: "晴れ" };
+  }
+}
+
 export function WeatherCard({
   value,
   timeZone,
@@ -16,18 +65,32 @@ export function WeatherCard({
   const periods = value.periods
     .filter((p) => Date.parse(p.endsAt) > now)
     .slice(0, 4);
-  const forecast = (p: Weather["periods"][number]) => (
-    <div key={p.startsAt + p.endsAt} className="forecast">
-      <span>
-        {formatTime(p.startsAt, timeZone)}〜{formatTime(p.endsAt, timeZone)}
-      </span>
-      <strong>{p.summary ?? "予報未取得"}</strong>
-      <span>
-        予報気温 {p.temperatureMinC ?? "—"}〜{p.temperatureMaxC ?? "—"} °C ·
-        降水 {p.precipitationProbabilityPct ?? "—"}%
-      </span>
-    </div>
-  );
+  const forecast = (p: Weather["periods"][number]) => {
+    const symbol = weatherSymbol(p, timeZone);
+    return (
+      <div key={p.startsAt + p.endsAt} className="forecast">
+        <span className="forecast-time">
+          {formatTime(p.startsAt, timeZone)}〜{formatTime(p.endsAt, timeZone)}
+        </span>
+        <span className="weather-symbol" role="img" aria-label={symbol.label}>
+          {symbol.glyph}
+        </span>
+        <strong className="forecast-summary">
+          {p.summary ?? "予報未取得"}
+        </strong>
+        <span className="forecast-temperature">
+          予報気温{" "}
+          <strong>
+            {p.temperatureMinC ?? "—"}〜{p.temperatureMaxC ?? "—"}
+          </strong>{" "}
+          °C
+        </span>{" "}
+        <span className="forecast-precipitation">
+          · 降水 {p.precipitationProbabilityPct ?? "—"}%
+        </span>
+      </div>
+    );
+  };
   return (
     <section
       className={`card weather-card ${value.regionId === null ? "is-unconfigured" : ""}`}

@@ -11,6 +11,7 @@ import { WeatherCard } from "../../apps/dashboard/src/cards/WeatherCard";
 import { UsageCard } from "../../apps/dashboard/src/cards/UsageCard";
 import { RssCard } from "../../apps/dashboard/src/cards/RssCard";
 import { deriveStatus, formatTime } from "../../apps/dashboard/src/data/status";
+import { forecastRegionLabel } from "../../apps/dashboard/src/data/prefectures";
 afterEach(cleanup);
 const now = Date.parse("2026-10-02T00:00:00Z");
 it("makes missing weather region explicit", () => {
@@ -55,9 +56,11 @@ it("retains complete weather names and forecasts in openable details", async () 
       now={now}
     />,
   );
-  expect(screen.getByRole("heading", { name: regionLabel })).toHaveTextContent(
-    regionLabel,
-  );
+  expect(
+    screen.getByRole("heading", {
+      name: forecastRegionLabel("130010", regionLabel),
+    }),
+  ).toHaveTextContent(regionLabel);
   expect(
     container.querySelector(".weather-card > .forecast strong"),
   ).toHaveTextContent(periods[0].summary);
@@ -94,6 +97,44 @@ it("retains complete weather names and forecasts in openable details", async () 
   );
   expect(details).not.toHaveAttribute("open");
   expect(summary).toHaveFocus();
+});
+it("uses clear, cloud, rain, and night-clear weather symbols", async () => {
+  const periods = [
+    ["2026-10-02T08:00:00.000Z", "晴れ", "100"],
+    ["2026-10-02T18:00:00.000Z", "晴れ", "100"],
+    ["2026-10-03T08:00:00.000Z", "曇り", "200"],
+    ["2026-10-03T18:00:00.000Z", "雨", "300"],
+  ].map(([startsAt, summary, weatherCode]) => ({
+    startsAt,
+    endsAt: new Date(Date.parse(startsAt) + 3_600_000).toISOString(),
+    summary,
+    weatherCode,
+    temperatureMinC: 18,
+    temperatureMaxC: 26,
+    precipitationProbabilityPct: 20,
+  }));
+  const { container } = render(
+    <WeatherCard
+      value={{
+        ...emptyDashboard().weather,
+        regionId: "130010",
+        periods,
+      }}
+      timeZone="UTC"
+      now={now}
+    />,
+  );
+
+  expect(
+    container.querySelector(".weather-card > .forecast .weather-symbol"),
+  ).toHaveTextContent("☀️");
+  const details = container.querySelector("details")!;
+  await userEvent.setup().click(details.querySelector("summary")!);
+  expect(
+    [...details.querySelectorAll<HTMLElement>(".weather-symbol")].map(
+      (symbol) => symbol.textContent,
+    ),
+  ).toEqual(["☀️", "✨️", "☁️", "☂️"]);
 });
 it.each([true, false])(
   "groups weather actions while retaining details with setup available=%s",

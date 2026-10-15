@@ -531,9 +531,41 @@ select {
   font-size: 11px;
   color: #8da592;
 }
-.forecast strong {
+.forecast-time {
+  line-height: 1.3;
+}
+.forecast-summary {
   color: #d2dfcc;
   font-size: 14px;
+}
+.forecast .weather-symbol {
+  display: block;
+  width: max-content;
+  margin: 4px 0 5px;
+  color: inherit;
+  font-family:
+    "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif;
+  font-size: 42px;
+  line-height: 1;
+}
+.forecast-temperature {
+  display: block;
+  margin-top: 5px;
+  color: #b6cbb4;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+.forecast-temperature strong {
+  color: #f0f6e9;
+  font-size: clamp(28px, 4vw, 48px);
+  font-weight: 500;
+  letter-spacing: -0.04em;
+  line-height: 1;
+}
+.forecast-precipitation {
+  display: block;
+  margin-top: 4px;
+  color: #8da592;
 }
 .usage-bucket {
   margin-top: 18px;
@@ -914,13 +946,21 @@ summary:focus-visible {
     min-width: 0;
     line-height: 1.3;
   }
-  .overview .weather-card > .forecast strong {
+  .overview .weather-card > .forecast .forecast-summary {
     flex: none;
     font-size: 16px;
     line-height: 1.6;
     overflow: hidden;
     white-space: nowrap;
     text-overflow: ellipsis;
+  }
+  .overview .weather-card > .forecast .weather-symbol {
+    margin: 2px 0 4px;
+    font-size: clamp(52px, 7vw, 86px);
+  }
+  .overview .weather-card > .forecast .forecast-temperature strong {
+    font-size: clamp(38px, 5vw, 64px);
+    line-height: 1;
   }
   /* Share one 44px row, leaving the forecast its own space. Only the overview
      condition is abbreviated; all forecast text remains in the details panel. */
