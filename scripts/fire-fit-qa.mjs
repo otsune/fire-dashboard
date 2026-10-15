@@ -16,6 +16,7 @@ const providers = [
   "antigravity",
   "opencode_go",
   "hermes_nous",
+  "grok",
 ];
 
 export function dashboardFixture(scenario = "five", now = new Date()) {

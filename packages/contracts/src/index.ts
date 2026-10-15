@@ -26,6 +26,7 @@ export const usageProviders = [
   "antigravity",
   "opencode_go",
   "hermes_nous",
+  "grok",
 ] as const;
 export const providerSchema = z.enum(usageProviders);
 export type UsageProvider = z.infer<typeof providerSchema>;

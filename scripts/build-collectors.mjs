@@ -8,6 +8,7 @@ const entries = {
   "codex-service": "collectors/codex/service.ts",
   "codex-api-service": "collectors/codex/api-service.ts",
   "hermes-nous-api-service": "collectors/hermes-nous/api-service.ts",
+  "grok-api-service": "collectors/grok/api-service.ts",
   "send-snapshot": "collectors/shared/send-service.ts",
 };
 await build({

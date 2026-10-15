@@ -92,7 +92,7 @@ it("shows short relative reset times on the card while keeping absolute times in
   ).toBeInTheDocument();
 });
 
-it.each(["claude", "codex", "antigravity", "opencode_go"] as const)(
+it.each(["claude", "codex", "antigravity", "opencode_go", "grok"] as const)(
   "preserves %s zero, missing, and elapsed quota semantics on the compact face",
   (provider) => {
     const value = quota({ provider });

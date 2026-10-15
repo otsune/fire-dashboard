@@ -21,7 +21,7 @@ const allVisible = {
   hermes_nous: true,
   grok: true,
 };
-const extraProviders = ["antigravity", "opencode_go", "hermes_nous"] as const;
+const extraProviders = ["antigravity", "opencode_go", "hermes_nous", "grok"] as const;
 const at = "2026-10-02T00:00:00.000Z";
 const zeroWindow = {
   id: "quota",
@@ -98,18 +98,19 @@ describe("usage display settings", () => {
     expect(readUsageVisibility(undefined).value).toEqual(allVisible);
     expect(input).toEqual({ claude: false, grok: "yes" });
   });
-  it("keeps Grok outside the five existing collector provider contracts", () => {
+  it("includes Grok in the provider contract and display defaults", () => {
     expect(usageProviders).toEqual([
       "claude",
       "codex",
       "antigravity",
       "opencode_go",
       "hermes_nous",
+      "grok",
     ]);
     expect(emptyDashboard().usage.map((value) => value.provider)).toEqual(
       usageProviders,
     );
-    expect(providerSchema.safeParse("grok").success).toBe(false);
+    expect(providerSchema.safeParse("grok").success).toBe(true);
     const displayProvider: UsageDisplayProvider = "grok";
     expect(readUsageVisibility(undefined).value[displayProvider]).toBe(true);
   });
@@ -177,12 +178,6 @@ describe("usage display filtering", () => {
       expect(shouldShowUsage(provider, undefined, visibility)).toBe(false);
     },
   );
-  it("never fabricates a Grok card in stage one", () => {
-    expect(shouldShowUsage("grok", undefined, allVisible)).toBe(false);
-    expect(shouldShowUsage("grok", emptyUsage("claude"), allVisible)).toBe(
-      false,
-    );
-  });
   it("filters without changing retained usage data or observation times", () => {
     const value: Usage = {
       ...emptyUsage("hermes_nous"),

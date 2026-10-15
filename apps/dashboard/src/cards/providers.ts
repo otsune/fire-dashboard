@@ -8,4 +8,5 @@ export const providerPresentation: Record<
   antigravity: { name: "Antigravity", icon: "AG" },
   opencode_go: { name: "OpenCode Go", icon: "OC" },
   hermes_nous: { name: "Hermes / Nous", icon: "H" },
+  grok: { name: "Grok", icon: "G" },
 };

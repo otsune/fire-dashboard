@@ -1,6 +1,6 @@
 import type { UsageProvider } from "./index";
 
-export type UsageDisplayProvider = UsageProvider | "grok";
+export type UsageDisplayProvider = UsageProvider;
 export type UsageVisibility = Record<UsageDisplayProvider, boolean>;
 
 export const defaultUsageVisibility: UsageVisibility = {

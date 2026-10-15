@@ -15,6 +15,7 @@ const providers = [
   "antigravity",
   "opencode_go",
   "hermes_nous",
+  "grok",
 ] as const;
 const at = "2026-10-02T00:00:00.000Z";
 const balance = {
@@ -115,6 +116,7 @@ describe("provider contracts", () => {
       antigravity: "pc",
       opencode_go: "pc",
       hermes_nous: "pc",
+      grok: "pc",
     });
     for (const provider of [
       "hermes_nous",

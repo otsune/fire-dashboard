@@ -15,6 +15,7 @@ it.each([
   ["antigravity", "Antigravity"],
   ["opencode_go", "OpenCode Go"],
   ["hermes_nous", "Hermes / Nous"],
+  ["grok", "Grok"],
 ])("identifies %s independently", (provider, label) => {
   const value = usageSchema.parse({ ...emptyUsage("claude"), provider });
   render(<UsageCard value={value} timeZone="UTC" now={now} />);
@@ -117,7 +118,7 @@ it("groups all active usage cards separately from the RSS column", async () => {
   render(<App />);
   await screen.findByText("集約サービス接続済み");
   const usage = screen.getByRole("region", { name: "AI利用状況" });
-  expect(usage.querySelectorAll(".usage-card")).toHaveLength(5);
+  expect(usage.querySelectorAll(".usage-card")).toHaveLength(6);
   const rss = screen
     .getByRole("heading", { name: "ニュース RSS" })
     .closest("section")!;

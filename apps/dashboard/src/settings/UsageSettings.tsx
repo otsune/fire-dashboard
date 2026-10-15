@@ -33,11 +33,9 @@ export function UsageSettings({
         {providers.map(({ id, label }) => {
           const data = usage.find((item) => item.provider === id);
           const status =
-            id === "grok"
-              ? "未接続・接続後に表示"
-              : isUsageConfigured(data) && data
-                ? deriveStatus(data, Date.now()).label
-                : "未接続";
+            isUsageConfigured(data) && data
+              ? deriveStatus(data, Date.now()).label
+              : "未接続";
           return (
             <li key={id}>
               <label className="check">

@@ -24,7 +24,7 @@ export function shouldShowUsage(
   value: Usage | undefined,
   visibility: UsageVisibility,
 ): boolean {
-  if (!visibility[provider] || provider === "grok") return false;
+  if (!visibility[provider]) return false;
   if (provider === "claude" || provider === "codex") return true;
   return isUsageConfigured(value);
 }

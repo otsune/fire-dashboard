@@ -1460,3 +1460,44 @@ Nousカード表示、GMKtec全体再起動後の復帰は未完了である。�
 母艦のHTTPS・API・MQTT publisherは正常であり、Fire表示側の未取得は端末／ブラウザー接続がないためである。
 Fire HD 10をADB接続し、Fully Kioskを起動した状態でCDPまたは実機画面を再取得する必要がある。Nous login、
 24／72時間観測、全体再起動後の復帰確認も未完了のため、最終配備判定は **保留** とする。
+
+## 57. Grok Usage collector実装（2026-10-16）
+
+`https://grok.com/?_s=usage` のUsage画面が利用する内部RPCを調査し、Grok利用枠を既存のUsage／MQTT契約へ追加した。
+collectorは次の固定HTTPS endpointへ空のgRPC-web protobuf requestをPOSTする。
+
+```text
+https://grok.com/grok_api_v2.GrokBuildBilling/GetGrokCreditsConfig
+```
+
+`~/.grok/auth.json`（上書きは`FIRE_GROK_CREDENTIALS_FILE`）からBearer keyを選択し、gRPC-web frameを検証して
+protobuf内の使用率（0〜100）と将来のリセット時刻だけを`provider=grok`／`bucket=usage`／`window=weekly`へ
+変換する。製品別内訳、Extra Usage Credits、プラン名、token、Cookie、メール、アカウントID、生レスポンスは
+UsageEnvelopeへ入れない。HTTP 401／403とgRPC status 7／16は`auth`、404は`unsupported`、timeout／過大応答／
+不正protobufは分類済み状態へ変換する。未設定時は`unconfigured`で、0%へ補完しない。
+
+### 57.1 変更ファイル
+
+- `collectors/grok/api.ts` — 認証key選択、gRPC-web frame／protobuf scanner、使用率・reset変換、HTTP／gRPCエラー分類
+- `collectors/grok/api-capture.ts` — 単発snapshot保存
+- `collectors/grok/api-service.ts` — 30〜280秒poll、既存HTTPS senderへの送信
+- `packages/contracts/src/index.ts` — `usageProviders`へ`grok`追加
+- `apps/dashboard/src/cards/providers.ts`、`UsageSettings.tsx` — Grokカード／表示設定
+- `scripts/build-collectors.mjs` — `grok-api-service` entry
+- `tests/unit/grok-api.test.ts` — 合成gRPC-web fixture、認証、HTTP分類、timeout、秘密情報非伝搬
+
+### 57.2 検証
+
+| 検証 | 結果 |
+| --- | --- |
+| Grok focused suite | `tests/unit/grok-api.test.ts`、9 tests passed |
+| `rtk npm run typecheck` | 成功 |
+| `rtk npm run build:collectors` | 未実行（次の配備前に実行する） |
+| 実Grok token／内部RPC | 未実施。資格情報を探索・表示・保存していない |
+| GMKtec user unit／Fire HD 10表示 | 未実施 |
+
+これは公式に公開されたconsumer usage APIではなく、grok.comのUI内部RPCへの依存である。認証ファイルの実在確認、
+実アカウントでの単発capture、`status=ok`とreset値の検証が済むまでGMKtecの常駐unitへ登録しない。単発captureが
+`auth`／`unsupported`／`invalid_data`になった場合は、Grokカードへその状態を表示し、Cookie自動取得やHTML
+スクレイピングを追加しない。実値、24／72時間観測、Fire HD 10の表示、全体再起動後の復帰は未完了であり、
+最終配備判定は引き続き **保留** とする。

@@ -109,7 +109,7 @@ it("shows exactly the four section choices and focuses the current heading", () 
   }
 });
 
-it("shows all six exact usage labels and genuine provider states without a fabricated Grok quota", () => {
+it("shows all six exact usage labels and genuine provider states", () => {
   render(<SettingsShell {...props()} />);
   const labels = [
     "Claude",
@@ -122,10 +122,10 @@ it("shows all six exact usage labels and genuine provider states without a fabri
   expect(screen.getAllByRole("checkbox")).toHaveLength(6);
   for (const label of labels)
     expect(screen.getByRole("checkbox", { name: label })).toBeChecked();
-  expect(screen.getByText("未接続・接続後に表示")).toBeVisible();
+  expect(screen.getAllByText("未接続")).toHaveLength(2);
   expect(screen.getByText("受信済み")).toBeVisible();
   expect(screen.getByText("認証を確認")).toBeVisible();
-  expect(screen.getByText("未接続")).toBeVisible();
+  expect(screen.getAllByText("未接続").length).toBeGreaterThan(0);
   expect(screen.getByText("更新遅延")).toBeVisible();
   expect(screen.getByText("未取得")).toBeVisible();
   expect(screen.queryByText(/0%|USD|4\.7/)).toBeNull();

@@ -1,6 +1,6 @@
-# 5プロバイダーの利用状況
+# 6プロバイダーの利用状況
 
-Claude、Codexに、Antigravity、OpenCode Go、Hermes / Nousを加えた表示・収集契約です。ClaudeとCodexの既存手順は[読み取り専用収集](collectors.md)、認可と配備の前提は[運用と認証](deployment.md)を参照してください。
+Claude、Codexに、Antigravity、OpenCode Go、Hermes / Nous、Grokを加えた表示・収集契約です。ClaudeとCodexの既存手順は[読み取り専用収集](collectors.md)、認可と配備の前提は[運用と認証](deployment.md)を参照してください。
 
 この実装は、利用元PCで必要な数値だけを選別し、既存の `UsageEnvelope` と認証付き送信経路を使います。Fireへプロバイダーの認証情報や生のアカウント応答を渡しません。収集元PCへの導入、ログイン、ユーザー設定の変更、資格情報の探索・作成・保存は行っていません。実アカウントの入力と認証接続は未提供で、ライブ接続は未検証です。
 
@@ -13,6 +13,7 @@ Claude、Codexに、Antigravity、OpenCode Go、Hermes / Nousを加えた表示�
 | Antigravity   | `antigravity` | statuslineのモデル別・区分別quota残量             |
 | OpenCode Go   | `opencode_go` | Go契約のrolling・weekly・monthly利用率            |
 | Hermes / Nous | `hermes_nous` | Nousのサブスクリプション残高と追加購入残高（USD） |
+| Grok          | `grok`        | grok.com Usage画面の共有利用枠（使用率・週次リセット） |
 
 - 利用率は契約枠の消費率です。コンテキストウィンドウの占有率、セッションのトークン数、推定料金とは区別します。
 - 欠損は `null` または未取得状態です。未設定、未対応、認証失敗を0%や残高0として表示しません。
@@ -130,9 +131,46 @@ node dist/collectors/hermes-nous-api-service.mjs
 
 `FIRE_POLL_SECONDS` は30〜280秒（既定60秒）です。単発保存は `FIRE_SNAPSHOT_PATH`、`FIRE_SOURCE_ALIAS`、`FIRE_HERMES_PYTHON` を指定して `npx tsx collectors/hermes-nous/api-capture.ts` を実行します。Hermesのバージョン更新で内部helperの形が変わる可能性があるため、まず固定応答試験とGMKtec上の実アカウント受信確認を行い、正常値を得られない場合にstdin経路へ戻せるようsnapshotとserviceを分離します。
 
+## Grok
+
+### 出典と対応範囲
+
+Grokの消費者向けUsage画面（`https://grok.com/?_s=usage`）が呼び出す非公開gRPC-web RPC
+`POST https://grok.com/grok_api_v2.GrokBuildBilling/GetGrokCreditsConfig` を読み取ります。
+公式の消費者向けREST契約ではないため、サーバー側の変更や認証方式の変更で利用できなくなる可能性があります。
+レスポンスのprotobufから、共有利用枠の使用率（0〜100）と将来のリセット時刻だけを抽出し、`grok`の
+`weekly` windowへ変換します。API／Build／Chat／Imagine／Voiceの製品別内訳、Extra Usage Credits残高、
+プラン名は現時点では転送しません。使用率が解釈できない場合は0%にせず`invalid_data`として扱います。
+
+認証はGrok CLI／Webログインが作成する`~/.grok/auth.json`（または
+`FIRE_GROK_CREDENTIALS_FILE`）のBearer keyだけを読みます。Cookie、メール、アカウントID、refresh token、
+生protobuf、レスポンス本文はsnapshot・ログ・Fireへ渡しません。期限切れのkeyは更新処理を行わず、認証失敗として
+次回取得へ回します。認証ファイルがない場合は`unconfigured`です。
+
+### ローカルでの接続
+
+既存のGrokログイン状態を収集元PCで用意した後、API collectorを次のように起動します。集約APIの送信用tokenは
+Grokのtokenとは別の既存ファイルを使います。
+
+```sh
+STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/fire-dashboard"
+FIRE_SNAPSHOT_PATH="$STATE_DIR/grok.json" \
+FIRE_SOURCE_ALIAS="primary-pc" \
+FIRE_GROK_CREDENTIALS_FILE="$HOME/.grok/auth.json" \
+FIRE_ENDPOINT="https://<gmktec>/api/v1/usage" \
+FIRE_COLLECTOR_TOKEN_FILE="$HOME/.config/fire-dashboard/collector-token" \
+./node_modules/.bin/tsx collectors/grok/api-service.ts
+```
+
+`FIRE_POLL_SECONDS`は30〜280秒（既定60秒）です。collectorはGETではなく空のgRPC-webリクエストをPOSTし、
+redirectを拒否、応答を1MiB以内に制限、タイムアウトとHTTP／gRPC認証エラーを分類します。ブラウザーの
+セッションCookieをheadlessで再現する処理や、usageページのHTMLスクレイピングは行いません。内部RPCが
+`no-credentials`などを返す環境では、認証状態を再確認し、解消しなければ`auth`として最後の正常値を集約側に
+保持させます。
+
 ## 保存・送信・取得元の選択
 
-3つの追加CLIは `FIRE_SNAPSHOT_PATH` と `FIRE_SOURCE_ALIAS` を必要とします。プロバイダーごとに別のsnapshotファイルを指定してください。エイリアスは `primary-pc` のような、個人を識別しない英数字・ハイフン・アンダースコアに限定します。氏名、メール、ホスト名、アカウントIDを転用しないでください。
+追加CLIは `FIRE_SNAPSHOT_PATH` と `FIRE_SOURCE_ALIAS` を必要とします。プロバイダーごとに別のsnapshotファイルを指定してください。エイリアスは `primary-pc` のような、個人を識別しない英数字・ハイフン・アンダースコアに限定します。氏名、メール、ホスト名、アカウントIDを転用しないでください。
 
 共通の `captureSnapshot` は選別済み `UsageEnvelope` だけを原子的に保存します。同じ内容なら `snapshotId`、`sequence`、`capturedAt` を維持し、書き込み競合は既存の `.lock` で拒否します。ロック回復は[既存手順](collectors.md#送信と保存)に従います。生入力・キー・応答本文を診断ログへ出しません。
 
@@ -189,7 +227,7 @@ npm run build
 
 ## 追加カードの表示と配置
 
-Claude・Codexは従来どおり表示します。追加3サービスは、取得元エイリアス・収集／受信記録・取得状態・利用率または残高のどれもない初期の未設定状態では非表示です。取得元から未取得・認証失敗を受け取った場合は、その状態を隠さず表示します。明示された0%やUSD 0も有効なデータとして扱います。
+Claude・Codexは従来どおり表示します。追加4サービスは、取得元エイリアス・収集／受信記録・取得状態・利用率または残高のどれもない初期の未設定状態では非表示です。取得元から未取得・認証失敗を受け取った場合は、その状態を隠さず表示します。明示された0%やUSD 0も有効なデータとして扱います。
 
 幅1000px以上では利用状況を左側の2列グリッド、RSSを右側の専用列に配置します。幅999px以下ではRSSを利用状況の下へ、600px以下では利用状況も1列へ並べます。利用状況が奇数枚の場合、最後のカードはその行の幅を使います。接続済みサービスが増えれば縦方向に伸びるため、常に1画面へ収まることは保証しません。
 
