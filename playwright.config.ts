@@ -1,5 +1,13 @@
 import { existsSync } from "node:fs";
 import { defineConfig, devices } from "@playwright/test";
+
+const browserExecutable = [
+  process.env.PLAYWRIGHT_EXECUTABLE_PATH,
+  "/usr/bin/chromium",
+  "/usr/bin/chromium-browser",
+  "/usr/bin/google-chrome",
+].find((path) => path && existsSync(path));
+
 export default defineConfig({
   testDir: "tests/acceptance",
   timeout: 30000,
@@ -9,9 +17,7 @@ export default defineConfig({
     baseURL: "http://127.0.0.1:4173",
     headless: true,
     launchOptions: {
-      executablePath:
-        process.env.PLAYWRIGHT_EXECUTABLE_PATH ??
-        (existsSync("/usr/bin/chromium") ? "/usr/bin/chromium" : undefined),
+      executablePath: browserExecutable,
     },
     viewport: { width: 1280, height: 800 },
   },
