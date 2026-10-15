@@ -1442,3 +1442,21 @@ Nous login手順を別途実施し、再度snapshotの`status=ok`、balance／wi
 
 今回の配備で実装・起動・API受信までは確認できたが、Nous OAuthの実値、24／72時間連続運転、Fire HD 10の
 Nousカード表示、GMKtec全体再起動後の復帰は未完了である。最終配備判定は引き続き **保留** とする。
+
+## 56. 配備後の母艦／表示端末再確認（2026-10-16）
+
+配備後の定点確認を行った。確認時刻は2026-10-16 07:37〜07:38 JSTである。
+
+| 確認 | 実測結果 |
+| --- | --- |
+| Nous API unit | `active/running`、`NRestarts=0`、`Result=success` |
+| Serve health | HTTP `200` |
+| Serve MQTT status | HTTP `200`、`publisher=ready`、`runtime.state=connected`、`deliveryStatus=ok`、`reconnectCount=0`、`lastError=null` |
+| MQTT publish | `currentRevision=2952`、`lastPublishRevision=2952`、heartbeat／publish時刻あり |
+| 集約state | Nous `status=unconfigured`、`sourceAlias=gmktec`、`usageRevision=2951`。Nous認証未設定のため正常balanceは未取得 |
+| Fire ADB | `adb devices -l`のdevice一覧が空。端末の接続状態は未確認 |
+| Fire CDP | `127.0.0.1:9222`未待受。画面footer／Service Workerの実画面サンプルは未取得 |
+
+母艦のHTTPS・API・MQTT publisherは正常であり、Fire表示側の未取得は端末／ブラウザー接続がないためである。
+Fire HD 10をADB接続し、Fully Kioskを起動した状態でCDPまたは実機画面を再取得する必要がある。Nous login、
+24／72時間観測、全体再起動後の復帰確認も未完了のため、最終配備判定は **保留** とする。
