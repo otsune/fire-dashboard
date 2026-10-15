@@ -1054,6 +1054,49 @@ summary:focus-visible {
     padding: 4px 8px;
   }
 }
+
+@media (orientation: landscape) and (min-width: 700px) and (max-width: 1000px) {
+  .overview .weather-card > .forecast {
+    display: grid;
+    grid-template-columns: 48px minmax(0, 1fr);
+    grid-template-rows: auto auto auto auto;
+    column-gap: 7px;
+    align-items: center;
+  }
+  .overview .weather-card > .forecast .forecast-time {
+    grid-column: 2;
+    grid-row: 1;
+  }
+  .overview .weather-card > .forecast .weather-symbol {
+    grid-column: 1;
+    grid-row: 1 / span 3;
+    align-self: center;
+    margin: 0;
+    font-size: 48px;
+  }
+  .overview .weather-card > .forecast .forecast-summary {
+    grid-column: 2;
+    grid-row: 2;
+    min-width: 0;
+    font-size: 14px;
+    line-height: 1.4;
+  }
+  .overview .weather-card > .forecast .forecast-temperature {
+    grid-column: 2;
+    grid-row: 3;
+    margin-top: 1px;
+    font-size: 10px;
+  }
+  .overview .weather-card > .forecast .forecast-temperature strong {
+    font-size: 32px;
+  }
+  .overview .weather-card > .forecast .forecast-precipitation {
+    grid-column: 2;
+    grid-row: 4;
+    margin-top: 1px;
+  }
+}
+
 @media (orientation: portrait) {
   .top-grid {
     grid-template-columns: minmax(0, 1fr);
