@@ -4,6 +4,7 @@
 import { build } from "esbuild";
 const entries = {
   "claude-statusline": "collectors/claude/statusline.ts",
+  "claude-api-service": "collectors/claude/api-service.ts",
   "codex-service": "collectors/codex/service.ts",
   "send-snapshot": "collectors/shared/send-service.ts",
 };

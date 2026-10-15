@@ -8,6 +8,25 @@ Antigravity・OpenCode Go・Hermes／Nousは[追加サービスの収集手順](
 
 公式仕様を2026-10-02に確認しました。[statusline仕様](https://code.claude.com/docs/en/statusline)のrate_limits.five_hourとseven_dayのみ読み、spend_limitは使いません。used_percentageは0〜100、resets_atはepoch秒です。公式ページではPro/MaxまたはGatewayにより項目の有無が異なり、最初のAPI応答前は欠損する場合があります。表示を更新するためのAI呼び出しは行いません。
 
+### Anthropic OAuth usage API（API取得経路）
+
+[Hermes provider-usage](https://github.com/PhoeniXAbhisheK/hermes-plugin-provider-usage)の取得方式を参考に、Claude Codeが保存したOAuth tokenでAnthropicの利用状況APIを読み取る経路も用意しています。対象は固定の `GET https://api.anthropic.com/api/oauth/usage` で、`five_hour.utilization` と `seven_day.utilization`、それぞれの `resets_at` だけを既存のClaude `Usage`へ変換します。`anthropic-beta: oauth-2025-04-20` を付け、別のAPI、会話、プロンプト、モデル実行は行いません。
+
+tokenは既存の `~/.claude/.credentials.json` の `claudeAiOauth.accessToken` を読み取り専用で使います。資格情報ファイルの内容やAPI応答全体をsnapshot・ログ・母艦へ送らず、Fireへは既存契約の利用率、リセット予定、状態、時刻だけを送ります。HTTP 401/403、429、タイムアウト、過大応答、不正JSONは分類済み状態に変換し、レスポンス本文は保存しません。
+
+GMKtecでAPI経路へ切り替える場合は、既存statusline collectorと同じsnapshotファイルを同時に書かないでください。次のサービスはClaude Codeのログイン済みcredentialsを一定間隔で読み、既存の送信APIへsnapshotを送ります。
+
+```sh
+npm run build:collectors
+FIRE_SNAPSHOT_PATH="$HOME/.local/state/fire-dashboard/claude-api.json" \
+FIRE_SOURCE_ALIAS="gmktec" \
+FIRE_ENDPOINT="https://<gmktec>/api/v1/usage" \
+FIRE_COLLECTOR_TOKEN_FILE="$HOME/.config/fire-dashboard/collector-token" \
+node dist/collectors/claude-api-service.mjs
+```
+
+任意の `FIRE_CLAUDE_CREDENTIALS_FILE` でcredentialsの読み取り先を明示でき、`FIRE_POLL_SECONDS` は30〜280秒（既定60秒）です。statusline経路から切り替えるときは、送信側の `FIRE_SNAPSHOT_PATHS` もAPI用snapshotだけに合わせ、集約APIの `preferredSources.claude` は既存の `gmktec` を維持します。API経路はコードと固定データ試験までを実装しており、実アカウントでの切り替え・systemd反映は別途の運用作業です。
+
 ローカルスクリプトは `FIRE_SNAPSHOT_PATH` と非個人情報の `FIRE_SOURCE_ALIAS` を指定して実行します。stdin JSONから指標だけ選別して原子的に保存し、ネットワークは使いません。statuslineは再描画のたびに呼ばれるため、`npm run build:collectors` で単一ファイルにまとめた `node dist/collectors/claude-statusline.mjs` を使います(`npx tsx` は Windows で1回1秒以上かかり、まとめたファイルは約0.1秒です)。既存statuslineがある場合はバックアップしてから併用ラッパーを管理者が作成してください。従来スクリプトの出力はそのまま画面に残し、抽出処理は出力を捨ててバックグラウンドで動かします。実際の設定ファイルをこのプロジェクトが変更することはありません。
 
 ### GMKtecでの実運用（2026-10-15）

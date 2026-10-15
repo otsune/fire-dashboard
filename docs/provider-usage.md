@@ -8,7 +8,7 @@ Claude、Codexに、Antigravity、OpenCode Go、Hermes / Nousを加えた表示�
 
 | 画面名        | provider ID   | 表示対象                                          |
 | ------------- | ------------- | ------------------------------------------------- |
-| Claude        | `claude`      | statuslineの利用枠                                |
+| Claude        | `claude`      | statuslineまたはAnthropic OAuth APIの利用枠       |
 | Codex         | `codex`       | App Serverのレート制限枠                          |
 | Antigravity   | `antigravity` | statuslineのモデル別・区分別quota残量             |
 | OpenCode Go   | `opencode_go` | Go契約のrolling・weekly・monthly利用率            |
