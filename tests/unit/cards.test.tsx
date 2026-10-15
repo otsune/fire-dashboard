@@ -163,6 +163,10 @@ it("shows a cloudy-to-sunny transition as two weather symbols", () => {
   expect(symbol).toHaveTextContent("☁️ / ☀️");
   expect(symbol).toHaveAttribute("aria-label", "曇りから晴れ");
   expect(symbol).toHaveClass("weather-symbol--compound");
+  expect(symbol?.querySelector(".weather-symbol-main")).toHaveTextContent("☁️");
+  expect(symbol?.querySelector(".weather-symbol-secondary")).toHaveTextContent(
+    "☀️",
+  );
 });
 it.each([true, false])(
   "groups weather actions while retaining details with setup available=%s",

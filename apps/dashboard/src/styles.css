@@ -549,9 +549,22 @@ select {
   line-height: 1;
 }
 .forecast .weather-symbol--compound {
+  align-items: baseline;
+  display: inline-flex;
   font-size: clamp(30px, 4vw, 48px);
-  letter-spacing: -0.04em;
   white-space: nowrap;
+}
+.weather-symbol-main {
+  font-size: 1em;
+  line-height: 1;
+}
+.weather-symbol-separator {
+  font-size: 0.55em;
+  line-height: 1;
+}
+.weather-symbol-secondary {
+  font-size: 0.62em;
+  line-height: 1;
 }
 .forecast--compound .forecast-summary {
   overflow: visible;
@@ -1089,7 +1102,6 @@ summary:focus-visible {
   }
   .overview .weather-card > .forecast .weather-symbol--compound {
     font-size: 20px;
-    letter-spacing: 0;
   }
   .overview .weather-card > .forecast .forecast-summary {
     grid-column: 2;
