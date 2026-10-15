@@ -124,7 +124,7 @@ for (const viewport of viewports) {
       ).toBeVisible();
       for (const label of providerLabels) {
         const checkbox = page.getByRole("checkbox", {
-          name: `${label}を表示する`,
+          name: label,
           exact: true,
         });
         const touchLabel = checkbox.locator("..");
@@ -181,9 +181,7 @@ for (const viewport of viewports) {
       await expect(page.locator(".usage-card")).toHaveCount(0);
       await openSettings(page);
       await page.getByRole("button", { name: "利用状況", exact: true }).click();
-      await page
-        .getByRole("checkbox", { name: "Claudeを表示する", exact: true })
-        .check();
+      await page.getByRole("checkbox", { name: "Claude", exact: true }).check();
       await closeSettings(page);
       await expect(page.locator(".usage-card")).toHaveCount(1);
       await expect(
@@ -208,7 +206,7 @@ for (const viewport of viewports) {
       await openSettings(page);
       await page.getByRole("button", { name: "利用状況", exact: true }).click();
       await page
-        .getByRole("checkbox", { name: "Claudeを表示する", exact: true })
+        .getByRole("checkbox", { name: "Claude", exact: true })
         .uncheck();
       await closeSettings(page);
       await page.reload();
@@ -219,7 +217,7 @@ for (const viewport of viewports) {
       for (const label of providerLabels)
         await expect(
           page.getByRole("checkbox", {
-            name: `${label}を表示する`,
+            name: label,
             exact: true,
           }),
         ).not.toBeChecked();
@@ -360,7 +358,7 @@ for (const viewport of viewports) {
       ).toHaveCount(0);
       expect(fixture.requests.catalog).toBe(0);
       await page.getByRole("button", { name: "利用状況", exact: true }).click();
-      await page.getByRole("checkbox", { name: "Grokを表示する" }).uncheck();
+      await page.getByRole("checkbox", { name: "Grok" }).uncheck();
       await closeSettings(page);
       await expectAudioStillDisabled(page);
       expect(fixture.puts).toHaveLength(0);

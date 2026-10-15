@@ -70,7 +70,7 @@ it("keeps actual preview playback running when only usage visibility changes", a
   await waitFor(() => expect(assets[0]?.playing).toBe(true));
   fireEvent.click(screen.getByRole("button", { name: "設定" }));
   fireEvent.click(screen.getByRole("button", { name: "利用状況" }));
-  fireEvent.click(screen.getByRole("checkbox", { name: "Claudeを表示する" }));
+  fireEvent.click(screen.getByRole("checkbox", { name: "Claude" }));
   expect(assets[0].playing).toBe(true);
   fireEvent.click(screen.getByRole("button", { name: "時計に戻る" }));
   await screen.findByTestId("clock-time");

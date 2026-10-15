@@ -119,13 +119,9 @@ it("shows all six exact usage labels and genuine provider states without a fabri
     "Hermes / Nous",
     "Grok",
   ];
-  expect(screen.getAllByRole("checkbox", { name: /表示する$/ })).toHaveLength(
-    6,
-  );
+  expect(screen.getAllByRole("checkbox")).toHaveLength(6);
   for (const label of labels)
-    expect(
-      screen.getByRole("checkbox", { name: `${label}を表示する` }),
-    ).toBeChecked();
+    expect(screen.getByRole("checkbox", { name: label })).toBeChecked();
   expect(screen.getByText("未接続・接続後に表示")).toBeVisible();
   expect(screen.getByText("受信済み")).toBeVisible();
   expect(screen.getByText("認証を確認")).toBeVisible();
@@ -152,10 +148,8 @@ it("changes browser-only visibility immediately while preserving every other set
     );
   }
   render(<Harness />);
-  fireEvent.click(screen.getByRole("checkbox", { name: "Claudeを表示する" }));
-  expect(
-    screen.getByRole("checkbox", { name: "Claudeを表示する" }),
-  ).not.toBeChecked();
+  fireEvent.click(screen.getByRole("checkbox", { name: "Claude" }));
+  expect(screen.getByRole("checkbox", { name: "Claude" })).not.toBeChecked();
   expect(initial.onChange).toHaveBeenLastCalledWith({
     ...initial.value,
     usageVisibility: { ...initial.value.usageVisibility, claude: false },

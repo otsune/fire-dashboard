@@ -54,7 +54,7 @@ export function UsageSettings({
                     })
                   }
                 />
-                {label}を表示する
+                {label}
               </label>
               <span className="status">{status}</span>
             </li>

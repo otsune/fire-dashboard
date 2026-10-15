@@ -406,7 +406,7 @@ it("collapses all-off usage and restores retained data and real timestamps witho
       .getAllByRole("checkbox")
       .every((checkbox) => !(checkbox as HTMLInputElement).checked),
   ).toBe(true);
-  fireEvent.click(screen.getByRole("checkbox", { name: "Claudeを表示する" }));
+  fireEvent.click(screen.getByRole("checkbox", { name: "Claude" }));
   closeSettings();
   const card = container.querySelector<HTMLElement>(
     '[data-provider="claude"]',
@@ -468,7 +468,7 @@ it("receives a newer successful response while all usage is hidden and reveals i
   expect(container.querySelectorAll(".usage-card")).toHaveLength(0);
   fireEvent.click(screen.getByRole("button", { name: "設定" }));
   fireEvent.click(screen.getByRole("button", { name: "利用状況" }));
-  fireEvent.click(screen.getByRole("checkbox", { name: "Claudeを表示する" }));
+  fireEvent.click(screen.getByRole("checkbox", { name: "Claude" }));
   closeSettings();
   const card = container.querySelector<HTMLElement>(
     '[data-provider="claude"]',
@@ -499,7 +499,7 @@ it("warns when browser settings cannot be persisted but keeps the live choice", 
   render(<App />);
   fireEvent.click(screen.getByRole("button", { name: "設定" }));
   fireEvent.click(screen.getByRole("button", { name: "利用状況" }));
-  fireEvent.click(screen.getByRole("checkbox", { name: "Claudeを表示する" }));
+  fireEvent.click(screen.getByRole("checkbox", { name: "Claude" }));
   expect(screen.getByRole("alert")).toHaveTextContent("この画面では変更を維持");
   closeSettings();
   expect(document.querySelector('[data-provider="claude"]')).toBeNull();
@@ -533,7 +533,7 @@ it("keeps the 30-second poll mounted while every usage provider is hidden", asyn
   expect(dashboardClient.fetchDashboard).toHaveBeenCalledTimes(2);
   fireEvent.click(screen.getByRole("button", { name: "設定" }));
   fireEvent.click(screen.getByRole("button", { name: "利用状況" }));
-  fireEvent.click(screen.getByRole("checkbox", { name: "Claudeを表示する" }));
+  fireEvent.click(screen.getByRole("checkbox", { name: "Claude" }));
   closeSettings();
   const card = document.querySelector<HTMLElement>('[data-provider="claude"]')!;
   expect(
