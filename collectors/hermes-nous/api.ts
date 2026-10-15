@@ -1,5 +1,6 @@
 import { spawn } from "node:child_process";
 import { homedir } from "node:os";
+import { dirname, resolve as resolvePath } from "node:path";
 import {
   emptyCommon,
   emptyUsage,
@@ -19,6 +20,13 @@ import { isoInstant } from "../shared/input";
 const HERMES_SCRIPT = String.raw`
 import json
 import math
+import os
+import sys
+
+# Hermes keeps a few runtime modules (for example the pm module) in the checkout
+# rather than the virtualenv's site-packages.  Make the shared checkout
+# explicit so this bridge behaves the same way when launched by systemd.
+sys.path.insert(0, os.environ.get("FIRE_HERMES_AGENT_ROOT") or os.path.expanduser("~/.hermes/hermes-agent"))
 
 def finite(value):
     if isinstance(value, bool) or not isinstance(value, (int, float)):
@@ -93,6 +101,8 @@ main()
 `;
 
 export const DEFAULT_HERMES_PYTHON = `${homedir()}/.hermes/hermes-agent/venv/bin/python`;
+export const DEFAULT_HERMES_HOME = `${homedir()}/.hermes`;
+export const DEFAULT_HERMES_AGENT_ROOT = `${DEFAULT_HERMES_HOME}/hermes-agent`;
 
 function failure(
   capturedAt: string,
@@ -181,9 +191,19 @@ function runHermesPython(
   timeoutMs: number,
 ): Promise<unknown> {
   return new Promise((resolve, reject) => {
+    const agentRoot =
+      process.env.FIRE_HERMES_AGENT_ROOT ??
+      dirname(dirname(dirname(resolvePath(pythonPath))));
+    const hermesHome = process.env.FIRE_HERMES_HOME ?? DEFAULT_HERMES_HOME;
     const child = spawn(pythonPath, ["-c", HERMES_SCRIPT], {
       stdio: ["ignore", "pipe", "ignore"],
       shell: false,
+      cwd: agentRoot,
+      env: {
+        ...process.env,
+        HERMES_HOME: hermesHome,
+        FIRE_HERMES_AGENT_ROOT: agentRoot,
+      },
     });
     let output = "";
     let bytes = 0;
