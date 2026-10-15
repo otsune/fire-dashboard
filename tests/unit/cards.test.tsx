@@ -136,6 +136,34 @@ it("uses clear, cloud, rain, and night-clear weather symbols", async () => {
     ),
   ).toEqual(["☀️", "✨️", "☁️", "☂️"]);
 });
+it("shows a cloudy-to-sunny transition as two weather symbols", () => {
+  const period = {
+    startsAt: "2026-10-02T08:00:00.000Z",
+    endsAt: "2026-10-02T14:00:00.000Z",
+    summary: "くもり　昼過ぎ　から　夕方　晴れ",
+    weatherCode: "201",
+    temperatureMinC: 18,
+    temperatureMaxC: 26,
+    precipitationProbabilityPct: 20,
+  };
+  const { container } = render(
+    <WeatherCard
+      value={{
+        ...emptyDashboard().weather,
+        regionId: "130010",
+        periods: [period],
+      }}
+      timeZone="UTC"
+      now={now}
+    />,
+  );
+  const symbol = container.querySelector<HTMLElement>(
+    ".weather-card > .forecast .weather-symbol",
+  );
+  expect(symbol).toHaveTextContent("☁️ / ☀️");
+  expect(symbol).toHaveAttribute("aria-label", "曇りから晴れ");
+  expect(symbol).toHaveClass("weather-symbol--compound");
+});
 it.each([true, false])(
   "groups weather actions while retaining details with setup available=%s",
   async (withSettings) => {

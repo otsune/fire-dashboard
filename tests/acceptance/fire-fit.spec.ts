@@ -43,7 +43,10 @@ function configuredDashboard(providerCount: 2 | 5): Dashboard {
     periods: Array.from({ length: 4 }, (_, index) => ({
       startsAt: instant(index * 6),
       endsAt: instant((index + 1) * 6),
-      summary: index === 0 ? "晴れ時々くもり" : `詳細予報 ${index + 1}`,
+      summary:
+        index === 0
+          ? "くもり　昼過ぎ　から　夕方　晴れ"
+          : `詳細予報 ${index + 1}`,
       weatherCode: "101",
       temperatureMinC: 19 + index,
       temperatureMaxC: 27 + index,

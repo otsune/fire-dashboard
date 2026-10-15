@@ -34,10 +34,19 @@ function isNight(instant: string, timeZone: string): boolean {
   }
 }
 
+function isCloudToClear(summary: string): boolean {
+  return /^(?:曇り|くもり).*晴れ/.test(summary.replace(/\s+/g, ""));
+}
+
 function weatherSymbol(
   period: Weather["periods"][number],
   timeZone: string,
-): { glyph: string; label: string } {
+): { glyph: string; label: string; compound?: boolean } {
+  const summary = period.summary?.trim() ?? "";
+  if (isCloudToClear(summary)) {
+    return { glyph: "☁️ / ☀️", label: "曇りから晴れ", compound: true };
+  }
+
   switch (weatherKind(period)) {
     case "rain":
       return { glyph: "☂️", label: "雨" };
@@ -68,11 +77,18 @@ export function WeatherCard({
   const forecast = (p: Weather["periods"][number]) => {
     const symbol = weatherSymbol(p, timeZone);
     return (
-      <div key={p.startsAt + p.endsAt} className="forecast">
+      <div
+        key={p.startsAt + p.endsAt}
+        className={`forecast${symbol.compound ? " forecast--compound" : ""}`}
+      >
         <span className="forecast-time">
           {formatTime(p.startsAt, timeZone)}〜{formatTime(p.endsAt, timeZone)}
         </span>
-        <span className="weather-symbol" role="img" aria-label={symbol.label}>
+        <span
+          className={`weather-symbol${symbol.compound ? " weather-symbol--compound" : ""}`}
+          role="img"
+          aria-label={symbol.label}
+        >
           {symbol.glyph}
         </span>
         <strong className="forecast-summary">
