@@ -1494,11 +1494,65 @@ UsageEnvelopeへ入れない。HTTP 401／403とgRPC status 7／16は`auth`、40
 | `rtk npm run typecheck` | 成功 |
 | `rtk npm run build:collectors` | 成功。7 entry（`grok-api-service`を含む） |
 | `rtk npm run build` / `rtk npm run build:api` | 成功 |
-| 実Grok token／内部RPC | 未実施。資格情報を探索・表示・保存していない |
-| GMKtec user unit／Fire HD 10表示 | 未実施 |
+| 実Grok token／内部RPC | 初回実装記録時点では未実施。実値確認は§58で実施 |
+| GMKtec user unit／Fire HD 10表示 | 初回実装記録時点では未実施。常駐unitは§58で配備 |
 
 これは公式に公開されたconsumer usage APIではなく、grok.comのUI内部RPCへの依存である。認証ファイルの実在確認、
-実アカウントでの単発capture、`status=ok`とreset値の検証が済むまでGMKtecの常駐unitへ登録しない。単発captureが
+実アカウントでの単発capture、`status=ok`とreset値の検証を§58で完了した。単発captureが
 `auth`／`unsupported`／`invalid_data`になった場合は、Grokカードへその状態を表示し、Cookie自動取得やHTML
 スクレイピングを追加しない。実値、24／72時間観測、Fire HD 10の表示、全体再起動後の復帰は未完了であり、
 最終配備判定は引き続き **保留** とする。
+
+## 58. GMKtecへのGrok常駐経路配備（2026-10-16）
+
+Grok login後、GMKtec上の`~/.grok/auth.json`を本文表示せずに存在・権限だけ確認した。
+ファイルは`mode=600`、owner=`otsune:otsune`で、単発captureを実行した結果、Grokの実usageを取得できた。
+
+| 確認 | 実測結果 |
+| --- | --- |
+| 単発capture | `status=ok`、`provider=grok`、`sourceAlias=gmktec` |
+| 使用率 | 1% |
+| リセット予定 | `2026-10-20T20:42:13.000Z` |
+| snapshot | `~/.local/state/fire-dashboard/grok.json`、sequence 1 |
+| 集約state | `status=ok`、`sourceAlias=gmktec`、usage revision `3128` |
+| 受信時刻 | `2026-10-16T00:05:53.780Z` |
+
+### 58.1 API受入設定
+
+`~/.config/fire-dashboard/config.json`を変更する前に、
+`config.json.bak-20261016_090313`を作成した。`preferredSources.grok=["gmktec"]`を追加し、
+機械検証とbackup存在確認を行った。設定反映のため`fire-dashboard-api.service`を再起動し、
+一時的に約30秒のgraceful stop待ちが発生した後、`active/running`へ復帰した。APIのloopback portやTailscale
+origin、MQTT設定、外部公開範囲は変更していない。
+
+### 58.2 常駐unit
+
+既存unitを変更せず、次の専用user unitを追加した。新規unitのbackup markerは
+`20261016_090534`である。
+
+- `fire-dashboard-grok-api.service` — `dist/collectors/grok-api-service.mjs`、240秒poll
+- `fire-dashboard-grok-sender.service` — `grok.json`を既存HTTPS `/api/v1/usage`へ送信
+
+両unitとも`enabled`／`active/running`、`NRestarts=0`である。collectorはGrok tokenを読み、senderは既存の
+collector tokenを読み、資格情報を相互に共有しない。起動後のsenderログに失敗行はなく、API stateへ`grok:gmktec`
+が保存されている。
+
+### 58.3 rollback
+
+Grok経路を止める場合は、次を実行して専用unitだけを停止・無効化する。
+
+```sh
+systemctl --user disable --now fire-dashboard-grok-api.service
+systemctl --user disable --now fire-dashboard-grok-sender.service
+```
+
+API受入設定を戻す場合は、変更前backupを復元してAPIを再起動する。
+
+```sh
+cp -a ~/.config/fire-dashboard/config.json.bak-20261016_090313 ~/.config/fire-dashboard/config.json
+systemctl --user restart fire-dashboard-api.service
+```
+
+Grok認証切れ、内部RPC変更、timeoutは`auth`／`unsupported`／`timeout`として保存され、集約側の最後の正常値保持
+契約に従う。実値取得、API受信、常駐unit、MQTT publish経路まで確認済みだが、Fire HD 10の実画面確認、24／72時間
+観測、GMKtec全体再起動後の復帰は未完了であり、最終配備判定は引き続き **保留** とする。
