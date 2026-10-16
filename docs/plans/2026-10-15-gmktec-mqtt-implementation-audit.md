@@ -1492,7 +1492,8 @@ UsageEnvelopeへ入れない。HTTP 401／403とgRPC status 7／16は`auth`、40
 | --- | --- |
 | Grok focused suite | `tests/unit/grok-api.test.ts`、9 tests passed |
 | `rtk npm run typecheck` | 成功 |
-| `rtk npm run build:collectors` | 未実行（次の配備前に実行する） |
+| `rtk npm run build:collectors` | 成功。7 entry（`grok-api-service`を含む） |
+| `rtk npm run build` / `rtk npm run build:api` | 成功 |
 | 実Grok token／内部RPC | 未実施。資格情報を探索・表示・保存していない |
 | GMKtec user unit／Fire HD 10表示 | 未実施 |
 
