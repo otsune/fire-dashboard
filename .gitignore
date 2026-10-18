@@ -17,5 +17,9 @@ gemini-hourly*/
 gemini-hourly*.zip
 apps/dashboard/public/audio/private/
 
+# Local tool artifacts (editor/LSP/test tooling caches)
+.serena/
+.vitest/
+
 !apps/dashboard/public/audio/gemini/12h/hour-??.wav
 !apps/dashboard/public/audio/gemini/24h/hour-??.wav

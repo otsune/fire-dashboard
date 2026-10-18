@@ -1,5 +1,17 @@
 # 検証記録とFire実機チェック
 
+## レポジトリ全体監査とテスト修復（2026-10-18）
+
+全ソース監査で見つかった問題を修正（ファミリー: `usage-stream` のサイズ検査前デコードと180秒無通信再接続、`snapshot.ts` のpid起動fnロック回収、`codex` stdioのEPIPE、`grok` のprotobuf解析エラー伝播、`RssCard`・wake lock・`Clock` のjsdom/リーク修正ほか）。単体・統合は727件/727件成功、型検査・`build`／`build:api`／`build:collectors` 成功。
+
+E2Eは68件全件成功（1.2分）。clean HEADでは12件が失敗していた（provider→6シリーズ化・2026-10-13以降の記号拡大／ラベル簡素化の各コミットで仕様更新が追いつかないため）。修復内容:
+
+- fire-fit・provider-usage・unified-settingsの仕様を6プロバイダー（Grok）と現在ラベル/見出し（都道府県接頭・`strong.forecast-summary`・`未接続` 行ステータス）に更新。
+- 折りたたみ天気カード: 複合天気記号（☀️/☁️）の概要説明文は1000px未満の横向きで2行まで表示しクリップ（styles.css `-webkit-line-clamp: 2`）。長文は詳細パネルに全文保持。
+- `settings-fixture.ts`: `expectReadable` はスクロール可能祖先（`overflow: auto/scroll`）をクリップとして誤判定しないよう修正。line-clamp要素の不可視行rectを除外。
+
+E2Eはtrailing失敗セット照合ベース（件数はflakyで振れるため）で比較済み。未修正の設計意図（`claims.ts` のリース期限無視などfail-closed動作、collectors間のfetch重複等）は監査レポートに記録。コミット前は全変更がワーキングツリーにのみ存在。
+
 ## ローカル・GMKtecのGit整合（2026-10-09）
 
 GMKtec固有の設定画面・表示・音声・オフライン修正7コミットと、mainのRSS／天気修正を統合。TypeScript型検査成功。全68件のE2Eのうち65件が成功し、都道府県名の追加と食い違う旧見出し期待値3件を修正後、対象3件の再実行も成功しました。既存履歴・手動配備差分はbundle／patch／回復用ブランチで保持します。検証成果物は `C:\Users\user\dev\sandbox\agent-work\fire-dashboard\2026-10-09-git-reconcile\` に保存しています。
