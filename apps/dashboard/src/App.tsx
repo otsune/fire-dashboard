@@ -63,9 +63,8 @@ export function App() {
   const refreshDashboard = useRef<() => Promise<void>>(async () => {});
   const [data, setData] = useState<Dashboard>(emptyDashboard);
   const [connection, setConnection] = useState("集約サービスに接続中");
-  const [mqttConnection, setMqttConnection] = useState<UsageStreamStatus>(
-    "disconnected",
-  );
+  const [mqttConnection, setMqttConnection] =
+    useState<UsageStreamStatus>("disconnected");
   const [cardNow, setCardNow] = useState(Date.now());
   const [offline, setOffline] = useState("オフライン準備中");
   const [waiting, setWaiting] = useState<ServiceWorker | null>(null);
@@ -143,9 +142,11 @@ export function App() {
         };
         setData(current.current);
         setCardNow(Date.now());
-        void saveDashboard(current.current).catch(() => {
-          setWarning("カードを保存できません。通信中の表示は続けます");
-        });
+        void saveDashboard(current.current)
+          .then(() => setWarning(null))
+          .catch(() => {
+            setWarning("カードを保存できません。通信中の表示は続けます");
+          });
       },
       onHeartbeat: (heartbeat) => {
         mqttPublisherInstance.current = heartbeat.instanceId;
@@ -240,6 +241,7 @@ export function App() {
         setConnection("集約サービス接続済み");
         try {
           await saveDashboard(current.current);
+          setWarning(null);
         } catch {
           if (active())
             setWarning("カードを保存できません。通信中の表示は続けます");
@@ -311,10 +313,14 @@ export function App() {
     current.current = { ...current.current, weather };
     setData(current.current);
     setCardNow(Date.now());
-    void saveDashboard(current.current).catch(() => {
-      if (capturedGeneration === requestGeneration.current)
-        setWarning("カードを保存できません。通信中の表示は続けます");
-    });
+    void saveDashboard(current.current)
+      .then(() => {
+        if (capturedGeneration === requestGeneration.current) setWarning(null);
+      })
+      .catch(() => {
+        if (capturedGeneration === requestGeneration.current)
+          setWarning("カードを保存できません。通信中の表示は続けます");
+      });
     void refreshDashboard.current();
   };
   useEffect(() => {

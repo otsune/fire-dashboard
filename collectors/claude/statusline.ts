@@ -1,5 +1,6 @@
 import { pathToFileURL } from "node:url";
 import { extractClaude } from "./extract";
+import { readJsonInput } from "../shared/input";
 import { captureSnapshot } from "../shared/snapshot";
 export async function captureClaude(
   stdin: unknown,
@@ -13,12 +14,13 @@ async function main() {
   const path = process.env.FIRE_SNAPSHOT_PATH,
     alias = process.env.FIRE_SOURCE_ALIAS;
   if (!path || !alias) throw Error("unconfigured");
-  let input = "";
-  for await (const chunk of process.stdin) {
-    input += chunk;
-    if (Buffer.byteLength(input) > 1024 * 1024) throw Error("too_large");
-  }
-  await captureClaude(JSON.parse(input), new Date().toISOString(), path, alias);
+  // readJsonInput bounds bytes and decodes multibyte chunks correctly.
+  await captureClaude(
+    await readJsonInput(process.stdin),
+    new Date().toISOString(),
+    path,
+    alias,
+  );
 }
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href)
   void main().catch(() => {

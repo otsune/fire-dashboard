@@ -22,6 +22,10 @@ function transport(): RpcTransport {
     size += chunk.length;
     if (size > 2 * 1024 * 1024) child.kill();
   });
+  // An app-server that exits early makes later stdin writes fail
+  // asynchronously (EPIPE); an unhandled stream error must not crash the
+  // long-running service. The disconnect path reports it as network loss.
+  child.stdin.on("error", () => {});
   return {
     send: (value) => {
       child.stdin.write(JSON.stringify(value) + "\n");

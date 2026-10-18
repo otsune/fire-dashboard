@@ -52,11 +52,37 @@ export function Clock({
   }, [settings.hour12]);
   useEffect(() => {
     const tick = () => setTime(now());
-    const id = setInterval(tick, 1000);
-    document.addEventListener("visibilitychange", tick);
+    // Re-align the interval to the next wall-clock second so a drifting
+    // timer never holds one second for ~2s or skips a second on a kiosk.
+    let id: ReturnType<typeof setInterval> | undefined;
+    let align: ReturnType<typeof setTimeout> | undefined;
+    const start = () => {
+      clearInterval(id);
+      id = setInterval(tick, 1000);
+    };
+    const schedule = () => {
+      clearTimeout(align);
+      align = setTimeout(
+        () => {
+          tick();
+          start();
+          schedule();
+        },
+        1000 - (Date.now() % 1000),
+      );
+    };
+    const onVisibility = () => {
+      tick();
+      // Wall time may have advanced while hidden; realign to the boundary.
+      if (!document.hidden) schedule();
+    };
+    start();
+    schedule();
+    document.addEventListener("visibilitychange", onVisibility);
     return () => {
       clearInterval(id);
-      document.removeEventListener("visibilitychange", tick);
+      clearTimeout(align);
+      document.removeEventListener("visibilitychange", onVisibility);
     };
   }, [now]);
   const p = new Intl.DateTimeFormat("ja-JP", {

@@ -78,13 +78,13 @@ export function RssCard({
         playback.current.expanded ||
         (reading && active !== returnedLink.current) ||
         viewport.matches(":active") ||
-        (window.matchMedia("(hover: hover)").matches &&
+        ((window.matchMedia?.("(hover: hover)").matches ?? false) &&
           viewport.matches(":hover"))
       );
     };
     const advance = () => setIndex((i) => i + 1);
-    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)");
-    if (reduced.matches || typeof article.animate !== "function") {
+    const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)");
+    if (reduced?.matches || typeof article.animate !== "function") {
       let elapsed = 0;
       const timer = setInterval(() => {
         if (!shouldPause() && items.length > 1 && (elapsed += 100) >= 15000)

@@ -205,7 +205,7 @@ function runHermesPython(
         FIRE_HERMES_AGENT_ROOT: agentRoot,
       },
     });
-    let output = "";
+    let chunks: Buffer[] = [];
     let bytes = 0;
     let settled = false;
     const timer = setTimeout(() => {
@@ -222,20 +222,22 @@ function runHermesPython(
         reject(error);
         return;
       }
+      // Decode once from the accumulated bytes: a multibyte code point split
+      // across chunks must not become a replacement character.
       try {
-        resolve(JSON.parse(output));
+        resolve(JSON.parse(Buffer.concat(chunks).toString("utf8")));
       } catch {
         reject(Error("invalid_data"));
       }
     };
     child.stdout.on("data", (chunk: Buffer) => {
       bytes += chunk.byteLength;
+      chunks.push(chunk);
       if (bytes > 64 * 1024) {
         child.kill("SIGKILL");
         finish(Error("too_large"));
         return;
       }
-      output += chunk.toString("utf8");
     });
     child.on("error", () => finish(Error("unconfigured")));
     child.on("close", (code) => {

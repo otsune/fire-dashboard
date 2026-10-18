@@ -1113,9 +1113,12 @@ summary:focus-visible {
   .overview .weather-card > .forecast.forecast--compound .forecast-summary {
     font-size: 11px;
     line-height: 1.4;
-    overflow: visible;
-    text-overflow: clip;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
     white-space: normal;
+    text-overflow: clip;
+    overflow: hidden;
   }
   .overview .weather-card > .forecast .forecast-temperature {
     grid-column: 2;

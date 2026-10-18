@@ -53,10 +53,13 @@ export async function readGrokAccessToken(
       const token = entry.key;
       if (!validToken(token)) return [];
       const oidc = scope.startsWith("https://auth.x.ai::");
-      const legacy = scope === "https://accounts.x.ai/sign-in" || scope.includes("/sign-in");
+      const legacy =
+        scope === "https://accounts.x.ai/sign-in" || scope.includes("/sign-in");
       if (!oidc && !legacy) return [];
       const expired = expiry(entry.expires_at) <= Date.now();
-      return [{ token, oidc, expired, expiresAt: expiry(entry.expires_at), scope }];
+      return [
+        { token, oidc, expired, expiresAt: expiry(entry.expires_at), scope },
+      ];
     });
     candidates.sort(
       (a, b) =>
@@ -71,7 +74,10 @@ export async function readGrokAccessToken(
   }
 }
 
-function readVarint(bytes: Uint8Array, index: { value: number }): number | null {
+function readVarint(
+  bytes: Uint8Array,
+  index: { value: number },
+): number | null {
   let value = 0;
   let multiplier = 1;
   for (let count = 0; index.value < bytes.length && count < 10; count++) {
@@ -115,7 +121,13 @@ function scanProtobuf(
       if (length === null || length > data.length - index.value) return false;
       const end = index.value + length;
       if (depth < 4)
-        scanProtobuf(data.subarray(index.value, end), depth + 1, fieldPath, order, output);
+        scanProtobuf(
+          data.subarray(index.value, end),
+          depth + 1,
+          fieldPath,
+          order,
+          output,
+        );
       index.value = end;
     } else if (wire === 5) {
       if (index.value + 4 > data.length) return false;
@@ -186,17 +198,26 @@ function grpcTrailerFields(data: Uint8Array): Record<string, string> {
   return fields;
 }
 
-function grpcStatus(data: Uint8Array, headers?: Headers): { code: number; message: string } | null {
+function grpcStatus(
+  data: Uint8Array,
+  headers?: Headers,
+): { code: number; message: string } | null {
   const fields = grpcTrailerFields(data);
   const raw = headers?.get("grpc-status") ?? fields["grpc-status"];
   if (raw === null || raw === undefined || raw === "") return null;
   const code = Number(raw);
   return Number.isFinite(code)
-    ? { code, message: headers?.get("grpc-message") ?? fields["grpc-message"] ?? "" }
+    ? {
+        code,
+        message: headers?.get("grpc-message") ?? fields["grpc-message"] ?? "",
+      }
     : null;
 }
 
-export type GrokUsageSnapshot = { usedPercent: number; resetsAt: string | null };
+export type GrokUsageSnapshot = {
+  usedPercent: number;
+  resetsAt: string | null;
+};
 
 /** Extract the stable usage fields from the gRPC-web protobuf response. */
 export function parseGrokUsageResponse(
@@ -209,9 +230,16 @@ export function parseGrokUsageResponse(
   if (!payloads.length && looksLikeProtobuf(data)) payloads = [data];
   if (!payloads.length) throw Error("invalid_data");
 
-  const output = { fixed32: [] as Fixed32Field[], varints: [] as VarintField[] };
+  const output = {
+    fixed32: [] as Fixed32Field[],
+    varints: [] as VarintField[],
+  };
   const order = { value: 0 };
-  for (const payload of payloads) scanProtobuf(payload, 0, [], order, output);
+  // A malformed payload must not feed partial scan results into the heuristic
+  // extractor below; treat ambiguity as invalid data like every other layer.
+  for (const payload of payloads)
+    if (!scanProtobuf(payload, 0, [], order, output))
+      throw Error("invalid_data");
   const candidates = output.fixed32
     .filter(
       (field) =>
@@ -231,7 +259,11 @@ export function parseGrokUsageResponse(
     )
     .sort((a, b) => a.value - b.value);
   const preferred = resets.find(
-    (field) => field.path.length === 3 && field.path[0] === 1 && field.path[1] === 5 && field.path[2] === 1,
+    (field) =>
+      field.path.length === 3 &&
+      field.path[0] === 1 &&
+      field.path[1] === 5 &&
+      field.path[2] === 1,
   );
   // Proto3 omits a zero-valued fixed32 field. A valid period marker plus a
   // future reset is therefore the only safe way to recognize an unused pool.
@@ -252,9 +284,10 @@ export function parseGrokUsageResponse(
   if (usedPercent === undefined && !noUsageYet) throw Error("invalid_data");
   return {
     usedPercent: usedPercent ?? 0,
-    resetsAt: (preferred ?? resets[0])
-      ? new Date((preferred ?? resets[0]).value * 1000).toISOString()
-      : null,
+    resetsAt:
+      (preferred ?? resets[0])
+        ? new Date((preferred ?? resets[0]).value * 1000).toISOString()
+        : null,
   };
 }
 
@@ -263,10 +296,18 @@ function failure(
   errorCode: NonNullable<Common["errorCode"]>,
   status: Common["status"] = "error",
 ): Usage {
-  return usageSchema.parse({ ...emptyUsage("grok"), ...emptyCommon(status), capturedAt, errorCode });
+  return usageSchema.parse({
+    ...emptyUsage("grok"),
+    ...emptyCommon(status),
+    capturedAt,
+    errorCode,
+  });
 }
 
-export function normalizeGrokUsage(snapshot: GrokUsageSnapshot, capturedAt: string): Usage {
+export function normalizeGrokUsage(
+  snapshot: GrokUsageSnapshot,
+  capturedAt: string,
+): Usage {
   return usageSchema.parse({
     ...emptyUsage("grok"),
     ...emptyCommon("ok"),
@@ -289,7 +330,10 @@ export function normalizeGrokUsage(snapshot: GrokUsageSnapshot, capturedAt: stri
   });
 }
 
-async function readResponse(response: Response, signal: AbortSignal): Promise<Uint8Array> {
+async function readResponse(
+  response: Response,
+  signal: AbortSignal,
+): Promise<Uint8Array> {
   const length = response.headers.get("content-length");
   if (length && Number(length) > MAX_INPUT_BYTES) {
     await response.body?.cancel();
@@ -331,10 +375,14 @@ export type GrokApiFetchOptions = {
   timeoutMs?: number;
 };
 
-export async function fetchGrokUsage(options: GrokApiFetchOptions): Promise<Usage> {
+export async function fetchGrokUsage(
+  options: GrokApiFetchOptions,
+): Promise<Usage> {
   const { capturedAt } = options;
-  const token = options.accessToken ?? (await readGrokAccessToken(options.credentialsPath));
-  if (!validToken(token)) return failure(capturedAt, "unconfigured", "unconfigured");
+  const token =
+    options.accessToken ?? (await readGrokAccessToken(options.credentialsPath));
+  if (!validToken(token))
+    return failure(capturedAt, "unconfigured", "unconfigured");
   const timeoutMs = options.timeoutMs ?? 10000;
   if (!Number.isInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 60000)
     return failure(capturedAt, "unconfigured", "unconfigured");
@@ -342,44 +390,50 @@ export async function fetchGrokUsage(options: GrokApiFetchOptions): Promise<Usag
   const controller = new AbortController();
   const request = (async (): Promise<Usage> => {
     try {
-    const response = await (options.fetch ?? globalThis.fetch)(GROK_USAGE_ENDPOINT, {
-      method: "POST",
-      redirect: "error",
-      signal: controller.signal,
-      headers: {
-        Authorization: `Bearer ${token}`,
-        Accept: "*/*",
-        "Content-Type": "application/grpc-web+proto",
-        "x-grpc-web": "1",
-        "x-user-agent": "connect-es/2.1.1",
-        Origin: "https://grok.com",
-        Referer: "https://grok.com/?_s=usage",
-      },
-      body: EMPTY_GRPC_WEB_BODY,
-    });
-    const blocked =
-      response.redirected ||
-      (response.url !== "" && response.url !== GROK_USAGE_ENDPOINT) ||
-      (response.status >= 300 && response.status < 400);
-    if (blocked || !response.ok) {
-      await response.body?.cancel();
-      if (blocked) return failure(capturedAt, "blocked");
-      if (response.status === 401 || response.status === 403)
-        return failure(capturedAt, "auth");
-      if (response.status === 404)
-        return failure(capturedAt, "unsupported", "unsupported");
-      if (response.status === 429) return failure(capturedAt, "rate_limited");
-      return failure(capturedAt, "network");
-    }
-    const body = await readResponse(response, controller.signal);
-    const grpc = grpcStatus(body, response.headers);
-    if (grpc && grpc.code !== 0)
-      return failure(capturedAt, grpc.code === 16 || grpc.code === 7 ? "auth" : "network");
-    try {
-      return normalizeGrokUsage(parseGrokUsageResponse(body), capturedAt);
-    } catch {
-      return failure(capturedAt, "invalid_data");
-    }
+      const response = await (options.fetch ?? globalThis.fetch)(
+        GROK_USAGE_ENDPOINT,
+        {
+          method: "POST",
+          redirect: "error",
+          signal: controller.signal,
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: "*/*",
+            "Content-Type": "application/grpc-web+proto",
+            "x-grpc-web": "1",
+            "x-user-agent": "connect-es/2.1.1",
+            Origin: "https://grok.com",
+            Referer: "https://grok.com/?_s=usage",
+          },
+          body: EMPTY_GRPC_WEB_BODY,
+        },
+      );
+      const blocked =
+        response.redirected ||
+        (response.url !== "" && response.url !== GROK_USAGE_ENDPOINT) ||
+        (response.status >= 300 && response.status < 400);
+      if (blocked || !response.ok) {
+        await response.body?.cancel();
+        if (blocked) return failure(capturedAt, "blocked");
+        if (response.status === 401 || response.status === 403)
+          return failure(capturedAt, "auth");
+        if (response.status === 404)
+          return failure(capturedAt, "unsupported", "unsupported");
+        if (response.status === 429) return failure(capturedAt, "rate_limited");
+        return failure(capturedAt, "network");
+      }
+      const body = await readResponse(response, controller.signal);
+      const grpc = grpcStatus(body, response.headers);
+      if (grpc && grpc.code !== 0)
+        return failure(
+          capturedAt,
+          grpc.code === 16 || grpc.code === 7 ? "auth" : "network",
+        );
+      try {
+        return normalizeGrokUsage(parseGrokUsageResponse(body), capturedAt);
+      } catch {
+        return failure(capturedAt, "invalid_data");
+      }
     } catch (error) {
       return failure(
         capturedAt,

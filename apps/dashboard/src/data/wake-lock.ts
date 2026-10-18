@@ -4,15 +4,20 @@ export async function requestWakeLock(
 ): Promise<"held" | "unsupported" | "denied"> {
   if (!("wakeLock" in navigator)) return "unsupported";
   try {
-    held = await navigator.wakeLock.request("screen");
-    held.addEventListener(
+    // A later request replaces an older sentinel; each release listener must
+    // only clear the reference while it still belongs to the newest lock.
+    const lock = await navigator.wakeLock.request("screen");
+    lock.addEventListener(
       "release",
       () => {
-        held = null;
-        onRelease?.();
+        if (held === lock) {
+          held = null;
+          onRelease?.();
+        }
       },
       { once: true },
     );
+    held = lock;
     return "held";
   } catch {
     return "denied";
