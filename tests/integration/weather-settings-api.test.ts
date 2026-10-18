@@ -152,7 +152,7 @@ it("admin may fetch offices and office-specific options", async () => {
     expect(office.statusCode).toBe(200);
     expect(
       office.json().stations.map((value: { id: string }) => value.id),
-    ).toEqual(["44132", "44133"]);
+    ).toEqual(["44132", "44133", "44134"]);
   } finally {
     await app.close();
   }
@@ -247,7 +247,7 @@ it("PUT requires JSON and rejects malformed, extra and unknown IDs", async () =>
       },
       {
         revision: initial.revision,
-        selection: { ...selection, station: "44134" },
+        selection: { ...selection, station: "44140" },
       },
     ]) {
       const result = await app.inject({

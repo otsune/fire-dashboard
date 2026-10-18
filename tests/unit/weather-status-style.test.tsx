@@ -21,6 +21,8 @@ it("keeps weather status nonshrinking and unwrapped outside landscape-only rules
   document.head.append(stylesheet);
   const regionLabel =
     "東京地方・多摩西部・伊豆諸島北部を含む長い予報地域の表示確認".repeat(3);
+  // The forecast region code carries the prefecture, shown before the label.
+  const headingLabel = `東京都 ${regionLabel}`;
   const { container } = render(
     <WeatherCard
       value={{
@@ -39,7 +41,7 @@ it("keeps weather status nonshrinking and unwrapped outside landscape-only rules
   // Actual portrait line count, containment and rotation are E2E assertions.
   expect(getComputedStyle(status).whiteSpace).toBe("nowrap");
   expect(getComputedStyle(status).flexShrink).toBe("0");
-  expect(screen.getByRole("heading", { name: regionLabel })).toHaveTextContent(
+  expect(screen.getByRole("heading", { name: headingLabel })).toHaveTextContent(
     regionLabel,
   );
 });

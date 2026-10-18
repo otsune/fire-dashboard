@@ -5,7 +5,7 @@ import {
   usageProviders,
 } from "../../packages/contracts/src/index";
 
-test("five provider cards preserve missing, quota and balance semantics at tablet and narrow widths", async ({
+test("six provider cards preserve missing, quota and balance semantics at tablet and narrow widths", async ({
   page,
 }) => {
   const data = emptyDashboard();
@@ -49,6 +49,11 @@ test("five provider cards preserve missing, quota and balance semantics at table
       },
     },
   );
+  Object.assign(data.usage.find((u) => u.provider === "grok")!, {
+    ...emptyCommon("missing"),
+    receivedAt: now,
+    sourceAlias: "fixture-grok-source",
+  });
   await page.route("**/api/v1/dashboard", (route) =>
     route.fulfill({ json: data }),
   );
@@ -88,7 +93,20 @@ test("five provider cards preserve missing, quota and balance semantics at table
       ).toBe(true);
     } else {
       // Portrait retains a wrapping provider grid, including its final row.
-      expect(Math.abs(last.width - usage.width)).toBeLessThan(1);
+      const previous = await page
+        .locator(".usage-card")
+        .nth(4)
+        .boundingBox();
+      expect(previous).not.toBeNull();
+      if (!previous) throw new Error("Missing previous provider card");
+      const paired = Math.abs(previous.y - last.y) < 1;
+      if (paired) {
+        // Two-column wrap: the final row must be a matched pair.
+        expect(Math.abs(previous.width - last.width)).toBeLessThan(0.5);
+      } else {
+        // Single column: the final card spans the full grid width.
+        expect(Math.abs(last.width - usage.width)).toBeLessThan(1);
+      }
     }
     expect(
       await page.evaluate(
@@ -110,7 +128,7 @@ test("five provider cards preserve missing, quota and balance semantics at table
     await expect(
       page.getByRole("button", { name: "設定", exact: true }),
     ).toBeFocused();
-    await expect(page.locator(".usage-card")).toHaveCount(5);
+    await expect(page.locator(".usage-card")).toHaveCount(6);
   }
 });
 

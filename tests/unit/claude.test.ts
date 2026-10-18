@@ -1,5 +1,6 @@
 import { it, expect } from "vitest";
-import { mkdtemp, rm } from "node:fs/promises";
+import { spawnSync } from "node:child_process";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { extractClaude } from "../../collectors/claude/extract";
@@ -71,6 +72,28 @@ it("preserves snapshot ID/capturedAt across redraws but sequences changed values
     );
     expect(changed.sequence).toBe(first.sequence + 1);
     expect(changed.snapshotId).not.toBe(first.snapshotId);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+it("reclaims a stale lock only from a dead holder identified by pid", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "claude-stale-"));
+  try {
+    const path = join(dir, "snapshot.json");
+    const dead = spawnSync("sh", ["-c", "exit 0"]);
+    expect(dead.pid).toBeGreaterThan(0);
+    // A stale holder: the pid no longer exists. The capture must recover.
+    await mkdir(`${path}.lock`, { recursive: true });
+    await writeFile(`${path}.lock/pid`, `${dead.pid}\n`);
+    const recovered = await captureClaude(raw, at, path, "pc");
+    expect(recovered.sequence).toBe(1);
+    // A live holder is never stolen.
+    await mkdir(`${path}.lock`, { recursive: true });
+    await writeFile(`${path}.lock/pid`, `${process.pid}\n`);
+    await expect(captureClaude(raw, at, path, "pc")).rejects.toThrow("storage");
+    // A legacy lock without a pid file fails closed.
+    await rm(`${path}.lock/pid`);
+    await expect(captureClaude(raw, at, path, "pc")).rejects.toThrow("storage");
   } finally {
     await rm(dir, { recursive: true, force: true });
   }

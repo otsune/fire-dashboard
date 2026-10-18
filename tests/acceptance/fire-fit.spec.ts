@@ -23,7 +23,7 @@ const landscapeSizes = [
 ];
 const portraitSize = { width: 800, height: 1280 };
 
-function configuredDashboard(providerCount: 2 | 5): Dashboard {
+function configuredDashboard(providerCount: 2 | 5 | 6): Dashboard {
   const data = emptyDashboard();
   const fresh = {
     ...emptyCommon("ok"),
@@ -458,11 +458,11 @@ for (const viewport of landscapeSizes) {
       }
     });
 
-    test("five error states remain readable without pushing RSS off screen", async ({
+    test("six error states remain readable without pushing RSS off screen", async ({
       page,
     }) => {
       await showDashboard(page, errorDashboard());
-      await expectLandscapeLayout(page, 5);
+      await expectLandscapeLayout(page, 6);
       const first = page.locator(".usage-card").first();
       await expect(first.locator(".status")).toHaveText("認証を確認");
       await expect(page.locator(".weather-card .status")).toHaveText(
@@ -511,7 +511,7 @@ test.describe("Fire portrait", () => {
         state === "unconfigured" ? emptyDashboard() : errorDashboard(),
       );
       await expect(page.locator(".usage-card")).toHaveCount(
-        state === "unconfigured" ? 2 : 5,
+        state === "unconfigured" ? 2 : 6,
       );
       const hours = await box(page.locator(".clock-hours"));
       const minutes = await box(page.locator(".clock-minutes"));
@@ -624,7 +624,7 @@ test("settings remain keyboard usable and the dashboard reflows after rotation",
   page,
 }) => {
   await resize(page, landscapeSizes[2]);
-  await showDashboard(page, configuredDashboard(5));
+  await showDashboard(page, configuredDashboard(6));
   await tabTo(page, page.getByRole("button", { name: "設定", exact: true }));
   await page.keyboard.press("Enter");
   await expect(
@@ -636,7 +636,7 @@ test("settings remain keyboard usable and the dashboard reflows after rotation",
   await expect(hour12).toBeChecked();
   await tabTo(page, page.getByRole("button", { name: "時計に戻る" }));
   await page.keyboard.press("Enter");
-  await expectLandscapeLayout(page, 5);
+  await expectLandscapeLayout(page, 6);
   await expectDayperiodWithinClock(page);
 
   await resize(page, portraitSize);
@@ -648,7 +648,7 @@ test("settings remain keyboard usable and the dashboard reflows after rotation",
   await expectNoDocumentOverflow(page, false);
   for (const viewport of landscapeSizes) {
     await resize(page, viewport);
-    await expectLandscapeLayout(page, 5);
+    await expectLandscapeLayout(page, 6);
     await expectDayperiodWithinClock(page);
     const landscapeHours = await box(page.locator(".clock-hours"));
     const landscapeMinutes = await box(page.locator(".clock-minutes"));

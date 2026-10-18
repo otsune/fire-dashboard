@@ -115,13 +115,13 @@ for (const viewport of viewports) {
       const metadata = await page
         .locator('[data-provider="claude"] .card-meta')
         .textContent();
-      await expect(page.locator(".usage-card")).toHaveCount(5);
+      await expect(page.locator(".usage-card")).toHaveCount(6);
       await openSettings(page);
       await page.getByRole("button", { name: "利用状況", exact: true }).click();
       await expect(page.getByRole("checkbox")).toHaveCount(6);
-      await expect(
-        page.getByText("未接続・接続後に表示", { exact: true }),
-      ).toBeVisible();
+      await expect(page.locator(".usage-settings-list .status")).toHaveText(
+        Array(6).fill("更新済み"),
+      );
       for (const label of providerLabels) {
         const checkbox = page.getByRole("checkbox", {
           name: label,
@@ -426,15 +426,17 @@ test.describe("Weather shortcut with configured forecast at 960×600", () => {
       });
       const card = page.locator(".weather-card");
       const overview = card.locator(":scope > .forecast");
-      const condition = overview.locator("strong");
+      const condition = overview.locator("strong.forecast-summary");
       await expect(condition).toHaveText(forecastSummary);
       await expectWeatherShortcutContained(page);
       const conditionBounds = await condition.boundingBox();
       const lineHeight = await condition.evaluate((element) =>
         Number.parseFloat(getComputedStyle(element).lineHeight),
       );
+      // The compact landscape grid clamps the overview condition to at most
+      // two lines with an ellipsis; the full text stays in the details panel.
       expect(conditionBounds!.height).toBeGreaterThanOrEqual(lineHeight - 1);
-      expect(conditionBounds!.height).toBeLessThanOrEqual(lineHeight + 1);
+      expect(conditionBounds!.height).toBeLessThanOrEqual(lineHeight * 2 + 1);
       for (const field of await overview.locator(":scope > span").all())
         await expectReadable(page, field);
       await expect(overview).toContainText("予報気温 19〜27 °C");

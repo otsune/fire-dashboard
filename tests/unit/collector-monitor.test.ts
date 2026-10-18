@@ -53,7 +53,9 @@ it("waits the configured interval between reads", async () => {
     await vi.advanceTimersByTimeAsync(239000);
     expect(reads).toBe(1);
     await vi.advanceTimersByTimeAsync(1000);
-    await vi.waitFor(() => expect(reads).toBe(2));
+    // The second cycle must also finish its snapshot write and send before
+    // teardown removes the directory out from under a pending write.
+    await vi.waitFor(() => expect(sends).toBe(2));
   } finally {
     stop();
     vi.useRealTimers();

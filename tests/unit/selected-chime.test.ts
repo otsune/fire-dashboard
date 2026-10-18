@@ -19,8 +19,14 @@ it("keeps the selected original chime and requires an explicit enable tap", asyn
   expect(modeReady(manifest, "voice", false)).toBe(true);
   expect(modeReady(manifest, "both", true)).toBe(true);
   expect(modeReady(manifest, "both", false)).toBe(true);
-  expect(manifest.chime?.url).toBe("/audio/chime_Eb5_C5_Eb5_Ab5.wav");
-  const wave = await readFile(`apps/dashboard/public${manifest.chime!.url}`);
+  // Even hours use the user-provided OGG chime; odd hours use chimeOdd.
+  expect(manifest.chime?.url).toBe("/audio/chime_Eb5_C5_Eb5_Ab5.ogg");
+  expect(manifest.chimeOdd?.url).toBe("/audio/chime_NRT.ogg");
+  // The original synthetic WAV stays bundled for provenance and the
+  // acceptance decode test, even though the manifest alternates OGGs.
+  const wave = await readFile(
+    "apps/dashboard/public/audio/chime_Eb5_C5_Eb5_Ab5.wav",
+  );
   expect(createHash("sha256").update(wave).digest("hex")).toBe(
     "4486bbe635a74c647621f28c407e8b3067a523c11d0848110008961debcfab11",
   );

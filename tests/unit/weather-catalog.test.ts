@@ -39,6 +39,7 @@ it("loads fixed official offices and field-specific forecast districts and stati
     stations: [
       { id: "44132", label: "東京" },
       { id: "44133", label: "別地点" },
+      { id: "44134", label: "未対応" },
     ],
   });
   expect(urls).toEqual([
@@ -68,7 +69,7 @@ it("rejects invalid office IDs before constructing or fetching any URL", async (
 });
 it.each([
   { office: "130000", region: "130020", station: "44132" },
-  { office: "130000", region: "130010", station: "44134" },
+  { office: "130000", region: "130010", station: "44140" },
   { office: "130000", region: "130010", station: "99999" },
 ])("rejects unknown or unsupported membership %j", async (selection) => {
   const { catalog } = catalogHarness();

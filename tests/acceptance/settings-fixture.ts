@@ -285,15 +285,24 @@ export async function expectWeatherShortcutContained(page: Page) {
       cardBounds!.y + cardBounds!.height + 1,
     );
   }
-  // A long overview condition may be horizontally ellipsized, but its rendered
-  // text must still fit vertically. Element boxes alone cannot detect clipping.
+  // A long overview condition may be horizontally ellipsized or clamped, but
+  // its rendered text must still fit vertically. Element boxes alone cannot
+  // detect clipping.
   for (const field of await card.locator(":scope > .forecast > *").all()) {
     const issues = await field.evaluate((element) => {
       const errors: string[] = [];
       const range = document.createRange();
       range.selectNodeContents(element);
+      const style = getComputedStyle(element);
+      // A line-clamped preview intentionally keeps invisible line boxes past
+      // the element's bottom edge; those never render and are not clipped text.
+      const clampedLineHeight = parseFloat(style.webkitLineClamp ?? "") || null;
+      const bounds = element.getBoundingClientRect();
       const rects = Array.from(range.getClientRects()).filter(
-        (rect) => rect.width && rect.height,
+        (rect) =>
+          rect.width &&
+          rect.height &&
+          !(clampedLineHeight && rect.top >= bounds.bottom - 1),
       );
       if (!rects.length) errors.push("no rendered forecast text");
       const card = element.closest(".weather-card")!.getBoundingClientRect();
@@ -473,15 +482,17 @@ export async function expectReadable(page: Page, locator: Locator) {
         ) {
           const style = getComputedStyle(ancestor);
           const bounds = ancestor.getBoundingClientRect();
+          // scroll containers are readable by scrolling; only overflow that
+          // is unreachable counts as clipping.
           if (
-            /(hidden|clip|auto|scroll)/.test(style.overflowX) &&
+            /(hidden|clip)/.test(style.overflowX) &&
             (rect.left < bounds.left + ancestor.clientLeft - 1 ||
               rect.right >
                 bounds.left + ancestor.clientLeft + ancestor.clientWidth + 1)
           )
             errors.push("horizontal clipping");
           if (
-            /(hidden|clip|auto|scroll)/.test(style.overflowY) &&
+            /(hidden|clip)/.test(style.overflowY) &&
             (rect.top < bounds.top + ancestor.clientTop - 1 ||
               rect.bottom >
                 bounds.top + ancestor.clientTop + ancestor.clientHeight + 1)
