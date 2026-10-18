@@ -12,6 +12,8 @@ E2Eは68件全件成功（1.2分）。clean HEADでは12件が失敗していた
 
 E2Eはtrailing失敗セット照合ベース（件数はflakyで振れるため）で比較済み。未修正の設計意図（`claims.ts` のリース期限無視などfail-closed動作、collectors間のfetch重複等）は監査レポートに記録。コミット前は全変更がワーキングツリーにのみ存在。
 
+2026-10-19に `06c7cd8`／`447f322`／`9b3978b` としてmain同様のブランチへpush後、GMKtecに展開した。`build`／`build:api`／`build:collectors` を再実行し、`systemctl --user restart fire-dashboard-api.service` と `fire-dashboard-claude-sender.service` を実施（2026-10-19 00:41 JST）。検証: APIはactive・NRestarts=0・127.0.0.1:18787待受、mosquittoは127.0.0.1:1883/9001のまま。正の証拠は `https://gmktec.taila8b10.ts.net:8444/api/v1/dashboard` が200、`/api/v1/mqtt-status` がpublisher ready・state connected・`lastError:null`、sw.jsが新オフラインシェル `fire-shell-44495c9f294f4bbd` を配信、送信器再起動後のcollector受信確認（codex/gmktec 受信 00:41:45 JST）。負の証拠は認証なし直叩きが401、tailscaleインターフェイスIP直叩きが到達不可（000）。Claude Code statuslineは `dist/collectors/claude-statusline.mjs` を都度参照するため再起動不要。
+
 ## ローカル・GMKtecのGit整合（2026-10-09）
 
 GMKtec固有の設定画面・表示・音声・オフライン修正7コミットと、mainのRSS／天気修正を統合。TypeScript型検査成功。全68件のE2Eのうち65件が成功し、都道府県名の追加と食い違う旧見出し期待値3件を修正後、対象3件の再実行も成功しました。既存履歴・手動配備差分はbundle／patch／回復用ブランチで保持します。検証成果物は `C:\Users\user\dev\sandbox\agent-work\fire-dashboard\2026-10-09-git-reconcile\` に保存しています。
