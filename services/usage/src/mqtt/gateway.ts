@@ -47,16 +47,20 @@ export function isBackpressured(
   return target.bufferedAmount > maxPayload;
 }
 
-export function closePendingUpstream(
-  socket: { readyState: number; close: (...args: any[]) => void },
-): void {
+export function closePendingUpstream(socket: {
+  readyState: number;
+  close: (...args: any[]) => void;
+}): void {
   if (socket.readyState < WebSocket.CLOSING) socket.close();
 }
 
 function protocols(request: FastifyRequest): string[] {
   const value = request.headers["sec-websocket-protocol"];
   return typeof value === "string"
-    ? value.split(",").map((item) => item.trim()).filter(Boolean)
+    ? value
+        .split(",")
+        .map((item) => item.trim())
+        .filter(Boolean)
     : [];
 }
 
@@ -193,8 +197,7 @@ export function registerMqttGateway(
   app.register(websocket, {
     options: {
       maxPayload,
-      handleProtocols: (requested) =>
-        requested.has("mqtt") ? "mqtt" : false,
+      handleProtocols: (requested) => (requested.has("mqtt") ? "mqtt" : false),
     },
   });
   app.after(() => {
@@ -230,7 +233,8 @@ export function registerMqttGateway(
       },
       (socket, request) => {
         const pending = upstreams.get(request);
-        const releaseConnection = reservations.get(request) ?? (() => undefined);
+        const releaseConnection =
+          reservations.get(request) ?? (() => undefined);
         pending?.release();
         const upstream = pending?.socket;
         if (!upstream) {

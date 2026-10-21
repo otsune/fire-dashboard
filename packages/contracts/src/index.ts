@@ -1,4 +1,16 @@
-import { commonSchema, instant, pct, emptyCommon, emptyUsage, usageProviders, usageSchema, providerSchema, usageDeliveryMetadataSchema, type Usage, type Common } from "../../usage-contracts/src/index";
+import {
+  commonSchema,
+  instant,
+  pct,
+  emptyCommon,
+  emptyUsage,
+  usageProviders,
+  usageSchema,
+  providerSchema,
+  usageDeliveryMetadataSchema,
+  type Usage,
+  type Common,
+} from "../../usage-contracts/src/index";
 export * from "../../usage-contracts/src/index";
 import { z } from "zod";
 import {
@@ -98,7 +110,9 @@ export function parseDashboard(input: unknown): Dashboard {
   const root = z
     .object({
       schemaVersion: z.literal(1),
-      usageConnection: z.enum(["connected", "unavailable", "unconfigured"]).optional(),
+      usageConnection: z
+        .enum(["connected", "unavailable", "unconfigured"])
+        .optional(),
       weather: z.unknown(),
       rss: z.array(z.unknown()).max(32),
       usage: z.array(z.unknown()).max(64),

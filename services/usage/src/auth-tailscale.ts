@@ -28,19 +28,27 @@ export function createTailscaleAuth(options: {
       return [alias, Buffer.from(hex, "hex")] as const;
     },
   );
-  const readerHashes = (options.readerTokenHashes ?? []).map(hex => {
-    if (!/^[0-9a-f]{64}$/.test(hex) || hashes.some(([, hash]) => hash.toString("hex") === hex)) throw Error("invalid_reader_token");
+  const readerHashes = (options.readerTokenHashes ?? []).map((hex) => {
+    if (
+      !/^[0-9a-f]{64}$/.test(hex) ||
+      hashes.some(([, hash]) => hash.toString("hex") === hex)
+    )
+      throw Error("invalid_reader_token");
     return Buffer.from(hex, "hex");
   });
   const readerToken = (request: FastifyRequest): boolean => {
-    const match = /^Bearer ([A-Za-z0-9_-]{32,256})$/.exec(request.headers.authorization ?? "");
+    const match = /^Bearer ([A-Za-z0-9_-]{32,256})$/.exec(
+      request.headers.authorization ?? "",
+    );
     if (!match) return false;
     const digest = createHash("sha256").update(match[1]).digest();
     let found = false;
-    for (const hash of readerHashes) if (timingSafeEqual(digest, hash)) found = true;
+    for (const hash of readerHashes)
+      if (timingSafeEqual(digest, hash)) found = true;
     return found;
   };
-  if ((!readers.size && !readerHashes.length) || !hashes.length) throw Error("authorization_required");
+  if ((!readers.size && !readerHashes.length) || !hashes.length)
+    throw Error("authorization_required");
   const collector = (request: FastifyRequest): string | null => {
     const match = /^Bearer ([A-Za-z0-9_-]{32,256})$/.exec(
       request.headers.authorization ?? "",
@@ -61,8 +69,9 @@ export function createTailscaleAuth(options: {
     authorize: async (request, role) =>
       role === "collector"
         ? collector(request) !== null
-        : readerToken(request) || (!request.headers.authorization &&
-          readers.has(header(request, "tailscale-user-login") ?? "")),
+        : readerToken(request) ||
+          (!request.headers.authorization &&
+            readers.has(header(request, "tailscale-user-login") ?? "")),
     sourceAlias: async (request) => collector(request),
     authorizeAdmin: async (request) => {
       const login = header(request, "tailscale-user-login") ?? "";

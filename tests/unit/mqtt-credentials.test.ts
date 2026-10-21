@@ -7,7 +7,7 @@ vi.mock("node:fs/promises", async (importOriginal) => {
   const actual = await importOriginal<typeof import("node:fs/promises")>();
   return { ...actual, readFile: vi.fn(actual.readFile) };
 });
-import { readMqttCredentials } from "../../services/aggregator/src/mqtt/credentials";
+import { readMqttCredentials } from "../../services/usage/src/mqtt/credentials";
 import { usageConfigSchema as configSchema } from "../../services/usage/src/config";
 import { loadUsagePublisher } from "../../services/usage/src/start";
 import { createUsageServer } from "../../services/usage/src/server";
@@ -68,13 +68,28 @@ it("keeps the HTTP service available when MQTT credentials are unavailable", asy
       credentialsFile: "/tmp/does-not-exist-fire-dashboard-mqtt.json",
     },
   });
-  await expect(loadUsagePublisher(config)).resolves.toMatchObject({ status: { state: "disabled" } });
+  await expect(loadUsagePublisher(config)).resolves.toMatchObject({
+    status: { state: "disabled" },
+  });
 });
 
 it("accepts HTTP usage while the MQTT publisher is disabled by bad credentials", async () => {
-  const config = configSchema.parse({ preferredSources: { claude: "desk" }, mqtt: { enabled: true, credentialsFile: "/tmp/does-not-exist-fire-dashboard-mqtt.json" } });
+  const config = configSchema.parse({
+    preferredSources: { claude: "desk" },
+    mqtt: {
+      enabled: true,
+      credentialsFile: "/tmp/does-not-exist-fire-dashboard-mqtt.json",
+    },
+  });
   const mqtt = await loadUsagePublisher(config);
-  const app = createUsageServer({ store: createMemoryUsageStore(), authorize: async () => true, sourceAlias: async () => "desk", preferredSources: config.preferredSources, mqtt: mqtt.options, mqttStatus: mqtt.status });
+  const app = createUsageServer({
+    store: createMemoryUsageStore(),
+    authorize: async () => true,
+    sourceAlias: async () => "desk",
+    preferredSources: config.preferredSources,
+    mqtt: mqtt.options,
+    mqttStatus: mqtt.status,
+  });
   try {
     const response = await app.inject({
       method: "POST",

@@ -3,14 +3,15 @@ import { createHash } from "node:crypto";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createUsageIngestor } from "../../services/aggregator/src/usage/ingest";
+import { createUsageIngestor } from "../helpers/legacy-usage";
 import {
   createFileStore,
   createMemoryStore,
 } from "../../services/aggregator/src/store";
 import { createUsageServer as createServer } from "../../services/usage/src/server";
 import { createMemoryUsageStore } from "../../services/usage/src/store";
-import { configSchema, parsePort } from "../../services/aggregator/src/config";
+import { parsePort } from "../../services/aggregator/src/config";
+import { usageConfigSchema as configSchema } from "../../services/usage/src/config";
 import { createTailscaleAuth } from "../../services/aggregator/src/auth-tailscale";
 import {
   emptyUsage,

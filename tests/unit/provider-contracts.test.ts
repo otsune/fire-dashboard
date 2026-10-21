@@ -5,8 +5,8 @@ import {
   parseDashboard,
   usageSchema,
 } from "../../packages/contracts/src/index";
-import { configSchema } from "../../services/aggregator/src/config";
-import { createUsageIngestor } from "../../services/aggregator/src/usage/ingest";
+import { usageConfigSchema as configSchema } from "../../services/usage/src/config";
+import { createUsageIngestor } from "../helpers/legacy-usage";
 import { createMemoryStore } from "../../services/aggregator/src/store";
 
 const providers = [

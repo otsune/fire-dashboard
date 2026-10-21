@@ -132,7 +132,9 @@ it("rejects connections over the limit and releases the slot after close", async
     app.injectWS("/api/v1/usage/stream", { headers }),
   ).rejects.toThrow("Unexpected server response: 503");
 
-  const closed = new Promise<void>((resolve) => first.once("close", () => resolve()));
+  const closed = new Promise<void>((resolve) =>
+    first.once("close", () => resolve()),
+  );
   first.terminate();
   await closed;
 
@@ -246,7 +248,9 @@ it("closes both sockets at the configured connection lifetime", async () => {
       "sec-websocket-protocol": "mqtt",
     },
   });
-  const closed = new Promise<void>((resolve) => socket.once("close", () => resolve()));
+  const closed = new Promise<void>((resolve) =>
+    socket.once("close", () => resolve()),
+  );
   await expect(
     Promise.race([
       closed.then(() => "closed"),
@@ -261,8 +265,7 @@ it("closes an upstream when ws rejects the downstream upgrade", async () => {
   const upstreamServer = new WebSocketServer({
     host: "127.0.0.1",
     port: 0,
-    handleProtocols: (requested) =>
-      requested.has("mqtt") ? "mqtt" : false,
+    handleProtocols: (requested) => (requested.has("mqtt") ? "mqtt" : false),
   });
   await once(upstreamServer, "listening");
   const upstreamAddress = upstreamServer.address();
@@ -343,4 +346,3 @@ it("closes an upstream when ws rejects the downstream upgrade", async () => {
     await new Promise<void>((resolve) => upstreamServer.close(() => resolve()));
   }
 });
-

@@ -9,7 +9,11 @@ export { usageDeliverySchema } from "./index";
 export type { UsageDelivery } from "./index";
 
 const revision = z.string().regex(/^(?:0|[1-9][0-9]{0,38})$/);
-const streamId = z.string().min(1).max(128).regex(/^[A-Za-z0-9_-]+$/);
+const streamId = z
+  .string()
+  .min(1)
+  .max(128)
+  .regex(/^[A-Za-z0-9_-]+$/);
 const timestamp = z.string().datetime({ offset: true });
 
 export const usageHeartbeatSchema = z.object({
@@ -40,6 +44,8 @@ export function compareUsageRevision(
   return a < b ? -1 : a > b ? 1 : 0;
 }
 
-export function isUsageDeliveryMetadata(value: unknown): value is UsageDeliveryMetadata {
+export function isUsageDeliveryMetadata(
+  value: unknown,
+): value is UsageDeliveryMetadata {
   return usageDeliveryMetadataSchema.safeParse(value).success;
 }

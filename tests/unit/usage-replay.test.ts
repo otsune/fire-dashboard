@@ -7,7 +7,7 @@ import {
   createMemoryStore,
   type Store,
 } from "../../services/aggregator/src/store";
-import { createUsageIngestor } from "../../services/aggregator/src/usage/ingest";
+import { createUsageIngestor } from "../helpers/legacy-usage";
 import {
   emptyUsage,
   type UsageEnvelope,

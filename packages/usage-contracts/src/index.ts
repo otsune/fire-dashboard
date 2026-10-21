@@ -15,9 +15,7 @@ export const usageDeliveryMetadataSchema = z.object({
   revision: deliveryRevision,
   publishedAt: deliveryTimestamp,
 });
-export type UsageDeliveryMetadata = z.infer<
-  typeof usageDeliveryMetadataSchema
->;
+export type UsageDeliveryMetadata = z.infer<typeof usageDeliveryMetadataSchema>;
 export const usageProviders = [
   "claude",
   "codex",

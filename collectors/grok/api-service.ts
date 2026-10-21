@@ -46,7 +46,10 @@ export function startGrokApiService(
   };
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (
+  process.argv[1] &&
+  import.meta.url === pathToFileURL(process.argv[1]).href
+) {
   try {
     const stop = startGrokApiService(process.env);
     process.on("SIGINT", stop);

@@ -136,10 +136,11 @@ export function createUsageIngestorWithRevision(
       );
       if (JSON.stringify(state.delivery.usage) !== previousDisplayedUsage) {
         const streamId = state.delivery.streamId || randomUUID();
-        const currentRevision =
-          /^(?:0|[1-9][0-9]{0,38})$/.test(state.delivery.revision ?? "")
-            ? BigInt(state.delivery.revision)
-            : 0n;
+        const currentRevision = /^(?:0|[1-9][0-9]{0,38})$/.test(
+          state.delivery.revision ?? "",
+        )
+          ? BigInt(state.delivery.revision)
+          : 0n;
         const nextRevision = (currentRevision + 1n).toString();
         if (nextRevision.length > 39) throw Error("revision_exhausted");
         const publishedAt = new Date().toISOString();

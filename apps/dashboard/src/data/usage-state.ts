@@ -10,14 +10,24 @@ import type { UsageHeartbeat } from "../../../../packages/contracts/src/usage-de
 
 export type UsageApplySource = "http" | "mqtt";
 export type UsageApplyResult =
-  | { accepted: true; dashboard: Dashboard; reason: "initial" | "newer" | "http_authoritative" }
-  | { accepted: false; dashboard: Dashboard; reason: "stale" | "duplicate" | "conflict" | "stream" | "invalid" };
+  | {
+      accepted: true;
+      dashboard: Dashboard;
+      reason: "initial" | "newer" | "http_authoritative";
+    }
+  | {
+      accepted: false;
+      dashboard: Dashboard;
+      reason: "stale" | "duplicate" | "conflict" | "stream" | "invalid";
+    };
 
 function samePayload(left: Usage[], right: Usage[]): boolean {
   return JSON.stringify(left) === JSON.stringify(right);
 }
 
-export function usageDeliveryFromDashboard(value: Dashboard): UsageDelivery | null {
+export function usageDeliveryFromDashboard(
+  value: Dashboard,
+): UsageDelivery | null {
   if (!value.usageDelivery) return null;
   const parsed = usageDeliverySchema.safeParse({
     ...value.usageDelivery,
@@ -48,12 +58,16 @@ export function applyUsageDelivery(
   if (!current) {
     return {
       accepted: true,
-      dashboard: { ...previous, usage: incoming.usage, usageDelivery: {
-        schemaVersion: 1,
-        streamId: incoming.streamId,
-        revision: incoming.revision,
-        publishedAt: incoming.publishedAt,
-      } },
+      dashboard: {
+        ...previous,
+        usage: incoming.usage,
+        usageDelivery: {
+          schemaVersion: 1,
+          streamId: incoming.streamId,
+          revision: incoming.revision,
+          publishedAt: incoming.publishedAt,
+        },
+      },
       reason: "initial",
     };
   }
@@ -65,12 +79,16 @@ export function applyUsageDelivery(
       return { accepted: false, dashboard: previous, reason: "stream" };
     return {
       accepted: true,
-      dashboard: { ...previous, usage: incoming.usage, usageDelivery: {
-        schemaVersion: 1,
-        streamId: incoming.streamId,
-        revision: incoming.revision,
-        publishedAt: incoming.publishedAt,
-      } },
+      dashboard: {
+        ...previous,
+        usage: incoming.usage,
+        usageDelivery: {
+          schemaVersion: 1,
+          streamId: incoming.streamId,
+          revision: incoming.revision,
+          publishedAt: incoming.publishedAt,
+        },
+      },
       reason: "http_authoritative",
     };
   }
@@ -80,24 +98,36 @@ export function applyUsageDelivery(
     return {
       accepted: false,
       dashboard: previous,
-      reason: samePayload(current.usage, incoming.usage) ? "duplicate" : "conflict",
+      reason: samePayload(current.usage, incoming.usage)
+        ? "duplicate"
+        : "conflict",
     };
   }
   return {
     accepted: true,
-    dashboard: { ...previous, usage: incoming.usage, usageDelivery: {
-      schemaVersion: 1,
-      streamId: incoming.streamId,
-      revision: incoming.revision,
-      publishedAt: incoming.publishedAt,
-    } },
+    dashboard: {
+      ...previous,
+      usage: incoming.usage,
+      usageDelivery: {
+        schemaVersion: 1,
+        streamId: incoming.streamId,
+        revision: incoming.revision,
+        publishedAt: incoming.publishedAt,
+      },
+    },
     reason: "newer",
   };
 }
 
 /** HTTP response helper: preserve weather/RSS and apply only its usage. */
-export function applyHttpDashboard(previous: Dashboard, incoming: Dashboard): Dashboard {
+export function applyHttpDashboard(
+  previous: Dashboard,
+  incoming: Dashboard,
+): Dashboard {
   const delivery = usageDeliveryFromDashboard(incoming);
   if (!delivery) return parseDashboard(incoming);
-  return { ...applyUsageDelivery(previous, delivery, "http").dashboard, usageConnection: incoming.usageConnection };
+  return {
+    ...applyUsageDelivery(previous, delivery, "http").dashboard,
+    usageConnection: incoming.usageConnection,
+  };
 }

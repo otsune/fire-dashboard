@@ -93,9 +93,14 @@ export function createMqttPublisher(
   };
   const maxPayloadBytes =
     options.maxPayloadBytes ?? DEFAULT_MQTT_MAX_PAYLOAD_BYTES;
-  const heartbeatMs = Math.max(1000, options.heartbeatMs ?? DEFAULT_HEARTBEAT_MS);
-  const factory = options.clientFactory ?? ((url, clientOptions) =>
-    mqtt.connect(url, clientOptions) as unknown as MqttClientLike);
+  const heartbeatMs = Math.max(
+    1000,
+    options.heartbeatMs ?? DEFAULT_HEARTBEAT_MS,
+  );
+  const factory =
+    options.clientFactory ??
+    ((url, clientOptions) =>
+      mqtt.connect(url, clientOptions) as unknown as MqttClientLike);
   const instanceId = options.clientId ?? randomUUID();
   let client: MqttClientLike | null = null;
   let started = false;
@@ -201,14 +206,19 @@ export function createMqttPublisher(
     const active = client;
     heartbeatInFlight = true;
     try {
-      active.publish(topics.heartbeat, payload, { qos: 1, retain: false }, (error) => {
-        if (active !== client) return;
-        if (heartbeatAckTimer) clearTimeout(heartbeatAckTimer);
-        heartbeatAckTimer = undefined;
-        heartbeatInFlight = false;
-        if (error) failPublish();
-        else markHeartbeatSuccess();
-      });
+      active.publish(
+        topics.heartbeat,
+        payload,
+        { qos: 1, retain: false },
+        (error) => {
+          if (active !== client) return;
+          if (heartbeatAckTimer) clearTimeout(heartbeatAckTimer);
+          heartbeatAckTimer = undefined;
+          heartbeatInFlight = false;
+          if (error) failPublish();
+          else markHeartbeatSuccess();
+        },
+      );
       heartbeatAckTimer = setTimeout(() => {
         if (active === client && heartbeatInFlight) failPublish("ack_timeout");
       }, ACK_TIMEOUT_MS);
@@ -217,7 +227,8 @@ export function createMqttPublisher(
     }
   };
   const publishNextState = () => {
-    if (!client || !connected || stateInFlight || !pendingState || stopping) return;
+    if (!client || !connected || stateInFlight || !pendingState || stopping)
+      return;
     const payload = pendingState;
     const revision = pendingRevision;
     pendingState = null;
@@ -225,24 +236,29 @@ export function createMqttPublisher(
     const active = client;
     stateInFlight = true;
     try {
-      active.publish(topics.state, payload, { qos: 1, retain: true }, (error) => {
-        if (active !== client) return;
-        if (stateAckTimer) clearTimeout(stateAckTimer);
-        stateAckTimer = undefined;
-        stateInFlight = false;
-        if (error) {
-          // Keep the latest state; the timed-out connection must not invoke a
-          // stale callback that could move the retained value backwards.
-          if (revision) pendingRevision = revision;
-          pendingState = pendingState ?? payload;
-          failPublish();
-          return;
-        }
-        if (!currentRevision || revision === currentRevision)
-          deliveryStatus = "ok";
-        markStatePublishSuccess(revision);
-        publishNextState();
-      });
+      active.publish(
+        topics.state,
+        payload,
+        { qos: 1, retain: true },
+        (error) => {
+          if (active !== client) return;
+          if (stateAckTimer) clearTimeout(stateAckTimer);
+          stateAckTimer = undefined;
+          stateInFlight = false;
+          if (error) {
+            // Keep the latest state; the timed-out connection must not invoke a
+            // stale callback that could move the retained value backwards.
+            if (revision) pendingRevision = revision;
+            pendingState = pendingState ?? payload;
+            failPublish();
+            return;
+          }
+          if (!currentRevision || revision === currentRevision)
+            deliveryStatus = "ok";
+          markStatePublishSuccess(revision);
+          publishNextState();
+        },
+      );
       stateAckTimer = setTimeout(() => {
         if (active === client && stateInFlight) {
           if (revision) pendingRevision = revision;
@@ -354,7 +370,12 @@ export function createMqttPublisher(
         username: options.username,
         password: options.password,
         reconnectPeriod: 0,
-        will: { topic: topics.availability, payload: will, qos: 1, retain: true },
+        will: {
+          topic: topics.availability,
+          payload: will,
+          qos: 1,
+          retain: true,
+        },
       });
       client = next;
       next.on("connect", () => {
@@ -375,7 +396,8 @@ export function createMqttPublisher(
         scheduleConnect();
       });
       next.on("error", () => {
-        if (next === client) failPublish(connected ? "publish_error" : "connect_error");
+        if (next === client)
+          failPublish(connected ? "publish_error" : "connect_error");
       });
       next.on("offline", () => {
         if (next === client) {

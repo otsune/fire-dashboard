@@ -231,14 +231,20 @@ export function App() {
         if (!active()) return;
         hydratedFromNetwork = true;
         liveUsage.current = true;
-        if (!next.usageDelivery) {
+        if (!next.usageDelivery && next.usageConnection !== "unavailable") {
           usageStreamRef.current?.stop();
           usageStreamRef.current = null;
           setMqttConnection("disconnected");
         }
         current.current = mergeDashboard(current.current, next);
         setData(current.current);
-        setConnection(next.usageConnection === "unavailable" ? "usage提供サービスに未接続 · 最後の値を表示" : next.usageConnection === "unconfigured" ? "usage提供サービスが未設定" : "集約サービス接続済み");
+        setConnection(
+          next.usageConnection === "unavailable"
+            ? "usage提供サービスに未接続 · 最後の値を表示"
+            : next.usageConnection === "unconfigured"
+              ? "usage提供サービスが未設定"
+              : "集約サービス接続済み",
+        );
         try {
           await saveDashboard(current.current);
           setWarning(null);

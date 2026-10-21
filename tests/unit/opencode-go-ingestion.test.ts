@@ -2,7 +2,7 @@ import { it, expect } from "vitest";
 import { fetchOpenCodeGo } from "../../collectors/opencode-go/adapter";
 import { envelopeSchema } from "../../packages/contracts/src/index";
 import { createMemoryStore } from "../../services/aggregator/src/store";
-import { createUsageIngestor } from "../../services/aggregator/src/usage/ingest";
+import { createUsageIngestor } from "../helpers/legacy-usage";
 
 const capturedAt = "2026-10-02T12:00:00.000Z";
 const receivedAt = "2026-10-02T12:00:01.000Z";

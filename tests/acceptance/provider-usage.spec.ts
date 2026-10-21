@@ -5,6 +5,57 @@ import {
   usageProviders,
 } from "../../packages/contracts/src/index";
 
+test("shows a usage backend outage while retaining values and running the clock", async ({
+  page,
+}) => {
+  const data = emptyDashboard();
+  data.usageConnection = "unavailable";
+  data.usageDelivery = {
+    schemaVersion: 1,
+    streamId: "outage-fixture",
+    revision: "2",
+    publishedAt: new Date().toISOString(),
+  };
+  Object.assign(data.usage[0], {
+    ...emptyCommon("ok"),
+    sourceAlias: "desk",
+    receivedAt: new Date().toISOString(),
+    buckets: [
+      {
+        id: "rate",
+        label: "使用率",
+        windows: [
+          {
+            id: "five",
+            label: "5時間",
+            usedPercent: 30,
+            windowMinutes: 300,
+            resetsAt: null,
+          },
+        ],
+      },
+    ],
+  });
+  await page.route("**/api/v1/dashboard", (route) =>
+    route.fulfill({ json: data }),
+  );
+  await page.goto("/");
+  await expect(
+    page.getByText("usage提供サービスに未接続 · 最後の値を表示", {
+      exact: true,
+    }),
+  ).toBeVisible();
+  await expect(page.locator(".usage-card progress").first()).toHaveAttribute(
+    "value",
+    "30",
+  );
+  const clock = page.getByTestId("clock-seconds");
+  const before = await clock.textContent();
+  await expect
+    .poll(() => clock.textContent(), { timeout: 4000 })
+    .not.toBe(before);
+});
+
 test("six provider cards preserve missing, quota and balance semantics at tablet and narrow widths", async ({
   page,
 }) => {
@@ -49,11 +100,14 @@ test("six provider cards preserve missing, quota and balance semantics at tablet
       },
     },
   );
-  Object.assign(data.usage.find((u) => u.provider === "grok")!, {
-    ...emptyCommon("missing"),
-    receivedAt: now,
-    sourceAlias: "fixture-grok-source",
-  });
+  Object.assign(
+    data.usage.find((u) => u.provider === "grok")!,
+    {
+      ...emptyCommon("missing"),
+      receivedAt: now,
+      sourceAlias: "fixture-grok-source",
+    },
+  );
   await page.route("**/api/v1/dashboard", (route) =>
     route.fulfill({ json: data }),
   );
@@ -93,10 +147,7 @@ test("six provider cards preserve missing, quota and balance semantics at tablet
       ).toBe(true);
     } else {
       // Portrait retains a wrapping provider grid, including its final row.
-      const previous = await page
-        .locator(".usage-card")
-        .nth(4)
-        .boundingBox();
+      const previous = await page.locator(".usage-card").nth(4).boundingBox();
       expect(previous).not.toBeNull();
       if (!previous) throw new Error("Missing previous provider card");
       const paired = Math.abs(previous.y - last.y) < 1;

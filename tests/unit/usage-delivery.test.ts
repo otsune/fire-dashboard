@@ -9,11 +9,14 @@ import {
   usageDeliverySchema,
   type UsageEnvelope,
 } from "../../packages/contracts/src/index";
-import { createFileStore, createMemoryStore } from "../../services/aggregator/src/store";
+import {
+  createFileStore,
+  createMemoryStore,
+} from "../../services/aggregator/src/store";
 import {
   createUsageIngestor,
   createUsageIngestorWithRevision,
-} from "../../services/aggregator/src/usage/ingest";
+} from "../helpers/legacy-usage";
 import {
   applyUsageDelivery,
   shouldRefreshUsageForHeartbeat,
@@ -23,14 +26,14 @@ import {
   createUsageStream,
   isUsageMqttEnabled,
 } from "../../apps/dashboard/src/data/usage-stream";
-import { createMqttPublisher } from "../../services/aggregator/src/mqtt/publisher";
+import { createMqttPublisher } from "../helpers/legacy-publisher";
 import { createUsageServer as createServer } from "../../services/usage/src/server";
 import { createMemoryUsageStore } from "../../services/usage/src/store";
 import { createUsageIngestor as independentIngestor } from "../../services/usage/src/ingest";
 import {
   closePendingUpstream,
   isBackpressured,
-} from "../../services/aggregator/src/mqtt/gateway";
+} from "../../services/usage/src/mqtt/gateway";
 import type { UsageHeartbeat } from "../../packages/contracts/src/usage-delivery";
 import type { Store, State } from "../../services/aggregator/src/store";
 
@@ -58,7 +61,11 @@ class FakeMqttClient {
     this.publishes.push({ topic, payload, options, callback });
     if (!topic.endsWith("/usage/state") || this.autoAckState) callback?.();
   }
-  end(_force?: boolean, _options?: Record<string, unknown>, callback?: () => void) {
+  end(
+    _force?: boolean,
+    _options?: Record<string, unknown>,
+    callback?: () => void,
+  ) {
     callback?.();
     return this;
   }
@@ -107,9 +114,14 @@ it("validates decimal delivery revisions and rejects duplicate providers", () =>
     usage: [emptyUsage("claude")],
   };
   expect(usageDeliverySchema.parse(value).revision).toBe("1");
-  expect(() => usageDeliverySchema.parse({ ...value, revision: "01" })).toThrow();
   expect(() =>
-    usageDeliverySchema.parse({ ...value, usage: [value.usage[0], value.usage[0]] }),
+    usageDeliverySchema.parse({ ...value, revision: "01" }),
+  ).toThrow();
+  expect(() =>
+    usageDeliverySchema.parse({
+      ...value,
+      usage: [value.usage[0], value.usage[0]],
+    }),
   ).toThrow();
 });
 
@@ -131,10 +143,12 @@ it("reports whether usage ingestion changed the published revision", async () =>
   const store = createMemoryStore();
   const ingest = createUsageIngestorWithRevision(store, { claude: "desk" });
 
-  await expect(ingest(envelope(1), "2026-10-15T00:00:01.000Z", "desk"))
-    .resolves.toEqual({ status: "accepted", revisionChanged: true });
-  await expect(ingest(envelope(0), "2026-10-15T00:00:02.000Z", "desk"))
-    .resolves.toEqual({ status: "older", revisionChanged: false });
+  await expect(
+    ingest(envelope(1), "2026-10-15T00:00:01.000Z", "desk"),
+  ).resolves.toEqual({ status: "accepted", revisionChanged: true });
+  await expect(
+    ingest(envelope(0), "2026-10-15T00:00:02.000Z", "desk"),
+  ).resolves.toEqual({ status: "older", revisionChanged: false });
 });
 
 it("does not advance revision for an accepted snapshot that stays off screen", async () => {
@@ -147,15 +161,12 @@ it("does not advance revision for an accepted snapshot that stays off screen", a
 
   const offScreen = envelope(1, "other");
   offScreen.payload.capturedAt = "2026-10-15T00:00:00.500Z";
-  await ingest(
-    offScreen,
-    "2026-10-15T00:00:00.500Z",
-    "other",
-  );
+  await ingest(offScreen, "2026-10-15T00:00:00.500Z", "other");
   const after = await store.readState();
   expect(after.usageRevision).toBe(before.usageRevision);
-  expect(after.dashboard.usage.find((value) => value.provider === "claude"))
-    .toMatchObject({ sourceAlias: "desk" });
+  expect(
+    after.dashboard.usage.find((value) => value.provider === "claude"),
+  ).toMatchObject({ sourceAlias: "desk" });
 });
 
 it("does not notify MQTT when an accepted snapshot leaves the displayed revision unchanged", async () => {
@@ -203,7 +214,11 @@ it("accepts only newer same-stream MQTT data and lets authenticated HTTP rotate 
     usage: base.usage,
   });
   const previous = applyUsageDelivery(base, first, "http").dashboard;
-  const stale = applyUsageDelivery(previous, { ...first, revision: "1" }, "mqtt");
+  const stale = applyUsageDelivery(
+    previous,
+    { ...first, revision: "1" },
+    "mqtt",
+  );
   expect(stale.accepted).toBe(false);
   const rotated = applyUsageDelivery(
     previous,
@@ -217,7 +232,9 @@ it("accepts only newer same-stream MQTT data and lets authenticated HTTP rotate 
     "http",
   );
   expect(viaHttp.accepted).toBe(true);
-  expect(usageDeliveryFromDashboard(viaHttp.dashboard)?.streamId).toBe("stream-b");
+  expect(usageDeliveryFromDashboard(viaHttp.dashboard)?.streamId).toBe(
+    "stream-b",
+  );
 });
 
 it("requires an explicit URL opt-in before opening the MQTT stream", () => {
@@ -253,7 +270,9 @@ it("requests HTTP when a heartbeat is newer or reports an oversized delivery", (
   ).dashboard;
   expect(shouldRefreshUsageForHeartbeat(previous, heartbeat("1"))).toBe(false);
   expect(shouldRefreshUsageForHeartbeat(previous, heartbeat("3"))).toBe(true);
-  expect(shouldRefreshUsageForHeartbeat(previous, heartbeat("2", "too_large"))).toBe(true);
+  expect(
+    shouldRefreshUsageForHeartbeat(previous, heartbeat("2", "too_large")),
+  ).toBe(true);
 });
 
 it("does not publish retained offline during an intentional reconnect", async () => {
@@ -272,7 +291,9 @@ it("does not publish retained offline during an intentional reconnect", async ()
   clients[0].emit("error", Error("transport"));
   expect(
     clients[0].publishes.some(
-      (entry) => entry.topic.endsWith("/usage/availability") && entry.payload.includes('"offline"'),
+      (entry) =>
+        entry.topic.endsWith("/usage/availability") &&
+        entry.payload.includes('"offline"'),
     ),
   ).toBe(false);
   await publisher.stop();
@@ -424,7 +445,9 @@ it("reconnects after a state PUBACK timeout and ignores the old callback", async
   await vi.advanceTimersByTimeAsync(0);
   first?.callback?.();
   expect(
-    clients[1].publishes.filter((entry) => entry.topic.endsWith("/usage/state")),
+    clients[1].publishes.filter((entry) =>
+      entry.topic.endsWith("/usage/state"),
+    ),
   ).toHaveLength(1);
   await publisher.stop();
   random.mockRestore();
@@ -501,7 +524,9 @@ it("drops an older pending state after the current state exceeds the payload lim
     usageRevision: revision,
     usagePublishedAt: "2026-10-15T00:00:00.000Z",
   });
-  const store = { inspect: async <T>(fn: (value: State) => T) => fn(state()) } as Store;
+  const store = {
+    inspect: async <T>(fn: (value: State) => T) => fn(state()),
+  } as Store;
   const clients: FakeMqttClient[] = [];
   const publisher = createMqttPublisher(store, {
     url: "mqtt://127.0.0.1:1883",
@@ -515,7 +540,9 @@ it("drops an older pending state after the current state exceeds the payload lim
   publisher.start();
   clients[0].emit("connect");
   await tick();
-  const first = clients[0].publishes.find((entry) => entry.topic.endsWith("/usage/state"));
+  const first = clients[0].publishes.find((entry) =>
+    entry.topic.endsWith("/usage/state"),
+  );
   expect(first).toBeDefined();
   revision = "2";
   publisher.notify();
@@ -526,7 +553,11 @@ it("drops an older pending state after the current state exceeds the payload lim
   await tick();
   first?.callback?.();
   await tick();
-  expect(clients[0].publishes.filter((entry) => entry.topic.endsWith("/usage/state"))).toHaveLength(1);
+  expect(
+    clients[0].publishes.filter((entry) =>
+      entry.topic.endsWith("/usage/state"),
+    ),
+  ).toHaveLength(1);
   expect(publisher.status?.().deliveryStatus).toBe("too_large");
   await publisher.stop();
 });
@@ -566,7 +597,9 @@ it("keeps a migrated stream id stable before the first write", async () => {
     streamId: firstState.streamId,
     revision: "0",
   });
-  expect(Date.parse(firstState.dashboard.usageDelivery!.publishedAt)).not.toBeNaN();
+  expect(
+    Date.parse(firstState.dashboard.usageDelivery!.publishedAt),
+  ).not.toBeNaN();
   expect(secondState.dashboard.usageDelivery).toEqual(
     firstState.dashboard.usageDelivery,
   );

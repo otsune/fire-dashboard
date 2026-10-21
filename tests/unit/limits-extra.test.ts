@@ -1,5 +1,5 @@
 import { it, expect } from "vitest";
-import { createRateLimiter } from "../../services/aggregator/src/usage/ingest";
+import { createRateLimiter } from "../helpers/legacy-usage";
 import { createUsageServer as createServer } from "../../services/usage/src/server";
 import { createMemoryUsageStore as createMemoryStore } from "../../services/usage/src/store";
 import { emptyUsage, emptyCommon } from "../../packages/contracts/src/index";

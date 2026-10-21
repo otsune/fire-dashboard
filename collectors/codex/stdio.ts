@@ -1,7 +1,10 @@
 import { spawn } from "node:child_process";
 import { createInterface } from "node:readline";
 import { normalizeCodex } from "./adapter";
-import { emptyUsage, type Usage } from "../../packages/usage-contracts/src/index";
+import {
+  emptyUsage,
+  type Usage,
+} from "../../packages/usage-contracts/src/index";
 type RpcRequest = { method: string; id?: number; params?: unknown };
 export type RpcTransport = {
   send: (value: RpcRequest) => void;

@@ -1,5 +1,4 @@
 import Fastify from "fastify";
-import type { Usage } from "../../../packages/contracts/src/index";
 import {
   envelopeSchema,
   parseDashboard,
@@ -25,7 +24,13 @@ export function createServer(options: {
   sourceAlias?: SourceAlias;
   allowedOrigins?: string[];
   usageClient?: UsageClient;
-  usageRelay?: { baseUrl: string; readerToken: string; origin: string; maxPayloadBytes?: number; maxConnections?: number };
+  usageRelay?: {
+    baseUrl: string;
+    readerToken: string;
+    origin: string;
+    maxPayloadBytes?: number;
+    maxConnections?: number;
+  };
 }) {
   if (typeof options.authorize !== "function")
     throw Error("authorization_required");
@@ -52,8 +57,7 @@ export function createServer(options: {
           : code,
     });
   };
-  const allowedOrigins =
-    options.allowedOrigins ?? [];
+  const allowedOrigins = options.allowedOrigins ?? [];
   const app = Fastify({ logger: false, bodyLimit: 65536, trustProxy: false });
   app.addHook("onRequest", async (req, reply) => {
     reply
@@ -123,22 +127,42 @@ export function createServer(options: {
   let lastUsage: Awaited<ReturnType<UsageClient["readDelivery"]>> | undefined;
   app.get("/api/v1/dashboard", async () => {
     const snapshot = parseDashboard(await options.store.readSnapshot());
-    let usageConnection: "connected" | "unavailable" | "unconfigured" = options.usageClient ? "unavailable" : "unconfigured";
+    let usageConnection: "connected" | "unavailable" | "unconfigured" =
+      options.usageClient ? "unavailable" : "unconfigured";
     if (options.usageClient) {
-      try { lastUsage = await options.usageClient.readDelivery(); usageConnection = "connected"; }
-      catch { /* Retain canonical values and observation times. */ }
+      try {
+        lastUsage = await options.usageClient.readDelivery();
+        usageConnection = "connected";
+      } catch {
+        /* Retain canonical values and observation times. */
+      }
     }
     // Legacy Fire state never becomes the source of truth for usage again.
     const { usageDelivery: _legacy, ...local } = snapshot;
-    return { ...local, usageConnection,
+    return {
+      ...local,
+      usageConnection,
       usage: lastUsage?.usage ?? usageProviders.map(emptyUsage),
-      ...(lastUsage ? { usageDelivery: { schemaVersion: 1, streamId: lastUsage.streamId, revision: lastUsage.revision, publishedAt: lastUsage.publishedAt } } : {}),
+      ...(lastUsage
+        ? {
+            usageDelivery: {
+              schemaVersion: 1,
+              streamId: lastUsage.streamId,
+              revision: lastUsage.revision,
+              publishedAt: lastUsage.publishedAt,
+            },
+          }
+        : {}),
     };
   });
   app.get("/api/v1/health", async () => ({ status: "ok", schemaVersion: 1 }));
   app.get("/api/v1/mqtt-status", async (_req, reply) => {
-    try { if (options.usageClient) return await options.usageClient.readMqttStatus(); }
-    catch { /* No backend diagnostics or secrets are reflected. */ }
+    try {
+      if (options.usageClient)
+        return await options.usageClient.readMqttStatus();
+    } catch {
+      /* No backend diagnostics or secrets are reflected. */
+    }
     return reply.code(503).send({ error: "usage_unavailable" });
   });
   app.get("/api/v1/weather-settings", async (req, reply) => {
@@ -186,12 +210,18 @@ export function createServer(options: {
     const alias = await options.sourceAlias?.(req);
     if (!alias || alias !== parsed.data.sourceAlias)
       return reply.code(403).send({ error: "source_denied" });
-    if (!options.usageClient) return reply.code(503).send({ error: "usage_unavailable" });
+    if (!options.usageClient)
+      return reply.code(503).send({ error: "usage_unavailable" });
     try {
-      const result = await options.usageClient.forwardUsage(parsed.data, req.headers.authorization);
+      const result = await options.usageClient.forwardUsage(
+        parsed.data,
+        req.headers.authorization,
+      );
       if (result.statusCode === 429) reply.header("retry-after", "1");
       return reply.code(result.statusCode).send(result.body);
-    } catch { return reply.code(503).send({ error: "usage_unavailable" }); }
+    } catch {
+      return reply.code(503).send({ error: "usage_unavailable" });
+    }
   });
   if (options.usageRelay) registerUsageRelay(app, options.usageRelay);
   return app;

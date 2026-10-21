@@ -1,5 +1,5 @@
 import { it, expect } from "vitest";
-import { createUsageIngestor } from "../../services/aggregator/src/usage/ingest";
+import { createUsageIngestor } from "../helpers/legacy-usage";
 import { createMemoryStore } from "../../services/aggregator/src/store";
 import {
   emptyUsage,

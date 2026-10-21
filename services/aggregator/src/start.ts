@@ -34,8 +34,13 @@ export async function prepareServer(options: {
     await sources.reconcileWeather();
     const catalog = options.weatherCatalog ?? createWeatherCatalog();
     const target = options.config.usageService;
-    const readerToken = target ? await readUsageReaderToken(target.readerCredentialsFile) : undefined;
-    const usageClient = target && readerToken ? createUsageClient({ ...target, readerToken }) : undefined;
+    const readerToken = target
+      ? await readUsageReaderToken(target.readerCredentialsFile)
+      : undefined;
+    const usageClient =
+      target && readerToken
+        ? createUsageClient({ ...target, readerToken })
+        : undefined;
     const app = createServer({
       store: options.store,
       authorize: options.authorize,
@@ -49,7 +54,16 @@ export async function prepareServer(options: {
         onSaved: sources.reconcileWeather,
       }),
       usageClient,
-      usageRelay: target && readerToken && target.gatewayEnabled ? { baseUrl: target.baseUrl, readerToken, origin: options.origin, maxPayloadBytes: target.maxBytes, maxConnections: target.maxConnections } : undefined,
+      usageRelay:
+        target && readerToken && target.gatewayEnabled
+          ? {
+              baseUrl: target.baseUrl,
+              readerToken,
+              origin: options.origin,
+              maxPayloadBytes: target.maxBytes,
+              maxConnections: target.maxConnections,
+            }
+          : undefined,
     });
     return { app, sources };
   } catch (error) {
