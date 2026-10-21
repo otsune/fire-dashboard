@@ -8,9 +8,17 @@
 - 独立HTTP、broker直接WS、usage直接WS、実HTTPS経由Fire WSSで配信系列とrevisionを照合。publisherはready／connected、PUBACK済み、deliveryStatus=ok、lastError=null。
 - 両APIと全収集器がactive、両APIのNRestarts=0、移行後に全7 sourceのreceivedAt更新を確認。実HTTPSのindex.html／sw.jsは配信元とバイト一致。
 - 未認証GETは401、readerのPOSTとcollectorのGETは403。18787／18788／1883／9001はloopbackのみで、Tailscale IPへの直結は拒否。
-- 最新usageと最新Fire stateを使う逆移行を退避先で実行し、usage・天気・RSSの保持を確認。全体の切り戻しとFire実機の画面・音声確認は未実施。
+- 最新usageと最新Fire stateを使う逆移行を退避先で実行し、usage・天気・RSSの保持を確認。全体の切り戻しと音声確認は未実施。Fire実機の画面・usage受信は下記のADB確認で検証。
 
 ホスト構成の正本は `/home/otsune/docs/services.md`、配備記録は `/home/otsune/docs/notes/fire-dashboard-deployment.md`。退避・検証証拠・具体的な切り戻し手順は `/home/otsune/backups/fire-dashboard-usage-split-20261022_084137/README.md` と同ディレクトリの `verification.json` に保存しました。
+
+### ADB実機確認（2026-10-22追記）
+
+Fire HD 10 Plus（KFTRPWI、Android 9、Fully Kiosk / WebView Chrome 138）の実画面で、既存HTTPS `?usageMqtt=1` を確認しました。6 providerのカード、時計・天気・RSSを表示し、集約サービスとMQTTは接続済み。横画面1280×799のscrollWidth/scrollHeightも1280/799で、ページのはみ出しはありません。ロード済みJS `index-Blo49QiG.js` とactive shell cache `fire-shell-e40fb8695de6117c` は現在配備した成果物と一致し、待機中の更新はありません。
+
+IndexedDBはreadonlyで参照し、約65秒でusage revisionが `30879` → `30882` に前進、母艦の同一stream（revision `30882`）と照合しました。実WebViewのMQTT PUBLISH受信は4件です。再読込・設定変更は行っていません。音声欄には「音声を再生できません。もう一度タップしてください。」と表示されており、音声再生・聴感と長時間運転は未検証です。
+
+実機画像と検証JSON: `/home/otsune/backups/fire-dashboard-usage-split-20261022_084137/fire-adb-20261022_085354`。一時ADB forwardは検証終了後に解除しました。
 
 ## 独立コード監査への対応（2026-10-22）
 
