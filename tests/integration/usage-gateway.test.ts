@@ -2,8 +2,8 @@ import { once } from "node:events";
 import net from "node:net";
 import { expect, it } from "vitest";
 import WebSocket, { WebSocketServer } from "ws";
-import { createServer } from "../../services/aggregator/src/server";
-import { createMemoryStore } from "../../services/aggregator/src/store";
+import { createUsageServer as createServer } from "../../services/usage/src/server";
+import { createMemoryUsageStore as createMemoryStore } from "../../services/usage/src/store";
 import type {
   MqttUpstream,
   MqttUpstreamFactory,

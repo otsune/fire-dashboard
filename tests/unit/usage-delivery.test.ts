@@ -24,7 +24,9 @@ import {
   isUsageMqttEnabled,
 } from "../../apps/dashboard/src/data/usage-stream";
 import { createMqttPublisher } from "../../services/aggregator/src/mqtt/publisher";
-import { createServer } from "../../services/aggregator/src/server";
+import { createUsageServer as createServer } from "../../services/usage/src/server";
+import { createMemoryUsageStore } from "../../services/usage/src/store";
+import { createUsageIngestor as independentIngestor } from "../../services/usage/src/ingest";
 import {
   closePendingUpstream,
   isBackpressured,
@@ -157,8 +159,8 @@ it("does not advance revision for an accepted snapshot that stays off screen", a
 });
 
 it("does not notify MQTT when an accepted snapshot leaves the displayed revision unchanged", async () => {
-  const store = createMemoryStore();
-  await createUsageIngestor(store, { claude: ["desk", "other"] })(
+  const store = createMemoryUsageStore();
+  await independentIngestor(store, { claude: ["desk", "other"] })(
     envelope(1, "desk"),
     "2026-10-15T00:00:01.000Z",
     "desk",

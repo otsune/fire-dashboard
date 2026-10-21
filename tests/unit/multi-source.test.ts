@@ -8,7 +8,8 @@ import {
   createFileStore,
   createMemoryStore,
 } from "../../services/aggregator/src/store";
-import { createServer } from "../../services/aggregator/src/server";
+import { createUsageServer as createServer } from "../../services/usage/src/server";
+import { createMemoryUsageStore } from "../../services/usage/src/store";
 import { configSchema, parsePort } from "../../services/aggregator/src/config";
 import { createTailscaleAuth } from "../../services/aggregator/src/auth-tailscale";
 import {
@@ -283,7 +284,7 @@ describe("Tailscale auth", () => {
   });
   const server = () =>
     createServer({
-      store: createMemoryStore(),
+      store: createMemoryUsageStore(),
       ...auth,
       allowedOrigins: ["https://dash.example"],
       preferredSources: { claude: ["desk"] },
@@ -291,7 +292,7 @@ describe("Tailscale auth", () => {
   it("lets the tailnet reader view but not post", async () => {
     const s = server();
     const view = await s.inject({
-      url: "/api/v1/dashboard",
+      url: "/api/v1/usage",
       headers: { "tailscale-user-login": "me@example.com" },
     });
     expect(view.statusCode).toBe(200);
@@ -312,7 +313,7 @@ describe("Tailscale auth", () => {
       {},
       { authorization: `Bearer ${token}` },
     ]) {
-      const r = await s.inject({ url: "/api/v1/dashboard", headers });
+      const r = await s.inject({ url: "/api/v1/usage", headers });
       expect(r.statusCode).not.toBe(200);
     }
     await s.close();
@@ -320,7 +321,7 @@ describe("Tailscale auth", () => {
   it("over HTTP, forged receipt and capture times cannot hold the display", async () => {
     const noteToken = "n".repeat(43);
     const s = createServer({
-      store: createMemoryStore(),
+      store: createMemoryUsageStore(),
       ...createTailscaleAuth({
         readerLogins: ["me@example.com"],
         collectorTokenHashes: {
@@ -343,7 +344,7 @@ describe("Tailscale auth", () => {
     const view = async () =>
       (
         await s.inject({
-          url: "/api/v1/dashboard",
+          url: "/api/v1/usage",
           headers: { "tailscale-user-login": "me@example.com" },
         })
       )

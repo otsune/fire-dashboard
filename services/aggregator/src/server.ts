@@ -1,12 +1,10 @@
 import Fastify from "fastify";
-import {
-  createUsageIngestorWithRevision,
-  createRateLimiter,
-} from "./usage/ingest";
 import type { Usage } from "../../../packages/contracts/src/index";
 import {
   envelopeSchema,
   parseDashboard,
+  usageProviders,
+  emptyUsage,
 } from "../../../packages/contracts/src/index";
 import type { Store } from "./store";
 import type { Authorize, AuthorizeAdmin, SourceAlias } from "./auth";
@@ -16,18 +14,8 @@ import {
   createWeatherSettings,
   type WeatherSettingsService,
 } from "./weather/settings";
-import {
-  createMqttPublisher,
-  type MqttPublisherOptions,
-  type UsagePublisher,
-} from "./mqtt/publisher";
-import { registerMqttGateway, type MqttGatewayOptions } from "./mqtt/gateway";
-
-export type MqttPublisherStatus = {
-  state: "disabled" | "ready";
-  reason?: string;
-};
-
+import type { UsageClient } from "./usage/client";
+import { registerUsageRelay } from "./usage/relay";
 export function createServer(options: {
   store: Store;
   authorize: Authorize;
@@ -36,31 +24,15 @@ export function createServer(options: {
   weatherSettings?: WeatherSettingsService;
   sourceAlias?: SourceAlias;
   allowedOrigins?: string[];
-  preferredSources?: Partial<
-    Record<Usage["provider"], string | readonly string[]>
-  >;
-  mqtt?: MqttPublisherOptions;
-  mqttStatus?: MqttPublisherStatus;
-  usagePublisher?: UsagePublisher;
-  gateway?: MqttGatewayOptions;
+  usageClient?: UsageClient;
+  usageRelay?: { baseUrl: string; readerToken: string; origin: string; maxPayloadBytes?: number; maxConnections?: number };
 }) {
   if (typeof options.authorize !== "function")
     throw Error("authorization_required");
-  const ingest = createUsageIngestorWithRevision(
-    options.store,
-    options.preferredSources ?? {},
-  );
-  const accept = createRateLimiter();
   const catalog = options.weatherCatalog ?? createWeatherCatalog();
   const settings =
     options.weatherSettings ??
     createWeatherSettings({ store: options.store, catalog });
-  const usagePublisher =
-    options.usagePublisher ??
-    (options.mqtt ? createMqttPublisher(options.store, options.mqtt) : undefined);
-  const mqttStatus: MqttPublisherStatus =
-    options.mqttStatus ??
-    (options.mqtt ? { state: "ready" } : { state: "disabled" });
   const canEdit = async (req: Parameters<AuthorizeAdmin>[0]) =>
     req.headers.authorization === undefined &&
     !!(await options.authorizeAdmin?.(req));
@@ -81,7 +53,7 @@ export function createServer(options: {
     });
   };
   const allowedOrigins =
-    options.allowedOrigins ?? options.gateway?.allowedOrigins ?? [];
+    options.allowedOrigins ?? [];
   const app = Fastify({ logger: false, bodyLimit: 65536, trustProxy: false });
   app.addHook("onRequest", async (req, reply) => {
     reply
@@ -148,20 +120,27 @@ export function createServer(options: {
               : "invalid_request",
       });
   });
-  if (usagePublisher) {
-    app.addHook("onClose", async () => usagePublisher.stop());
-    usagePublisher.start();
-  }
-  app.get("/api/v1/dashboard", async () =>
-    parseDashboard(await options.store.readSnapshot()),
-  );
+  let lastUsage: Awaited<ReturnType<UsageClient["readDelivery"]>> | undefined;
+  app.get("/api/v1/dashboard", async () => {
+    const snapshot = parseDashboard(await options.store.readSnapshot());
+    let usageConnection: "connected" | "unavailable" | "unconfigured" = options.usageClient ? "unavailable" : "unconfigured";
+    if (options.usageClient) {
+      try { lastUsage = await options.usageClient.readDelivery(); usageConnection = "connected"; }
+      catch { /* Retain canonical values and observation times. */ }
+    }
+    // Legacy Fire state never becomes the source of truth for usage again.
+    const { usageDelivery: _legacy, ...local } = snapshot;
+    return { ...local, usageConnection,
+      usage: lastUsage?.usage ?? usageProviders.map(emptyUsage),
+      ...(lastUsage ? { usageDelivery: { schemaVersion: 1, streamId: lastUsage.streamId, revision: lastUsage.revision, publishedAt: lastUsage.publishedAt } } : {}),
+    };
+  });
   app.get("/api/v1/health", async () => ({ status: "ok", schemaVersion: 1 }));
-  app.get("/api/v1/mqtt-status", async () => ({
-    schemaVersion: 1,
-    publisher: mqttStatus.state,
-    reason: mqttStatus.reason ?? null,
-    runtime: usagePublisher?.status?.() ?? null,
-  }));
+  app.get("/api/v1/mqtt-status", async (_req, reply) => {
+    try { if (options.usageClient) return await options.usageClient.readMqttStatus(); }
+    catch { /* No backend diagnostics or secrets are reflected. */ }
+    return reply.code(503).send({ error: "usage_unavailable" });
+  });
   app.get("/api/v1/weather-settings", async (req, reply) => {
     try {
       const saved = await settings.read();
@@ -207,28 +186,13 @@ export function createServer(options: {
     const alias = await options.sourceAlias?.(req);
     if (!alias || alias !== parsed.data.sourceAlias)
       return reply.code(403).send({ error: "source_denied" });
-    if (!accept(alias))
-      return reply
-        .code(429)
-        .header("retry-after", "1")
-        .send({ error: "rate_limited" });
+    if (!options.usageClient) return reply.code(503).send({ error: "usage_unavailable" });
     try {
-      const result = await ingest(
-        parsed.data,
-        new Date().toISOString(),
-        alias,
-      );
-      if (result.revisionChanged) usagePublisher?.notify();
-      return {
-        status: result.status,
-      };
-    } catch (error) {
-      const code = (error as Error).message;
-      return reply.code(code === "source_denied" ? 403 : 409).send({
-        error: code === "source_denied" ? "source_denied" : "snapshot_conflict",
-      });
-    }
+      const result = await options.usageClient.forwardUsage(parsed.data, req.headers.authorization);
+      if (result.statusCode === 429) reply.header("retry-after", "1");
+      return reply.code(result.statusCode).send(result.body);
+    } catch { return reply.code(503).send({ error: "usage_unavailable" }); }
   });
-  if (options.gateway) registerMqttGateway(app, options.gateway);
+  if (options.usageRelay) registerUsageRelay(app, options.usageRelay);
   return app;
 }

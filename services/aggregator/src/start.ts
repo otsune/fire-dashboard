@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { pathToFileURL } from "node:url";
 import { resolve } from "node:path";
-import { createServer, type MqttPublisherStatus } from "./server";
+import { createServer } from "./server";
 import { createFileStore, type Store } from "./store";
 import { configSchema, parsePort, type Config } from "./config";
 import { startSources, type SourceDependencies } from "./sources";
@@ -11,46 +11,7 @@ import {
   initializeWeatherSettings,
   createWeatherSettings,
 } from "./weather/settings";
-import { readMqttCredentials } from "./mqtt/credentials";
-import type { MqttPublisherOptions } from "./mqtt/publisher";
-
-export type MqttPublisherLoadResult = {
-  options?: MqttPublisherOptions;
-  status: MqttPublisherStatus;
-};
-
-export async function loadMqttPublisher(
-  config: Config,
-): Promise<MqttPublisherLoadResult> {
-  if (!config.mqtt.enabled)
-    return { status: { state: "disabled" }, options: undefined };
-  try {
-    const credentials = await readMqttCredentials(config.mqtt.credentialsFile);
-    return {
-      status: { state: "ready" },
-      options: {
-        url: config.mqtt.url,
-        topicPrefix: config.mqtt.topicPrefix,
-        maxPayloadBytes: config.mqtt.maxPayloadBytes,
-        username: credentials.username,
-        password: credentials.password,
-      },
-    };
-  } catch (error) {
-    const code =
-      error instanceof Error && /^mqtt_credentials_/.test(error.message)
-        ? error.message
-        : "mqtt_credentials_invalid";
-    process.stderr.write(`Fire Dashboard MQTT publisher disabled: ${code}\n`);
-    return { status: { state: "disabled", reason: code } };
-  }
-}
-
-export async function loadMqttPublisherOptions(
-  config: Config,
-): Promise<MqttPublisherOptions | undefined> {
-  return (await loadMqttPublisher(config)).options;
-}
+import { createUsageClient, readUsageReaderToken } from "./usage/client";
 
 /** Complete local migration and source reconciliation before exposing the API. */
 export async function prepareServer(options: {
@@ -72,31 +33,23 @@ export async function prepareServer(options: {
   try {
     await sources.reconcileWeather();
     const catalog = options.weatherCatalog ?? createWeatherCatalog();
-    const mqtt = await loadMqttPublisher(options.config);
+    const target = options.config.usageService;
+    const readerToken = target ? await readUsageReaderToken(target.readerCredentialsFile) : undefined;
+    const usageClient = target && readerToken ? createUsageClient({ ...target, readerToken }) : undefined;
     const app = createServer({
       store: options.store,
       authorize: options.authorize,
       authorizeAdmin: options.authorizeAdmin,
       sourceAlias: options.sourceAlias,
       allowedOrigins: [options.origin],
-      preferredSources: options.config.preferredSources,
       weatherCatalog: catalog,
       weatherSettings: createWeatherSettings({
         store: options.store,
         catalog,
         onSaved: sources.reconcileWeather,
       }),
-      mqtt: mqtt.options,
-      mqttStatus: mqtt.status,
-      gateway: options.config.gateway.enabled
-        ? {
-            url: options.config.gateway.url,
-            path: options.config.gateway.path,
-            maxPayloadBytes: options.config.gateway.maxPayloadBytes,
-            maxConnections: options.config.gateway.maxConnections,
-            allowedOrigins: [options.origin],
-          }
-        : undefined,
+      usageClient,
+      usageRelay: target && readerToken && target.gatewayEnabled ? { baseUrl: target.baseUrl, readerToken, origin: options.origin, maxPayloadBytes: target.maxBytes, maxConnections: target.maxConnections } : undefined,
     });
     return { app, sources };
   } catch (error) {

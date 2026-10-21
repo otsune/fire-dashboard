@@ -238,7 +238,7 @@ export function App() {
         }
         current.current = mergeDashboard(current.current, next);
         setData(current.current);
-        setConnection("集約サービス接続済み");
+        setConnection(next.usageConnection === "unavailable" ? "usage提供サービスに未接続 · 最後の値を表示" : next.usageConnection === "unconfigured" ? "usage提供サービスが未設定" : "集約サービス接続済み");
         try {
           await saveDashboard(current.current);
           setWarning(null);

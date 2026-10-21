@@ -60,6 +60,7 @@ export type Weather = z.infer<typeof weatherSchema>;
 export type Feed = z.infer<typeof feedSchema>;
 export type Dashboard = {
   schemaVersion: 1;
+  usageConnection?: "connected" | "unavailable" | "unconfigured";
   weather: Weather;
   rss: Feed[];
   usage: Usage[];
@@ -97,6 +98,7 @@ export function parseDashboard(input: unknown): Dashboard {
   const root = z
     .object({
       schemaVersion: z.literal(1),
+      usageConnection: z.enum(["connected", "unavailable", "unconfigured"]).optional(),
       weather: z.unknown(),
       rss: z.array(z.unknown()).max(32),
       usage: z.array(z.unknown()).max(64),
@@ -144,6 +146,7 @@ export function parseDashboard(input: unknown): Dashboard {
       ];
     }),
   };
+  if (root.usageConnection) dashboard.usageConnection = root.usageConnection;
   if (delivery?.success) dashboard.usageDelivery = delivery.data;
   return dashboard;
 }

@@ -1,7 +1,7 @@
 import { it, expect } from "vitest";
 import { createRateLimiter } from "../../services/aggregator/src/usage/ingest";
-import { createServer } from "../../services/aggregator/src/server";
-import { createMemoryStore } from "../../services/aggregator/src/store";
+import { createUsageServer as createServer } from "../../services/usage/src/server";
+import { createMemoryUsageStore as createMemoryStore } from "../../services/usage/src/store";
 import { emptyUsage, emptyCommon } from "../../packages/contracts/src/index";
 it("limits burst to five with one token replenished per second", () => {
   const accept = createRateLimiter();

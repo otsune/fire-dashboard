@@ -99,5 +99,5 @@ export function applyUsageDelivery(
 export function applyHttpDashboard(previous: Dashboard, incoming: Dashboard): Dashboard {
   const delivery = usageDeliveryFromDashboard(incoming);
   if (!delivery) return parseDashboard(incoming);
-  return applyUsageDelivery(previous, delivery, "http").dashboard;
+  return { ...applyUsageDelivery(previous, delivery, "http").dashboard, usageConnection: incoming.usageConnection };
 }

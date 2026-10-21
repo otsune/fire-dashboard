@@ -8,12 +8,10 @@ vi.mock("node:fs/promises", async (importOriginal) => {
   return { ...actual, readFile: vi.fn(actual.readFile) };
 });
 import { readMqttCredentials } from "../../services/aggregator/src/mqtt/credentials";
-import { configSchema } from "../../services/aggregator/src/config";
-import {
-  loadMqttPublisherOptions,
-  prepareServer,
-} from "../../services/aggregator/src/start";
-import { createMemoryStore } from "../../services/aggregator/src/store";
+import { usageConfigSchema as configSchema } from "../../services/usage/src/config";
+import { loadUsagePublisher } from "../../services/usage/src/start";
+import { createUsageServer } from "../../services/usage/src/server";
+import { createMemoryUsageStore } from "../../services/usage/src/store";
 import { emptyCommon, emptyUsage } from "../../packages/contracts/src/index";
 
 it("reads MQTT credentials from an owner-only JSON file", async () => {
@@ -70,26 +68,15 @@ it("keeps the HTTP service available when MQTT credentials are unavailable", asy
       credentialsFile: "/tmp/does-not-exist-fire-dashboard-mqtt.json",
     },
   });
-  await expect(loadMqttPublisherOptions(config)).resolves.toBeUndefined();
+  await expect(loadUsagePublisher(config)).resolves.toMatchObject({ status: { state: "disabled" } });
 });
 
 it("accepts HTTP usage while the MQTT publisher is disabled by bad credentials", async () => {
-  const prepared = await prepareServer({
-    config: configSchema.parse({
-      preferredSources: { claude: "desk" },
-      mqtt: {
-        enabled: true,
-        credentialsFile: "/tmp/does-not-exist-fire-dashboard-mqtt.json",
-      },
-    }),
-    store: createMemoryStore(),
-    origin: "https://dashboard.example",
-    authorize: async (_request, role) =>
-      role === "collector" || role === "reader",
-    sourceAlias: async () => "desk",
-  });
+  const config = configSchema.parse({ preferredSources: { claude: "desk" }, mqtt: { enabled: true, credentialsFile: "/tmp/does-not-exist-fire-dashboard-mqtt.json" } });
+  const mqtt = await loadUsagePublisher(config);
+  const app = createUsageServer({ store: createMemoryUsageStore(), authorize: async () => true, sourceAlias: async () => "desk", preferredSources: config.preferredSources, mqtt: mqtt.options, mqttStatus: mqtt.status });
   try {
-    const response = await prepared.app.inject({
+    const response = await app.inject({
       method: "POST",
       url: "/api/v1/usage",
       payload: {
@@ -106,7 +93,7 @@ it("accepts HTTP usage while the MQTT publisher is disabled by bad credentials",
     });
     expect(response.statusCode).toBe(200);
     expect(response.json()).toMatchObject({ status: "accepted" });
-    const status = await prepared.app.inject({
+    const status = await app.inject({
       method: "GET",
       url: "/api/v1/mqtt-status",
     });
@@ -118,7 +105,6 @@ it("accepts HTTP usage while the MQTT publisher is disabled by bad credentials",
       runtime: null,
     });
   } finally {
-    prepared.sources.stop();
-    await prepared.app.close();
+    await app.close();
   }
 });
