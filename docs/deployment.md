@@ -6,7 +6,7 @@
 
 APIは127.0.0.1へバインドします。Originは明示したHTTPSオリジンだけ許可します。資格情報をURL、Vite環境変数、ブラウザー、RSS設定やログへ置かないでください。localhostでのUI試用は未設定カードのまま動き、実APIへのアクセス権は与えません。
 
-config.example.jsonの初期天気地域・RSS・優先取得元を、実環境の管理者が確認して設定します。天気地域は初回読み込み後、後述の保存済み地域設定を優先します。有効な地域設定がnull、feedsが空ならそれぞれの外部取得は行いません。JMAはWeb用JSONのため構造変更の可能性があり、安定したAPI契約として扱いません。
+Fire用config.example.jsonの初期天気地域・RSSを、実環境の管理者が確認して設定します。天気地域は初回読み込み後、後述の保存済み地域設定を優先します。有効な地域設定がnull、feedsが空ならそれぞれの外部取得は行いません。JMAはWeb用JSONのため構造変更の可能性があり、安定したAPI契約として扱いません。
 
 認可モジュールの実装・配備、信頼済みHTTPS、Fire側の閲覧許可、収集元への配置は別途承認が必要です。公開ポート、自己署名証明書の警告回避、無認証運用は手順に含みません。
 
@@ -16,7 +16,7 @@ config.example.jsonの初期天気地域・RSS・優先取得元を、実環境�
 
 認可された配置後に `npm run start:api` を実行します。常駐させる場合は `npm run build:api` で単一ファイルにまとめ、`node dist/aggregator/start.mjs` を使います。`FIRE_AUTH_MODULE` には `dist/aggregator/auth-tailscale.mjs` を指定します。npm や tsx のプロセスが残らないので、常駐中のメモリが減ります。待ち受けは127.0.0.1の8787番です。他のサービスと重なる場合は `FIRE_PORT` で変更します。この背後に信頼された同一オリジンのHTTPS配信が必要です。システムサービス登録やリバースプロキシの設定はこの成果物では変更していません。
 
-`preferredSources` の各値は1つのsourceAliasか、その配列です。利用上限はアカウント単位なので、配列に挙げた全PCから受け付け、最も新しい観測を表示します。比較には収集時刻を使い、受信時刻より未来の収集時刻は受信時刻に丸めます。表示中ではないPCのエラーは、正常な表示値を上書きしません。
+usageの取得元選択・保存・MQTT配信は独立サービスへ移りました。[AI usageバックエンド](usage-service.md)の設定と移行手順を参照してください。
 
 ## Tailscale serve での配置例
 
@@ -33,57 +33,13 @@ config.example.jsonの初期天気地域・RSS・優先取得元を、実環境�
 - 外部から偽の `Tailscale-User-Login` を付けて送り、serve が上書きまたは削除することを確認します。この確認が済むまで、このヘッダーを信頼しないでください。
 - APIは127.0.0.1で待ち受けるため、同じ機械の他プロセスはヘッダーを偽装できます。管理者を有効にする場合は地域設定の書き込み権限も得られるため、同居プロセスを信頼でき、入口が確認済みの Tailscale Serve に限定されていることが前提です。ログイン名はユーザーを識別するもので、Fire と同一ユーザーの別端末を区別しません。
 
-## usage の MQTT 配信
+## usageの独立サービスへの接続
 
-MQTT 配信は `FIRE_CONFIG` で指定する設定ファイル（例
-`services/aggregator/config.example.json`）の `mqtt.enabled` と
-`gateway.enabled` を個別に有効化できます。どちらも既定値は無効で、両方を無効に
-した場合は従来どおり HTTPS の usage 集約だけを行います。publisherだけ、または
-gatewayだけを有効にした状態は開発・検証用とし、本番ではbrokerとWSS経路の両方を
-確認してから有効化してください。
+Fire向けAPIはusageの収集・集約・publisherを持ちません。`FIRE_CONFIG` の `usageService` で独立バックエンドを指定します。[設定・データ契約・購読・移行と切り戻し](usage-service.md)を参照してください。旧設定の `mqtt.enabled: true`／`gateway.enabled: true` は拒否します。新サービスとFireの起動設定は一緒に移行してください。
 
-`mqtt.url` は母艦の loopback MQTT listener（例 `mqtt://127.0.0.1:1883`）、
-`gateway.url` は MQTT over WebSocket listener（例
-`ws://127.0.0.1:9001/mqtt`）を指定します。publisher の資格情報は
-`mqtt.credentialsFile` に指定したJSONファイルから読み込み、ブラウザーへ渡しません。
-設定例の `/home/<service-user>/.config/fire-dashboard/mqtt-credentials.json` は
-userサービスの実行ユーザーへ置き換えるプレースホルダーです。`/etc` 配下はsudoを
-要するため、このuser層サービスの既定配置には使いません。このファイルはサービスユーザー
-だけが読めるmode 0600相当で配置し、形式は
-`{"username":"…","password":"…"}` とします。MQTT publisherを有効にする場合は
-このファイルを必ず指定します。ファイルが欠落・不正な場合はpublisherだけを無効化して
-APIとHTTP usage収集を起動し、サーバーログへ資格情報を含まない分類コードを出します。
-認証済みreaderから `GET /api/v1/mqtt-status` を確認すると、publisherの状態（`ready`／
-`disabled`）と安全な分類コードを取得できます。`runtime` には接続状態、接続回数、現在の
-usage revision、stateの最後のPUBACK時刻とrevision、heartbeatの最後のPUBACK時刻、直近エラー種別（`publish_error`／`ack_timeout`／`connect_error`）と時刻、payload超過状態を
-含めます。systemd userサービスでは同じ分類コードをjournalでも確認できます。読取権限エラーは
-`mqtt_credentials_permissions` として分類します。
-gatewayの同時接続数は `gateway.maxConnections`（既定8、最大256）で制限し、上限到達時は
-WebSocket upgrade前に503を返します。切断後は枠を解放します。トピック接頭辞は
-`fire-dashboard/v1/main` です。state と availability は QoS 1・retain、heartbeat は
-QoS 1・非 retain で送信します。
+Fireの `/api/v1/dashboard` はusageのGET結果と天気・RSSを組み合わせます。`/api/v1/usage` POSTは認証済みcollector用の互換中継、`/api/v1/mqtt-status` はreader用中継、`/api/v1/usage/stream` は設定時だけ有効なWSS中継です。読取とWSS中継は0600の専用reader資格情報を使います。usage未接続時も天気・RSSのHTTP応答は継続します。
 
-表示端末は同一オリジンの `wss://<origin>/api/v1/usage/stream` へ `mqtt` サブプロトコルを
-要求します。gateway は Tailscale の reader 認証と許可済み Origin を upgrade 前に検証し、
-loopback broker の `mqtt` ネゴシエーションを確認してから下流へ 101 を返します。既存の
-Tailscale Serve や Mosquitto の listener／ACL はこのリポジトリから変更しません。導入時は
-publisher 用 write listener と gateway 用 read listener を分離し、reader が state 以外を
-購読・publish できないことを確認してください。gateway は MQTT の username／password を
-上流へ注入せず raw WebSocket frame を中継するため、read listener は loopback からだけ到達
-できる匿名 read-only listener とし、ACLファイル先頭の匿名用 topic 行を state／availability／
-heartbeat の read に限定します。TCP listener は `allow_anonymous false`、publisher用資格情報、
-write ACLにします。ホストのport mappingもloopbackに限定し、`ss` と localhost／LANの正負疎通を
-別々に取得してください。Mosquitto 2.1以降の listener別設定はバージョンの非推奨項目を確認し、
-採用版の `listener_allow_anonymous` またはACL pluginの手順に合わせます。
-
-ブラウザーのMQTT購読は既定で無効です。検証対象の端末だけURLに `?usageMqtt=1` を付けて
-明示的に有効化します。指定がない端末は従来どおりHTTP pollingを使うため、gatewayを
-無効化した状態でもMQTTへ再接続し続けません。
-
-配信データの正本は `FIRE_STATE_FILE` の `streamId`／`usageRevision` です。MQTT state の
-UTF-8 サイズ上限を超えた場合は state を途中送信せず、端末へ `too_large` heartbeat を通知し、
-端末は HTTPS の revision を照合します。MQTT を有効化する前に開発用 broker で QoS、LWT、
-切断復帰、reader 認証、Origin 欠落、`mqtt` 以外の subprotocol、上限超過を検証してください。
+ブラウザーのMQTT購読は `?usageMqtt=1` で有効化します。既存Fireの接頭辞 `fire-dashboard/v1/main` に合わせ、移行時はusageサービス側へこの接頭辞を明示設定してください。MQTTの正本は `USAGE_STATE_FILE` の `delivery` です。Fireの状態ファイルをusageの正本として再利用しません。
 
 長期運用観測のJSONLは、実機・API・ホストの3ログを同じ基準で再検査できます。
 初期ページ遷移だけの行は検査器が明示的に `ignored` とし、それ以外の不完全行やJSON破損は失敗にします。

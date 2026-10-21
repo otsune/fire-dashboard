@@ -1,5 +1,23 @@
 # 検証記録とFire実機チェック
 
+## AI usageバックエンドの独立化（2026-10-22）
+
+usage収集・集約・永続化・HTTP／MQTT提供を `services/usage` に分離しました。Fire向けAPIは天気・RSSとusageサービスの利用側です。[起動・購読・移行手順](usage-service.md)、[設計](plans/2026-10-22-usage-service-separation-design.md)、[実装計画](superpowers/plans/2026-10-22-usage-service-separation.md)を参照してください。本番切替・systemd・Serve・brokerの変更、Fire実機試験は今回未実施です。
+
+- `rtk npm test`：742件成功、実broker用1件は通常実行でskip。Playwrightとの同時実行時に既存の `weather-startup` 起動検証が5秒上限へ一度達しましたが、単独の全体再実行では全件成功（39.22秒）。
+- `rtk npm run typecheck`：成功。
+- `build:api`、`build:usage`、`build:collectors`：成功。UIの `build` はE2E webServer起動時にも実行し成功。
+- `rtk npm run test:e2e`：69件成功。usageバックエンド停止時の数値保持・停止表示・時計継続を含む。
+- `USAGE_BROKER_TEST=1` の隔離Mosquitto試験：1件成功。FireなしのPOST→TCP購読、retain、broker再起動後の最新値、TCP readerのpublish拒否、Fire→usage→brokerのWebSocket中継とpublish拒否を確認。一時コンテナ・ランダムloopbackポート・架空の値・専用トピックを使用し、終了後に削除。
+- バンドルをリポジトリ外の一時ディレクトリでNodeから起動し、ソース・node_modulesなしで読取APIを確認。起動完了前に初期stateが永続化され、HTTPと保存済みdeliveryが一致。
+- usageバンドルのmetafileに `apps/`、`services/aggregator/`、`packages/contracts/` の依存がないことを確認。
+- 状態移行は元ファイル不変・既存出力上書き拒否・各PC状態保持・最新観測での旧形式復元を試験。
+- 別コンテキストの最終レビューで、初回stateの未保存公開と初回未接続時のMQTT停止を指摘。両方を再現テストでRED→GREENにし、全体テストも成功。
+
+FireのWSS中継は既定の `/api/v1/usage/stream` のみに対応します。バックエンドでカスタムgateway.pathを使う機能への中継対応は保留し、Fire利用時は既定パスを維持する条件を手順へ記載しました。
+
+実装上の判断は、既存feature checkoutで作業を継続したこと（別checkoutへ移す場合は変更の移動が必要）、停止状態をcanonicalなusage値とは別項目にしたこと（利用側でusageConnectionを見る必要あり）、旧形式の回帰検証をテスト専用アダプター経由にしたこと（アダプターの保守が必要）です。
+
 ## レポジトリ全体監査とテスト修復（2026-10-18）
 
 全ソース監査で見つかった問題を修正（ファミリー: `usage-stream` のサイズ検査前デコードと180秒無通信再接続、`snapshot.ts` のpid起動fnロック回収、`codex` stdioのEPIPE、`grok` のprotobuf解析エラー伝播、`RssCard`・wake lock・`Clock` のjsdom/リーク修正ほか）。単体・統合は727件/727件成功、型検査・`build`／`build:api`／`build:collectors` 成功。
@@ -231,17 +249,17 @@ node scripts/fire-fit-qa.mjs five 4173
 - CSS変更前に実ブラウザーのカード・見出し・状態・内容・設定ボタン・詳細summaryの内包境界、44pxボタン、通常クリックの判定を追加。既存4サイズの短い地域名／長い地域名の管理者・閲覧者経路を維持し、960×600の短い／長い地域名と取得済み予報を使う2件を追加。強制クリックや仮のDOM寸法は使わない
 - DOM回帰は、詳細を開いた後に予報地方の全文がないことを確認して失敗させ、追加後に成功。全文の見出し名、気温地点、4予報、詳細を閉じた後のsummaryへのフォーカスも確認。CSS描画の成功を示すものではない
 
-| 今回のクラウド確認 | 結果 |
-| --- | --- |
-| 関連する単体／DOM試験 | 6ファイル・55件成功 |
-| `npm test` | 56ファイル・611件成功 |
-| `npm run typecheck` | 成功 |
-| `npm run build` | 成功、オフライン資産57件 |
-| `npm run build:api` / `npm run build:collectors` | 成功 |
-| `npm run test:e2e -- --list` | 6ファイル・54件の定義を検出。操作の実行ではない |
-| Gemini WAVのバイト・SHA-256 | 48本すべて修正前 `39da586` と公開ソース・ビルド出力が一致 |
-| 修正後のブラウザー操作・描画・スクリーンショット | 未実行（NOT RUN）、ネイティブ再試験待ち |
-| Fire／Fully Kiosk実機 | 未実施（NOT RUN） |
+| 今回のクラウド確認                               | 結果                                                      |
+| ------------------------------------------------ | --------------------------------------------------------- |
+| 関連する単体／DOM試験                            | 6ファイル・55件成功                                       |
+| `npm test`                                       | 56ファイル・611件成功                                     |
+| `npm run typecheck`                              | 成功                                                      |
+| `npm run build`                                  | 成功、オフライン資産57件                                  |
+| `npm run build:api` / `npm run build:collectors` | 成功                                                      |
+| `npm run test:e2e -- --list`                     | 6ファイル・54件の定義を検出。操作の実行ではない           |
+| Gemini WAVのバイト・SHA-256                      | 48本すべて修正前 `39da586` と公開ソース・ビルド出力が一致 |
+| 修正後のブラウザー操作・描画・スクリーンショット | 未実行（NOT RUN）、ネイティブ再試験待ち                   |
+| Fire／Fully Kiosk実機                            | 未実施（NOT RUN）                                         |
 
 ブラウザー起動とクラウドlocalhostアクセスは既知の制限で利用できません。この限定修正では再試行・迂回・公開プレビュー・Windows側の操作を行っていません。修正後の実寸法とクリック成功は未確認です。外部の23件成功を、この修正後の54件の成功として扱わないでください。
 

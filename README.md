@@ -2,7 +2,7 @@
 
 Fire HD 10 Plus（第11世代）向けの、日本語・常時表示ダッシュボードです。DSEGの時計を中心に、天気、RSS、Claude／Codex／Antigravity／OpenCode Go／Hermes・Nousの利用状況をまとめます。
 
-ローカルWeb実装と集約API・収集アダプターを含みます。時計はそのまま動作します。天気地域、RSS、認証接続は未設定です。時刻音声は12／24時間用のGemini TTSを同梱しています。架空の天気・利用率をライブデータとして表示しません。
+AI usageバックエンド（計測・集約・HTTP／MQTT配信）と、Fire向けダッシュボード（表示・天気・RSS）を独立してビルド・起動できます。バックエンドは他の表示機器でも再利用できます。[独立起動・購読・既存環境からの移行](docs/usage-service.md)を参照してください。時計はそのまま動作します。天気地域、RSS、認証接続は未設定です。時刻音声は12／24時間用のGemini TTSを同梱しています。架空の天気・利用率をライブデータとして表示しません。
 
 ## ローカルで試す
 
@@ -67,9 +67,11 @@ Fire実機で24時間、可能なら72時間の連続運転・音声・充電温
 ## 構成
 
 - `apps/dashboard`：時計、設定、カード、時報、オフライン
-- `services/aggregator`：認可された読取API、制限付き天気／RSS取得、利用率受信
+- `services/usage`：usage専用の受信・集約・保存・読取API・MQTT配信とWSS gateway（`build:usage`／`start:usage`）
+- `services/aggregator`：Fire向けAPI、天気／RSS取得、独立usageサービスへの認証付き中継（`build:api`／`start:api`）
 - `collectors`：Claude statusline／OAuth API、Codex stdio／wham API、Hermes Nous account helperの数値選別
-- `packages/contracts`：共通スキーマ、長さ・数値・URLの検証
+- `packages/usage-contracts`：Fireに依存しないusage・HTTP／MQTT契約
+- `packages/contracts`：Fire向け契約、usage契約の互換export
 - `tests`：正常値と悪意ある入力、時刻境界、排他、障害復旧
 
 DSEGはSIL Open Font License 1.1です。著作権表示とライセンスは `apps/dashboard/public/licenses/DSEG-LICENSE.txt` に同梱しています。天気の出典：[気象庁](https://www.jma.go.jp/bosai/forecast/)、[利用条件](https://www.jma.go.jp/jma/kishou/info/coment.html)。
