@@ -6,13 +6,13 @@ Claude、Codexに、Antigravity、OpenCode Go、Hermes / Nous、Grokを加えた
 
 ## 表示の意味
 
-| 画面名        | provider ID   | 表示対象                                          |
-| ------------- | ------------- | ------------------------------------------------- |
-| Claude        | `claude`      | statuslineまたはAnthropic OAuth APIの利用枠       |
-| Codex         | `codex`       | App ServerまたはChatGPT wham APIのレート制限枠    |
-| Antigravity   | `antigravity` | statuslineのモデル別・区分別quota残量             |
-| OpenCode Go   | `opencode_go` | Go契約のrolling・weekly・monthly利用率            |
-| Hermes / Nous | `hermes_nous` | Nousのサブスクリプション残高と追加購入残高（USD） |
+| 画面名        | provider ID   | 表示対象                                               |
+| ------------- | ------------- | ------------------------------------------------------ |
+| Claude        | `claude`      | statuslineまたはAnthropic OAuth APIの利用枠            |
+| Codex         | `codex`       | App ServerまたはChatGPT wham APIのレート制限枠         |
+| Antigravity   | `antigravity` | statuslineのモデル別・区分別quota残量                  |
+| OpenCode Go   | `opencode_go` | Go契約のrolling・weekly・monthly利用率                 |
+| Hermes / Nous | `hermes_nous` | Nousのサブスクリプション残高と追加購入残高（USD）      |
 | Grok          | `grok`        | grok.com Usage画面の共有利用枠（使用率・週次リセット） |
 
 - 利用率は契約枠の消費率です。コンテキストウィンドウの占有率、セッションのトークン数、推定料金とは区別します。
@@ -129,7 +129,7 @@ FIRE_COLLECTOR_TOKEN_FILE="$HOME/.config/fire-dashboard/collector-token" \
 node dist/collectors/hermes-nous-api-service.mjs
 ```
 
-`FIRE_POLL_SECONDS` は30〜280秒（既定60秒）です。単発保存は `FIRE_SNAPSHOT_PATH`、`FIRE_SOURCE_ALIAS`、`FIRE_HERMES_PYTHON` を指定して `npx tsx collectors/hermes-nous/api-capture.ts` を実行します。Hermesのバージョン更新で内部helperの形が変わる可能性があるため、まず固定応答試験とGMKtec上の実アカウント受信確認を行い、正常値を得られない場合にstdin経路へ戻せるようsnapshotとserviceを分離します。
+`FIRE_POLL_SECONDS` は30〜240秒（既定60秒）です。単発保存は `FIRE_SNAPSHOT_PATH`、`FIRE_SOURCE_ALIAS`、`FIRE_HERMES_PYTHON` を指定して `npx tsx collectors/hermes-nous/api-capture.ts` を実行します。Hermesのバージョン更新で内部helperの形が変わる可能性があるため、まず固定応答試験とGMKtec上の実アカウント受信確認を行い、正常値を得られない場合にstdin経路へ戻せるようsnapshotとserviceを分離します。
 
 ## Grok
 
@@ -162,7 +162,7 @@ FIRE_COLLECTOR_TOKEN_FILE="$HOME/.config/fire-dashboard/collector-token" \
 ./node_modules/.bin/tsx collectors/grok/api-service.ts
 ```
 
-`FIRE_POLL_SECONDS`は30〜280秒（既定60秒）です。collectorはGETではなく空のgRPC-webリクエストをPOSTし、
+`FIRE_POLL_SECONDS`は30〜240秒（既定60秒）です。collectorはGETではなく空のgRPC-webリクエストをPOSTし、
 redirectを拒否、応答を1MiB以内に制限、タイムアウトとHTTP／gRPC認証エラーを分類します。ブラウザーの
 セッションCookieをheadlessで再現する処理や、usageページのHTMLスクレイピングは行いません。内部RPCが
 `no-credentials`などを返す環境では、認証状態を再確認し、解消しなければ`auth`として最後の正常値を集約側に

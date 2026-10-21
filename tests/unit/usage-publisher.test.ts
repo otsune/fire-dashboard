@@ -62,3 +62,86 @@ it("publishes canonical retained state without Fire and recovers the latest pers
     await publisher.stop();
   }
 });
+
+it("restarts after stop and never reconnects from a late callback belonging to the previous run", async () => {
+  const clients: Array<
+    EventEmitter & {
+      publish: (...args: any[]) => void;
+      end: (...args: any[]) => any;
+    }
+  > = [];
+  const publisher = createMqttPublisher(createMemoryUsageStore(), {
+    url: "mqtt://127.0.0.1:1883",
+    clientFactory: () => {
+      const client = Object.assign(new EventEmitter(), {
+        publish: (_t: string, _p: string, _o: unknown, cb?: () => void) =>
+          cb?.(),
+        end: (_f?: boolean, _o?: unknown, cb?: () => void) => {
+          cb?.();
+          return client;
+        },
+      });
+      clients.push(client);
+      return client;
+    },
+  });
+  publisher.start();
+  clients[0].emit("connect");
+  await publisher.stop();
+  await publisher.stop();
+  publisher.start();
+  try {
+    expect(clients).toHaveLength(2);
+    clients[0].emit("connect");
+    clients[0].emit("close");
+    clients[1].emit("connect");
+    await vi.waitFor(() => expect(publisher.status?.().connected).toBe(true));
+  } finally {
+    await publisher.stop();
+  }
+});
+
+it("republishes a restored delivery stream when the next heartbeat observes its new identity", async () => {
+  vi.useFakeTimers();
+  const store = createMemoryUsageStore(),
+    messages: any[] = [];
+  const client = Object.assign(new EventEmitter(), {
+    publish: (
+      topic: string,
+      payload: string,
+      _opts: unknown,
+      cb?: () => void,
+    ) => {
+      if (topic.endsWith("/state")) messages.push(JSON.parse(payload));
+      cb?.();
+    },
+    end: (_force?: boolean, _opts?: unknown, cb?: () => void) => {
+      cb?.();
+      return client;
+    },
+  });
+  const publisher = createMqttPublisher(store, {
+    url: "mqtt://127.0.0.1:1883",
+    clientFactory: () => client,
+  });
+  try {
+    publisher.start();
+    client.emit("connect");
+    await vi.advanceTimersByTimeAsync(0);
+    await store.update((state) => ({
+      state: {
+        ...state,
+        delivery: { ...state.delivery, streamId: "restored", revision: "0" },
+      },
+      result: undefined,
+    }));
+    await vi.advanceTimersByTimeAsync(60000);
+    expect(messages.at(-1)).toMatchObject({
+      streamId: "restored",
+      revision: "0",
+    });
+  } finally {
+    await publisher.stop();
+    vi.useRealTimers();
+  }
+});

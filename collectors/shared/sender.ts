@@ -54,6 +54,7 @@ export function createHttpSender(
       },
       body: JSON.stringify(envelope),
     });
+    await response.body?.cancel().catch(() => {});
     if (!response.ok) throw Error(response.status === 401 ? "auth" : "network");
   });
 }

@@ -14,11 +14,14 @@ export function normalizeCodex(raw: unknown, capturedAt: string): Usage {
     : Object.keys(single).length
       ? [[String(single.limitId ?? "codex"), single]]
       : [];
+  let additional = 0;
   const buckets = entries.slice(0, 32).map(([id, unknown]) => {
     const bucket = record(unknown);
+    const known = id === "codex";
+    const anonymous = known ? 0 : ++additional;
     return {
-      id: id.slice(0, 2048),
-      label: String(bucket.limitName ?? id).slice(0, 2048),
+      id: known ? "codex" : `additional-${anonymous}`,
+      label: known ? "Codex" : `追加利用枠 ${anonymous}`,
       windows: ["primary", "secondary"]
         .filter((key) => bucket[key] && typeof bucket[key] === "object")
         .map((key) => {

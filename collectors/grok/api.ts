@@ -90,58 +90,62 @@ function readVarint(
   return null;
 }
 
-type Fixed32Field = { path: number[]; value: number; order: number };
-type VarintField = { path: number[]; value: number };
-
-function scanProtobuf(
-  data: Uint8Array,
-  depth: number,
-  path: number[],
-  order: { value: number },
-  output: { fixed32: Fixed32Field[]; varints: VarintField[] },
-): boolean {
+type ProtoField = { wire: number; value: number | Uint8Array };
+// Decode only one message level. Unknown strings/bytes are never recursively
+// searched for coincidental floats or timestamps.
+function protobufFields(data: Uint8Array): Map<number, ProtoField[]> {
+  const fields = new Map<number, ProtoField[]>();
   const index = { value: 0 };
   while (index.value < data.length) {
-    const fieldStart = index.value;
     const key = readVarint(data, index);
-    if (key === null || key === 0) return false;
-    const field = Math.floor(key / 8);
-    const wire = key & 7;
-    if (!field) return false;
-    const fieldPath = [...path, field];
+    if (key === null || key < 8) throw Error("invalid_data");
+    const id = Math.floor(key / 8),
+      wire = key & 7;
+    let value: number | Uint8Array;
     if (wire === 0) {
-      const value = readVarint(data, index);
-      if (value === null) return false;
-      output.varints.push({ path: fieldPath, value });
-    } else if (wire === 1) {
-      if (index.value + 8 > data.length) return false;
-      index.value += 8;
+      const parsed = readVarint(data, index);
+      if (parsed === null) throw Error("invalid_data");
+      value = parsed;
     } else if (wire === 2) {
       const length = readVarint(data, index);
-      if (length === null || length > data.length - index.value) return false;
-      const end = index.value + length;
-      if (depth < 4)
-        scanProtobuf(
-          data.subarray(index.value, end),
-          depth + 1,
-          fieldPath,
-          order,
-          output,
-        );
-      index.value = end;
-    } else if (wire === 5) {
-      if (index.value + 4 > data.length) return false;
-      const view = new DataView(data.buffer, data.byteOffset + index.value, 4);
-      const value = view.getFloat32(0, true);
-      output.fixed32.push({ path: fieldPath, value, order: order.value++ });
-      index.value += 4;
-    } else {
-      // A malformed field must not cause a scan to walk arbitrary bytes.
-      index.value = fieldStart;
-      return false;
-    }
+      if (length === null || length > data.length - index.value)
+        throw Error("invalid_data");
+      value = data.subarray(index.value, index.value + length);
+      index.value += length;
+    } else if (wire === 5 || wire === 1) {
+      const length = wire === 5 ? 4 : 8;
+      if (index.value + length > data.length) throw Error("invalid_data");
+      value =
+        wire === 5
+          ? new DataView(
+              data.buffer,
+              data.byteOffset + index.value,
+              4,
+            ).getFloat32(0, true)
+          : data.subarray(index.value, index.value + 8);
+      index.value += length;
+    } else throw Error("invalid_data");
+    fields.set(id, [...(fields.get(id) ?? []), { wire, value }]);
   }
-  return true;
+  return fields;
+}
+function one(
+  fields: Map<number, ProtoField[]>,
+  id: number,
+  wire: number,
+  required = true,
+): ProtoField | undefined {
+  const values = fields.get(id) ?? [];
+  if (
+    values.length > 1 ||
+    (required && !values.length) ||
+    (values[0] && values[0].wire !== wire)
+  )
+    throw Error("invalid_data");
+  return values[0];
+}
+function nestedFields(fields: Map<number, ProtoField[]>, id: number) {
+  return protobufFields(one(fields, id, 2)!.value as Uint8Array);
 }
 
 function grpcWebDataFrames(data: Uint8Array): Uint8Array[] {
@@ -219,10 +223,12 @@ export type GrokUsageSnapshot = {
   resetsAt: string | null;
 };
 
-/** Extract the stable usage fields from the gRPC-web protobuf response. */
+/** Extract the known usage fields; the clock argument remains for compatibility.
+ * Past reset timestamps are preserved so the display can mark them awaiting update.
+ */
 export function parseGrokUsageResponse(
   data: Uint8Array,
-  now = new Date(),
+  _now = new Date(),
 ): GrokUsageSnapshot {
   const status = grpcStatus(data);
   if (status && status.code !== 0) throw Error(`grpc_${status.code}`);
@@ -230,64 +236,32 @@ export function parseGrokUsageResponse(
   if (!payloads.length && looksLikeProtobuf(data)) payloads = [data];
   if (!payloads.length) throw Error("invalid_data");
 
-  const output = {
-    fixed32: [] as Fixed32Field[],
-    varints: [] as VarintField[],
-  };
-  const order = { value: 0 };
-  // A malformed payload must not feed partial scan results into the heuristic
-  // extractor below; treat ambiguity as invalid data like every other layer.
-  for (const payload of payloads)
-    if (!scanProtobuf(payload, 0, [], order, output))
-      throw Error("invalid_data");
-  const candidates = output.fixed32
-    .filter(
-      (field) =>
-        field.path.at(-1) === 1 &&
-        Number.isFinite(field.value) &&
-        field.value >= 0 &&
-        field.value <= 100,
-    )
-    .sort((a, b) => a.path.length - b.path.length || a.order - b.order);
-  const usedPercent = candidates[0]?.value;
-  const resets = output.varints
-    .filter(
-      (field) =>
-        field.value >= 1_700_000_000 &&
-        field.value <= 2_100_000_000 &&
-        field.value * 1000 > now.getTime(),
-    )
-    .sort((a, b) => a.value - b.value);
-  const preferred = resets.find(
-    (field) =>
-      field.path.length === 3 &&
-      field.path[0] === 1 &&
-      field.path[1] === 5 &&
-      field.path[2] === 1,
-  );
-  // Proto3 omits a zero-valued fixed32 field. A valid period marker plus a
-  // future reset is therefore the only safe way to recognize an unused pool.
-  const hasUsagePeriod = output.varints.some(
-    (field) =>
-      (field.path.length >= 2 && field.path[0] === 1 && field.path[1] === 6) ||
-      (field.path.length === 3 &&
-        field.path[0] === 1 &&
-        field.path[1] === 8 &&
-        field.path[2] === 1 &&
-        (field.value === 1 || field.value === 2)),
-  );
-  const noUsageYet =
-    usedPercent === undefined &&
-    output.fixed32.length === 0 &&
-    resets.length > 0 &&
-    hasUsagePeriod;
-  if (usedPercent === undefined && !noUsageYet) throw Error("invalid_data");
+  if (payloads.length !== 1) throw Error("invalid_data");
+  const pool = nestedFields(protobufFields(payloads[0]), 1);
+  const reset = one(nestedFields(pool, 5), 1, 0)!.value as number;
+  if (reset < 1_700_000_000 || reset > 2_100_000_000)
+    throw Error("invalid_data");
+  const percent = one(pool, 1, 5, false)?.value as number | undefined;
+  const period = one(pool, 6, 0, false)?.value;
+  const structuredPeriod = pool.has(8)
+    ? one(nestedFields(pool, 8), 1, 0)?.value
+    : undefined;
+  if (
+    percent === undefined &&
+    period !== 1 &&
+    period !== 2 &&
+    structuredPeriod !== 1 &&
+    structuredPeriod !== 2
+  )
+    throw Error("invalid_data");
+  if (
+    percent !== undefined &&
+    (!Number.isFinite(percent) || percent < 0 || percent > 100)
+  )
+    throw Error("invalid_data");
   return {
-    usedPercent: usedPercent ?? 0,
-    resetsAt:
-      (preferred ?? resets[0])
-        ? new Date((preferred ?? resets[0]).value * 1000).toISOString()
-        : null,
+    usedPercent: percent ?? 0,
+    resetsAt: new Date(reset * 1000).toISOString(),
   };
 }
 

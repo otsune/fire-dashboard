@@ -105,6 +105,9 @@ export function createMqttPublisher(
   let client: MqttClientLike | null = null;
   let started = false;
   let stopping = false;
+  let stopPromise: Promise<void> | null = null;
+  let generation = 0;
+  let currentStreamId: string | null = null;
   let connected = false;
   let connectAttempt = 0;
   let reconnectTimer: ReturnType<typeof setTimeout> | undefined;
@@ -139,6 +142,11 @@ export function createMqttPublisher(
       streamId: value.delivery.streamId,
       revision: value.delivery.revision,
     }));
+    if (
+      currentStreamId !== state.streamId ||
+      currentRevision !== state.revision
+    )
+      void queueCurrentState();
     const value = usageHeartbeatSchema.parse({
       schemaVersion: 1,
       streamId: state.streamId,
@@ -196,12 +204,16 @@ export function createMqttPublisher(
   };
   const publishHeartbeat = async () => {
     if (!client || !connected || heartbeatInFlight || stopping) return;
+    const run = generation;
+    const transport = client;
     let payload: string;
     try {
       payload = await currentHeartbeat();
     } catch {
       return;
     }
+    if (run !== generation || transport !== client || !client || stopping)
+      return;
     if (Buffer.byteLength(payload, "utf8") > maxPayloadBytes) return;
     const active = client;
     heartbeatInFlight = true;
@@ -273,6 +285,8 @@ export function createMqttPublisher(
     }
   };
   const queueCurrentState = async () => {
+    const run = generation;
+    if (!started || stopping) return;
     let payload: string | null = null;
     let revision: string | null = null;
     try {
@@ -283,9 +297,15 @@ export function createMqttPublisher(
           ...metadata,
           usage: state.delivery.usage,
         });
-        return { payload: json(delivery), revision: metadata.revision };
+        return {
+          payload: json(delivery),
+          revision: metadata.revision,
+          streamId: metadata.streamId,
+        };
       });
+      if (run !== generation || !started || stopping) return;
       if (value) {
+        currentStreamId = value.streamId;
         ({ payload, revision } = value);
         currentRevision = revision;
       } else {
@@ -415,7 +435,8 @@ export function createMqttPublisher(
   };
   return {
     start: () => {
-      if (started) return;
+      if (started || stopping) return;
+      generation++;
       started = true;
       runtimeState = "connecting";
       heartbeatTimer = setInterval(() => void publishHeartbeat(), heartbeatMs);
@@ -425,19 +446,28 @@ export function createMqttPublisher(
       if (!started || stopping) return;
       void queueCurrentState();
     },
-    stop: async () => {
-      if (stopping) return;
+    stop: () => {
+      if (stopPromise) return stopPromise;
+      if (!started && !client) return Promise.resolve();
+      generation++;
       stopping = true;
       started = false;
       runtimeState = "stopped";
       if (reconnectTimer) clearTimeout(reconnectTimer);
       if (heartbeatTimer) clearInterval(heartbeatTimer);
+      reconnectTimer = undefined;
+      heartbeatTimer = undefined;
+      pendingState = null;
+      pendingRevision = null;
       clearAckTimers();
       const active = client;
       client = null;
       connected = false;
-      if (!active) return;
-      await new Promise<void>((resolve) => {
+      if (!active) {
+        stopping = false;
+        return Promise.resolve();
+      }
+      stopPromise = new Promise<void>((resolve) => {
         let done = false;
         const finish = () => {
           if (done) return;
@@ -459,7 +489,11 @@ export function createMqttPublisher(
         } catch {
           finish();
         }
+      }).finally(() => {
+        stopping = false;
+        stopPromise = null;
       });
+      return stopPromise;
     },
     status: () => ({
       state: runtimeState,

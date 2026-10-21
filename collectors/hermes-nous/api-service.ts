@@ -1,3 +1,4 @@
+import { startPollLoop } from "../shared/poll";
 import { pathToFileURL } from "node:url";
 import { captureSnapshot } from "../shared/snapshot";
 import { bearerFromFile, createHttpSender } from "../shared/sender";
@@ -18,7 +19,7 @@ export function startHermesNousApiService(
   if (!path || !alias || !endpoint || !tokenFile) throw Error("unconfigured");
   if (!/^[a-zA-Z0-9_-]{1,64}$/.test(alias)) throw Error("invalid_alias");
   const poll = env.FIRE_POLL_SECONDS ?? "60";
-  if (!/^\d+$/.test(poll) || +poll < 30 || +poll > 280)
+  if (!/^\d+$/.test(poll) || +poll < 30 || +poll > 240)
     throw Error("invalid_poll_seconds");
 
   const pythonPath = env.FIRE_HERMES_PYTHON;
@@ -31,30 +32,23 @@ export function startHermesNousApiService(
         pythonPath,
       }));
   const log = deps.log ?? ((line) => process.stderr.write(line + "\n"));
-  let stopped = false;
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  const tick = async () => {
+  return startPollLoop(async (active) => {
     let value: Usage;
     try {
       value = await read();
     } catch {
       log("Fire Dashboard Nous API collector: read failed");
-      if (!stopped) timer = setTimeout(() => void tick(), +poll * 1000);
       return;
     }
     try {
+      if (!active()) return;
       const envelope = await captureSnapshot(value, path, alias);
+      if (!active()) return;
       await send(envelope);
     } catch {
       log("Fire Dashboard Nous API collector: storage or send failed");
     }
-    if (!stopped) timer = setTimeout(() => void tick(), +poll * 1000);
-  };
-  void tick();
-  return () => {
-    stopped = true;
-    if (timer) clearTimeout(timer);
-  };
+  }, +poll * 1000);
 }
 
 if (
@@ -67,7 +61,7 @@ if (
     process.on("SIGTERM", stop);
   } catch {
     process.stderr.write(
-      "Fire Dashboard Nous API collector: check FIRE_SNAPSHOT_PATH, FIRE_SOURCE_ALIAS (letters, digits, - or _, 1-64 chars), FIRE_ENDPOINT, FIRE_COLLECTOR_TOKEN_FILE and FIRE_POLL_SECONDS (30-280)\n",
+      "Fire Dashboard Nous API collector: check FIRE_SNAPSHOT_PATH, FIRE_SOURCE_ALIAS (letters, digits, - or _, 1-64 chars), FIRE_ENDPOINT, FIRE_COLLECTOR_TOKEN_FILE and FIRE_POLL_SECONDS (30-240)\n",
     );
     process.exitCode = 1;
   }

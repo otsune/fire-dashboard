@@ -14,6 +14,37 @@ import { deriveStatus, formatTime } from "../../apps/dashboard/src/data/status";
 import { forecastRegionLabel } from "../../apps/dashboard/src/data/prefectures";
 afterEach(cleanup);
 const now = Date.parse("2026-10-02T00:00:00Z");
+it.each([
+  ["雪", "400", "雪"],
+  [null, null, "予報未取得"],
+] as const)(
+  "does not label %s as another weather type",
+  (summary, weatherCode, label) => {
+    render(
+      <WeatherCard
+        value={{
+          ...emptyDashboard().weather,
+          regionId: "130010",
+          periods: [
+            {
+              startsAt: new Date(now).toISOString(),
+              endsAt: new Date(now + 3600000).toISOString(),
+              summary,
+              weatherCode,
+              temperatureMinC: null,
+              temperatureMaxC: null,
+              precipitationProbabilityPct: null,
+            },
+          ],
+        }}
+        timeZone="UTC"
+        now={now}
+      />,
+    );
+    expect(screen.getAllByRole("img", { name: label })).not.toHaveLength(0);
+    expect(screen.queryByRole("img", { name: "雨" })).toBeNull();
+  },
+);
 it("makes missing weather region explicit", () => {
   render(
     <WeatherCard

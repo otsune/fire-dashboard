@@ -28,13 +28,30 @@ it("prefers dynamic multibucket limits, nullable secondary and arbitrary windows
     },
     at,
   );
-  expect(u.buckets.map((b) => b.id)).toEqual(["codex", "other"]);
+  expect(u.buckets.map((b) => b.id)).toEqual(["codex", "additional-1"]);
   expect(u.buckets[0].windows).toHaveLength(1);
   expect(u.buckets[0].windows[0].windowMinutes).toBe(15);
   expect(u.buckets[0].windows[0].resetsAt).toBe(
     new Date(1790900000 * 1000).toISOString(),
   );
   expect(JSON.stringify(u)).not.toContain("SECRET");
+});
+it("never relays arbitrary Codex bucket identifiers or labels", () => {
+  const value = normalizeCodex(
+    {
+      rateLimitsByLimitId: {
+        "private@example.test": {
+          limitName: "private-account-SECRET",
+          primary: { usedPercent: 42 },
+        },
+        codex: { limitName: "private-name", primary: { usedPercent: 10 } },
+      },
+    },
+    at,
+  );
+  expect(value.buckets).toHaveLength(2);
+  expect(JSON.stringify(value)).not.toMatch(/private|SECRET|@/);
+  expect(value.buckets.find((b) => b.id === "codex")?.label).toBe("Codex");
 });
 it("supports the legacy rateLimits view and missing values", () => {
   expect(

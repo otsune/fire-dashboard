@@ -20,7 +20,8 @@
     "build:api": "node scripts/build-api.mjs",
     "build:private-audio": "node --import tsx scripts/build-private-audio.ts",
     "build:usage": "node scripts/build-usage.mjs",
-    "start:usage": "tsx services/usage/src/start.ts"
+    "start:usage": "tsx services/usage/src/start.ts",
+    "test:usage:broker": "node scripts/test-usage-broker.mjs"
   },
   "dependencies": {
     "@fastify/websocket": "11.3.4",

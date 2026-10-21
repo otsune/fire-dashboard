@@ -178,7 +178,7 @@ client.on("connect", () => {
 // 画面終了時は client.end(true) で接続を解放する。
 ```
 
-Mosquittoは外部サービスです。TCPのpublisher listenerは認証必須・対象3トピックwrite専用、gateway側の匿名WS listenerはloopback限定・対象3トピックread専用にします。gatewayはMQTTフレームを中継し、ACLはbrokerが強制します。他機器からの直接接続には、許可されたTLS／VPN経路や認証付き中継を別途用意します。本ソフトはlistenerやLAN公開設定を自動変更しません。
+Mosquittoは外部サービスです。TCPのpublisher listenerは認証必須・対象3トピックwrite専用、gateway側の匿名WS listenerはloopback限定・対象3トピックread専用にします。usage側gatewayはMQTT 3.1.1のCONNECT（clean session・Willなし・資格情報なし）、対象3トピックへの完全一致SUBSCRIBE／UNSUBSCRIBE、PUBACK、PINGREQ、DISCONNECTだけを中継し、PUBLISH・wildcard購読を拒否します。分割パケットを上限内で再構成して検査します。broker ACLも引き続き必須です。他機器からの直接接続には、許可されたTLS／VPN経路や認証付き中継を別途用意します。本ソフトはlistenerやLAN公開設定を自動変更しません。
 
 ## Fireの接続設定
 
@@ -223,7 +223,7 @@ rtk node dist/usage/migrate.mjs --from /backup/fire-state.json --to /srv/ai-usag
 5. Fireを新 `usageService` 設定へ切り替える。旧mqtt/gateway有効設定を除き、Fireをビルド・起動する。
 6. collectorのHTTPS送信先を段階的に新サービスへ直接変更する。旧Fire中継は移行期間だけ利用する。
 
-変換は元ファイルを変更せず、既存の出力先を拒否します。streamId・revision・各PCのsequence・保持値を移します。配信metadataがない古い形式では、新streamId・revision0を生成します。変換時は書き手を止め、変換途中の受信を失わないようにします。
+変換は元ファイルを変更せず、既存の出力先を拒否します。変換ではstreamId・revision・各PCのsequence・保持値を移します。サービス起動時にはstreamIdを新規発行して保存し、起動前に復元した古いrevisionからもHTTP照合で復旧できるようにします。稼働中の状態ファイルの巻き戻しも、同じプロセスが検出した時点で新しいstreamIdとして保存します。配信metadataがない古い形式では、新streamId・revision0を生成します。変換時は書き手を止め、変換途中の受信を失わないようにします。
 
 切り戻し時も新サービスの受信・publisherを停止し、**最新**usageを旧形式へ戻します。移行前backupだけへの復帰は、新しい観測を失います。
 
@@ -232,7 +232,7 @@ rtk node dist/usage/migrate.mjs --from /srv/ai-usage/state.json \
   --restore-legacy /backup/fire-state.json --to /srv/fire-dashboard/rollback-state.json
 ```
 
-最新usage・revisionと、指定した旧ファイルの天気・RSSを組み合わせます。分離後に変更した天気・RSSも維持する場合は、その最新Fire状態ファイルを `--restore-legacy` に指定します。旧コードと設定へ戻してから旧publisherだけを起動し、collectorの送信先も戻します。さらに古いusageへ戻す場合はstreamIdを更新し、HTTP照合で端末を新系列へ移してください。
+最新usage・revisionと、指定した旧ファイルの天気・RSSを組み合わせます。分離後に変更した天気・RSSも維持する場合は、その最新Fire状態ファイルを `--restore-legacy` に指定します。旧コードと設定へ戻してから旧publisherだけを起動し、collectorの送信先も戻します。さらに古いusageへ戻す場合も、起動時に新しいstreamIdを確定してから公開し、HTTP照合で端末を新系列へ移してください。
 
 ## 検証
 
@@ -251,4 +251,12 @@ rtk npm run test:e2e
 rtk proxy env USAGE_BROKER_TEST=1 npm test -- tests/integration/usage-broker.test.ts
 ```
 
-通常の全体テストではこの1件をskipします。実broker試験はFireなしの配信、retain、broker再起動、reader publish拒否、Fire→usage→brokerのWSS中継を検証します。実機長時間試験や本番の公開経路確認は別途行います。
+`rtk npm run test:usage:broker` でも同じ隔離検証を実行できます。通常の全体テストではこの1件をskipします。実broker試験はFireなしの配信、retain、broker再起動、reader publish拒否、Fire→usage→brokerのWSS中継を検証します。実機長時間試験や本番の公開経路確認は別途行います。
+
+## ライフサイクルと対応環境
+
+usageバックエンドの秘密ファイル検査はLinux/POSIXのowner・modeを前提にします。Windows向け収集器と、Windows上でのバックエンド常駐は別です。Windows ACLの自動検証は未対応で、検査を省略して起動することはありません。publisher資格情報は同じファイルハンドルでmode検査と読取を行い、symlinkを拒否します。
+
+gatewayの接続寿命は15分です。reader権限を再評価するため切断し、表示機器は再接続します。ブラウザー側は前面復帰・online通知でも、正常な接続と有効なbackoffを維持します。配信の追いつきは「同期中」、不正JSON／schema／過大payloadは「エラー」と表示し、最後の正常値は保持します。MQTTを無効にした端末はfooterにHTTPと表示します。
+
+MQTT chunkはオフライン用プリキャッシュに含めません。オフライン初回起動ではMQTTのロードに失敗しても、時計と保存済みHTTPカードを表示し、オンライン復帰後に再接続します。MQTT受信ではusageだけをキャッシュへ保存し、天気・RSSを古いコピーで上書きしません。

@@ -97,11 +97,21 @@ export function mergeDashboard(
     const usageResult = applyUsageDelivery(previous, delivery, "http");
     merged.usage = usageResult.dashboard.usage;
     merged.usageDelivery = usageResult.dashboard.usageDelivery;
-  } else if (previous.usageDelivery) {
+  } else if (previous.usageDelivery && next.usageConnection === "unavailable") {
     merged.usage = previous.usage;
     merged.usageDelivery = previous.usageDelivery;
   }
   return merged;
+}
+/** MQTT updates must not rewrite unrelated weather/RSS cache entries. */
+export async function saveUsage(value: Dashboard): Promise<void> {
+  const valid = parseDashboard(value);
+  await cacheTransaction<void>("readwrite", (s, done) => {
+    s.put(valid.usage, "usage");
+    if (valid.usageDelivery) s.put(valid.usageDelivery, "usageDelivery");
+    else s.delete("usageDelivery");
+    done();
+  });
 }
 export async function saveDashboard(value: Dashboard): Promise<void> {
   const valid = parseDashboard(value);

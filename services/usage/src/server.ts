@@ -114,7 +114,14 @@ export function createUsageServer(options: {
         .send({ error: status === 503 ? "storage_unavailable" : code });
     }
   });
-  if (options.gateway) registerMqttGateway(app, options.gateway);
+  if (options.gateway)
+    registerMqttGateway(app, {
+      ...options.gateway,
+      readerTopicPrefix:
+        options.mqtt?.topicPrefix ??
+        options.gateway.readerTopicPrefix ??
+        "ai-usage/v1/main",
+    });
   if (publisher) {
     app.addHook("onClose", async () => publisher.stop());
     publisher.start();

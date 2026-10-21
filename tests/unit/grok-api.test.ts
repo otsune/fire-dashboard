@@ -49,13 +49,19 @@ function response() {
     nested(1, message(field(1, 5, [...percent]), nested(5, timestamp))),
   );
   const trailer = new TextEncoder().encode("grpc-status: 0\r\n");
-  return Uint8Array.from([...grpcFrame(0, payload), ...grpcFrame(0x80, trailer)]);
+  return Uint8Array.from([
+    ...grpcFrame(0, payload),
+    ...grpcFrame(0x80, trailer),
+  ]);
 }
 function zeroUsageResponse() {
   const timestamp = new Uint8Array(message(field(1, 0, varint(reset))));
   const period = message(nested(5, timestamp), field(6, 0, varint(1)));
   const payload = message(nested(1, period));
-  return Uint8Array.from([...grpcFrame(0, payload), ...grpcFrame(0x80, new TextEncoder().encode("grpc-status: 0\r\n"))]);
+  return Uint8Array.from([
+    ...grpcFrame(0, payload),
+    ...grpcFrame(0x80, new TextEncoder().encode("grpc-status: 0\r\n")),
+  ]);
 }
 
 function binaryResponse(value = response(), status = 200) {
@@ -66,15 +72,47 @@ function binaryResponse(value = response(), status = 200) {
 }
 
 describe("Grok gRPC-web usage collector", () => {
+  it("rejects unrelated percent/reset fields and ambiguous duplicate usage messages", () => {
+    const percent = new Uint8Array(4);
+    new DataView(percent.buffer).setFloat32(0, 99, true);
+    const wrong = message(
+      nested(
+        2,
+        message(
+          field(1, 5, [...percent]),
+          nested(5, message(field(1, 0, varint(reset)))),
+        ),
+      ),
+    );
+    expect(() => parseGrokUsageResponse(wrong, new Date(at))).toThrow(
+      "invalid_data",
+    );
+    const noReset = message(nested(1, message(field(1, 5, [...percent]))));
+    expect(() => parseGrokUsageResponse(noReset, new Date(at))).toThrow(
+      "invalid_data",
+    );
+    const duplicate = Uint8Array.from([...response(), ...response()]);
+    expect(() => parseGrokUsageResponse(duplicate, new Date(at))).toThrow(
+      "invalid_data",
+    );
+  });
   it("extracts usage percent and the preferred reset timestamp", () => {
     expect(parseGrokUsageResponse(response(), new Date(at))).toEqual({
       usedPercent: 42.5,
       resetsAt: "2026-10-20T00:00:00.000Z",
     });
-    expect(normalizeGrokUsage(parseGrokUsageResponse(response(), new Date(at)), at)).toMatchObject({
+    expect(
+      normalizeGrokUsage(parseGrokUsageResponse(response(), new Date(at)), at),
+    ).toMatchObject({
       provider: "grok",
       status: "ok",
-      buckets: [{ windows: [{ usedPercent: 42.5, resetsAt: "2026-10-20T00:00:00.000Z" }] }],
+      buckets: [
+        {
+          windows: [
+            { usedPercent: 42.5, resetsAt: "2026-10-20T00:00:00.000Z" },
+          ],
+        },
+      ],
     });
     expect(parseGrokUsageResponse(zeroUsageResponse(), new Date(at))).toEqual({
       usedPercent: 0,
@@ -104,8 +142,14 @@ describe("Grok gRPC-web usage collector", () => {
 
   it("uses the fixed endpoint and never returns the token or raw response", async () => {
     const fetcher = vi.fn(async () => binaryResponse());
-    const value = await fetchGrokUsage({ capturedAt: at, accessToken: "synthetic-token", fetch: fetcher });
-    expect(value).toEqual(normalizeGrokUsage(parseGrokUsageResponse(response(), new Date()), at));
+    const value = await fetchGrokUsage({
+      capturedAt: at,
+      accessToken: "synthetic-token",
+      fetch: fetcher,
+    });
+    expect(value).toEqual(
+      normalizeGrokUsage(parseGrokUsageResponse(response(), new Date()), at),
+    );
     expect(fetcher).toHaveBeenCalledWith(
       GROK_USAGE_ENDPOINT,
       expect.objectContaining({
@@ -128,15 +172,20 @@ describe("Grok gRPC-web usage collector", () => {
     [404, "unsupported", "unsupported"],
     [429, "rate_limited", "error"],
     [500, "network", "error"],
-  ] as const)("maps HTTP %s without preserving a response body", async (status, errorCode, state) => {
-    const value = await fetchGrokUsage({
-      capturedAt: at,
-      accessToken: "synthetic-token",
-      fetch: async () => new Response("secret-response", { status }),
-    });
-    expect(value).toMatchObject({ status: state, errorCode, buckets: [] });
-    expect(JSON.stringify(value)).not.toMatch(/secret-response|synthetic-token/);
-  });
+  ] as const)(
+    "maps HTTP %s without preserving a response body",
+    async (status, errorCode, state) => {
+      const value = await fetchGrokUsage({
+        capturedAt: at,
+        accessToken: "synthetic-token",
+        fetch: async () => new Response("secret-response", { status }),
+      });
+      expect(value).toMatchObject({ status: state, errorCode, buckets: [] });
+      expect(JSON.stringify(value)).not.toMatch(
+        /secret-response|synthetic-token/,
+      );
+    },
+  );
 
   it("classifies missing credentials and stalled requests", async () => {
     const fetcher = vi.fn();

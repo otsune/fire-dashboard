@@ -7,7 +7,7 @@ import {
   type UsageConfig,
 } from "./config";
 import { createUsageServer, type MqttPublisherStatus } from "./server";
-import { createFileUsageStore } from "./store";
+import { createFileUsageStore, beginUsageSession } from "./store";
 import { readMqttCredentials } from "./mqtt/credentials";
 import type { MqttPublisherOptions } from "./mqtt/publisher";
 import type { Authorize, SourceAlias } from "./auth";
@@ -55,7 +55,7 @@ export async function main() {
   const store = createFileUsageStore(env.stateFile);
   // Establish a durable initial stream and fail before advertising online if
   // persistence is unavailable, including an unwritable first-run destination.
-  await store.update((state) => ({ state, result: undefined }));
+  await beginUsageSession(store);
   const mqtt = await loadUsagePublisher(config);
   const app = createUsageServer({
     store,
@@ -66,7 +66,11 @@ export async function main() {
     mqtt: mqtt.options,
     mqttStatus: mqtt.status,
     gateway: config.gateway.enabled
-      ? { ...config.gateway, allowedOrigins: [env.origin] }
+      ? {
+          ...config.gateway,
+          readerTopicPrefix: config.mqtt.topicPrefix,
+          allowedOrigins: [env.origin],
+        }
       : undefined,
   });
   try {

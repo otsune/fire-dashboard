@@ -2,19 +2,15 @@ import { z } from "zod";
 import {
   usageDeliveryMetadataSchema,
   type UsageDeliveryMetadata,
-} from "./index";
-export type { UsageDeliveryMetadata } from "./index";
-export { usageDeliveryMetadataSchema } from "./index";
-export { usageDeliverySchema } from "./index";
-export type { UsageDelivery } from "./index";
+} from "./metadata";
+export type { UsageDeliveryMetadata } from "./metadata";
+export { usageDeliveryMetadataSchema } from "./metadata";
 
-const revision = z.string().regex(/^(?:0|[1-9][0-9]{0,38})$/);
-const streamId = z
-  .string()
-  .min(1)
-  .max(128)
-  .regex(/^[A-Za-z0-9_-]+$/);
-const timestamp = z.string().datetime({ offset: true });
+import {
+  deliveryRevision as revision,
+  deliveryStreamId as streamId,
+  deliveryTimestamp as timestamp,
+} from "./metadata";
 
 export const usageHeartbeatSchema = z.object({
   schemaVersion: z.literal(1),

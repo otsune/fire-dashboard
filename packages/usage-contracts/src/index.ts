@@ -2,20 +2,12 @@ import { z } from "zod";
 import { commonSchema, instant, pct, emptyCommon } from "./common";
 export * from "./common";
 const text = z.string().max(2048);
-const deliveryRevision = z.string().regex(/^(?:0|[1-9][0-9]{0,38})$/);
-const deliveryStreamId = z
-  .string()
-  .min(1)
-  .max(128)
-  .regex(/^[A-Za-z0-9_-]+$/);
-const deliveryTimestamp = z.string().datetime({ offset: true });
-export const usageDeliveryMetadataSchema = z.object({
-  schemaVersion: z.literal(1),
-  streamId: deliveryStreamId,
-  revision: deliveryRevision,
-  publishedAt: deliveryTimestamp,
-});
-export type UsageDeliveryMetadata = z.infer<typeof usageDeliveryMetadataSchema>;
+import {
+  deliveryRevision,
+  deliveryStreamId,
+  deliveryTimestamp,
+} from "./metadata";
+export * from "./metadata";
 export const usageProviders = [
   "claude",
   "codex",

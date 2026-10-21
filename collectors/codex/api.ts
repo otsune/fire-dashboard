@@ -50,17 +50,34 @@ export function normalizeCodexApi(raw: unknown, capturedAt: string): Usage {
     .filter(([id]) => limit[id] && typeof limit[id] === "object")
     .map(([id, label, windowMinutes]) => {
       const value = record(limit[id]);
+      const duration = value.limit_window_seconds;
+      // Position is a compatibility fallback only when duration is absent.
+      const meaning =
+        duration === undefined
+          ? { label, windowMinutes }
+          : duration === 18000
+            ? { label: "5時間", windowMinutes: 300 }
+            : duration === 604800
+              ? { label: "7日間", windowMinutes: 10080 }
+              : { label: "利用枠", windowMinutes: null };
+      const absoluteReset =
+        typeof value.reset_at === "number" &&
+        Number.isFinite(value.reset_at) &&
+        value.reset_at >= 0 &&
+        value.reset_at <= 253402300799
+          ? new Date(value.reset_at * 1000).toISOString()
+          : null;
       return {
         id,
-        label,
+        ...meaning,
         usedPercent: finitePercent(value.used_percent),
-        windowMinutes,
-        resetsAt: resetAfter(value.reset_after_seconds, capturedAt),
+        resetsAt:
+          absoluteReset ?? resetAfter(value.reset_after_seconds, capturedAt),
       };
     });
 
   // plan_type is intentionally not forwarded: the dashboard contract only
-  // needs the fixed provider and window metrics, and never relays raw account
+  // needs the provider and window metrics, and never relays raw account
   // response fields.
   return usageSchema.parse({
     ...emptyUsage("codex"),

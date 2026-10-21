@@ -1,3 +1,4 @@
+import { startPollLoop } from "../shared/poll";
 import { readCodexLimits } from "./stdio";
 import { captureSnapshot } from "../shared/snapshot";
 import type {
@@ -15,17 +16,15 @@ export function startCodexCollector(options: {
   intervalMs?: number;
 }) {
   const interval = options.intervalMs ?? 60000;
-  let stopped = false,
-    timer: ReturnType<typeof setTimeout> | undefined;
-  const tick = async () => {
+  return startPollLoop(async (active) => {
     let value: Usage;
     try {
       value = await (options.read ?? readCodexLimits)();
     } catch {
       options.onError?.("read");
-      if (!stopped) timer = setTimeout(() => void tick(), interval);
       return;
     }
+    if (!active()) return;
     let envelope: UsageEnvelope;
     try {
       envelope = await captureSnapshot(
@@ -35,19 +34,13 @@ export function startCodexCollector(options: {
       );
     } catch {
       options.onError?.("storage");
-      if (!stopped) timer = setTimeout(() => void tick(), interval);
       return;
     }
+    if (!active()) return;
     try {
       await options.send(envelope);
     } catch {
       options.onError?.("send");
     }
-    if (!stopped) timer = setTimeout(() => void tick(), interval);
-  };
-  void tick();
-  return () => {
-    stopped = true;
-    if (timer) clearTimeout(timer);
-  };
+  }, interval);
 }

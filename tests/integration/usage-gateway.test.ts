@@ -95,9 +95,12 @@ it("bridges an authenticated mqtt websocket to the loopback upstream", async () 
   const received = new Promise<string>((resolve) =>
     socket.once("message", (message) => resolve(message.toString())),
   );
-  socket.send("usage");
+  const connect = Buffer.from([
+    0x10, 15, 0, 4, 77, 81, 84, 84, 4, 2, 0, 60, 0, 3, 116, 115, 116,
+  ]);
+  socket.send(connect);
   await new Promise<void>((resolve) => setImmediate(resolve));
-  expect(upstream.sent[0]?.data.toString()).toBe("usage");
+  expect(upstream.sent[0]?.data).toEqual(connect);
   upstream.emit("message", Buffer.from("reply"), false);
   expect(await received).toBe("reply");
   socket.terminate();

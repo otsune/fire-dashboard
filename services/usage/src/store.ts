@@ -96,33 +96,68 @@ export function createMemoryUsageStore(): UsageStore {
     },
   );
 }
+/** Each process boot establishes a new delivery epoch, including backup restores. */
+export async function beginUsageSession(store: UsageStore): Promise<void> {
+  await store.update((state) => ({
+    state: {
+      ...state,
+      delivery: {
+        ...state.delivery,
+        streamId: randomUUID(),
+        publishedAt: new Date().toISOString(),
+      },
+    },
+    result: undefined,
+  }));
+}
 export function createFileUsageStore(
   path: string,
   options: { beforeRename?: () => Promise<void> } = {},
 ): UsageStore {
   const initial = emptyUsageState();
-  return engine(
-    async () => {
-      try {
-        return usageStateSchema.parse(JSON.parse(await readFile(path, "utf8")));
-      } catch (error) {
-        if ((error as NodeJS.ErrnoException).code === "ENOENT") return initial;
-        throw Error("storage");
+  let lastDelivery: Pick<UsageDelivery, "streamId" | "revision"> | undefined;
+  const save = async (state: UsageState) => {
+    await mkdir(dirname(path), { recursive: true });
+    const temp = `${path}.${randomUUID()}.tmp`;
+    try {
+      await writeFile(temp, JSON.stringify(state), { mode: 0o600, flag: "wx" });
+      await options.beforeRename?.();
+      await rename(temp, path);
+      lastDelivery = {
+        streamId: state.delivery.streamId,
+        revision: state.delivery.revision,
+      };
+    } finally {
+      await unlink(temp).catch(() => {});
+    }
+  };
+  return engine(async () => {
+    try {
+      const state = usageStateSchema.parse(
+        JSON.parse(await readFile(path, "utf8")),
+      );
+      if (
+        lastDelivery &&
+        (lastDelivery.streamId !== state.delivery.streamId ||
+          BigInt(state.delivery.revision) < BigInt(lastDelivery.revision))
+      ) {
+        // An external restore while running must not reuse an old sequence.
+        state.delivery = {
+          ...state.delivery,
+          streamId: randomUUID(),
+          publishedAt: new Date().toISOString(),
+        };
+        await save(state);
       }
-    },
-    async (state) => {
-      await mkdir(dirname(path), { recursive: true });
-      const temp = `${path}.${randomUUID()}.tmp`;
-      try {
-        await writeFile(temp, JSON.stringify(state), {
-          mode: 0o600,
-          flag: "wx",
-        });
-        await options.beforeRename?.();
-        await rename(temp, path);
-      } finally {
-        await unlink(temp).catch(() => {});
-      }
-    },
-  );
+      lastDelivery = {
+        streamId: state.delivery.streamId,
+        revision: state.delivery.revision,
+      };
+      return state;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT" && !lastDelivery)
+        return initial;
+      throw Error("storage");
+    }
+  }, save);
 }

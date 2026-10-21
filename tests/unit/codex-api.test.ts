@@ -60,6 +60,42 @@ it("normalizes only the Codex API rate-limit windows", () => {
   expect(JSON.stringify(value)).not.toMatch(/SECRET|private@|plus/);
 });
 
+it("classifies Codex windows by duration and prefers an absolute reset time", () => {
+  const value = normalizeCodexApi(
+    {
+      rate_limit: {
+        primary_window: {
+          used_percent: 42,
+          limit_window_seconds: 604800,
+          reset_at: 1792195200,
+          reset_after_seconds: 1,
+        },
+        secondary_window: { used_percent: 10, limit_window_seconds: 18000 },
+      },
+    },
+    at,
+  );
+  expect(value.buckets[0].windows).toMatchObject([
+    {
+      id: "primary_window",
+      label: "7日間",
+      windowMinutes: 10080,
+      resetsAt: "2026-10-17T00:00:00.000Z",
+    },
+    { id: "secondary_window", label: "5時間", windowMinutes: 300 },
+  ]);
+  expect(
+    normalizeCodexApi(
+      {
+        rate_limit: {
+          primary_window: { used_percent: 1, limit_window_seconds: 123 },
+        },
+      },
+      at,
+    ).buckets[0].windows[0],
+  ).toMatchObject({ label: "利用枠", windowMinutes: null });
+});
+
 it("keeps malformed values nullable and reports absent windows", () => {
   expect(
     normalizeCodexApi(

@@ -1,5 +1,17 @@
 # 検証記録とFire実機チェック
 
+## 独立コード監査への対応（2026-10-22）
+
+`0c52872` の[監査記録§8](plans/2026-10-22-gmktec-mqtt-code-audit.md)へ指摘ごとの検討・修正・検証を記録しました。Codexの枠・ラベル、バックアップ復元とMQTTライフサイクル、購読専用packet検査、Grokのフィールド限定、collectorの周期・停止、送信body解放、天気表示・cache・資格情報読取を修正しています。
+
+- 全単体・統合テスト：767件成功、隔離broker用1件は通常実行でskip（41.56秒）。
+- Playwright：69件成功（1.2分）。UIビルドも成功。
+- `rtk npm run test:usage:broker`：隔離Mosquittoで1件成功。正常なTCP／Fire経由MQTT購読、retain、broker再起動、TCP ACL拒否とWSS packet検査でのpublish拒否を確認。
+- 型検査、usage API／Fire API／collectorビルド：成功。
+- 別コンテキストの最終レビュー：重要・重大な追加指摘なし。互換性のため残したGrok parserの時計引数には説明を追加。
+
+元の指摘に対して25件の単体・統合テストを追加しました。サービス起動時の配信系列更新、稼働中の保存ファイル巻き戻し、publisher再start、旧APIからのMQTT復帰、backoff・async client解放、異常payload、usageだけのcache更新、4つのAPI常駐loopとcapture入口、秘密ファイルのsymlink拒否を含みます。実アカウント取得・本番配備・Fire実機長時間試験は行っていません。WindowsバックエンドACL対応、footerの字体・配置変更は保留です。
+
 ## AI usageバックエンドの独立化（2026-10-22）
 
 usage収集・集約・永続化・HTTP／MQTT提供を `services/usage` に分離しました。Fire向けAPIは天気・RSSとusageサービスの利用側です。[起動・購読・移行手順](usage-service.md)、[設計](plans/2026-10-22-usage-service-separation-design.md)、[実装計画](superpowers/plans/2026-10-22-usage-service-separation.md)を参照してください。本番切替・systemd・Serve・brokerの変更、Fire実機試験は今回未実施です。

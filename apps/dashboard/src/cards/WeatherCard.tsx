@@ -2,21 +2,24 @@ import type { Weather } from "../../../../packages/contracts/src/index";
 import { deriveStatus, formatTime } from "../data/status";
 import { forecastRegionLabel } from "../data/prefectures";
 
-type WeatherKind = "clear" | "cloud" | "rain";
+type WeatherKind = "clear" | "cloud" | "rain" | "snow" | "unknown";
 
 function weatherKind(period: Weather["periods"][number]): WeatherKind {
   const code = period.weatherCode?.trim() ?? "";
   if (code.startsWith("1")) return "clear";
   if (code.startsWith("2")) return "cloud";
-  if (code.startsWith("3") || code.startsWith("4")) return "rain";
+  if (code.startsWith("3")) return "rain";
+  if (code.startsWith("4")) return "snow";
 
   const summary = period.summary?.trim() ?? "";
-  if (/^(雨|雪)/.test(summary)) return "rain";
+  if (/^雪/.test(summary)) return "snow";
+  if (/^雨/.test(summary)) return "rain";
   if (/^(曇り|くもり)/.test(summary)) return "cloud";
   if (/^晴れ/.test(summary)) return "clear";
-  if (summary.includes("雨") || summary.includes("雪")) return "rain";
+  if (summary.includes("雪")) return "snow";
+  if (summary.includes("雨")) return "rain";
   if (summary.includes("曇") || summary.includes("くもり")) return "cloud";
-  return "cloud";
+  return "unknown";
 }
 
 function isNight(instant: string, timeZone: string): boolean {
@@ -69,6 +72,10 @@ function weatherSymbol(
   }
 
   switch (weatherKind(period)) {
+    case "snow":
+      return { glyph: "❄️", label: "雪" };
+    case "unknown":
+      return { glyph: "—", label: "予報未取得" };
     case "rain":
       return { glyph: "☂️", label: "雨" };
     case "cloud":

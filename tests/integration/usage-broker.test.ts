@@ -215,11 +215,21 @@ it.skipIf(process.env.USAGE_BROKER_TEST !== "1")(
         },
       );
       expect((await retained(display)).revision).toBe("2");
-      await display.publishAsync(
-        `${prefix}/usage/state`,
-        JSON.stringify({ revision: "forged-wss" }),
-        { qos: 1, retain: true },
-      );
+      await new Promise<void>((resolve, reject) => {
+        const timer = setTimeout(
+          () => reject(Error("reader_publish_not_closed")),
+          5000,
+        );
+        display.once("close", () => {
+          clearTimeout(timer);
+          resolve();
+        });
+        display.publish(
+          `${prefix}/usage/state`,
+          JSON.stringify({ revision: "forged-wss" }),
+          { qos: 1, retain: true },
+        );
+      });
       const finalCheck = await connect(tcp, {
         username: "reader",
         password: "test-only",

@@ -1,6 +1,7 @@
 import WebSocket from "ws";
 import websocket from "@fastify/websocket";
 import type { FastifyInstance, FastifyRequest } from "fastify";
+import { createMqttReaderFilter } from "./reader-filter";
 
 export type MqttGatewayOptions = {
   url: string;
@@ -10,6 +11,7 @@ export type MqttGatewayOptions = {
   connectTimeoutMs?: number;
   connectionTimeoutMs?: number;
   allowedOrigins: readonly string[];
+  readerTopicPrefix?: string;
   upstreamFactory?: MqttUpstreamFactory;
 };
 
@@ -232,6 +234,9 @@ export function registerMqttGateway(
         },
       },
       (socket, request) => {
+        const filter = options.readerTopicPrefix
+          ? createMqttReaderFilter(options.readerTopicPrefix, maxPayload)
+          : undefined;
         const pending = upstreams.get(request);
         const releaseConnection =
           reservations.get(request) ?? (() => undefined);
@@ -265,7 +270,22 @@ export function registerMqttGateway(
         socket.on("message", (data, isBinary) => {
           if (upstream.readyState !== WebSocket.OPEN) return closeBoth();
           if (isBackpressured(upstream, maxPayload)) return closeBoth();
-          upstream.send(data, { binary: isBinary });
+          if (!filter) {
+            upstream.send(data, { binary: isBinary });
+            return;
+          }
+          try {
+            if (!isBinary) throw Error("mqtt_binary_required");
+            const bytes = Array.isArray(data)
+              ? Buffer.concat(data)
+              : data instanceof ArrayBuffer
+                ? Buffer.from(data)
+                : data;
+            for (const packet of filter(bytes))
+              upstream.send(packet, { binary: true });
+          } catch {
+            closeBoth();
+          }
         });
         upstream.on("message", (data, isBinary) => {
           if (socket.readyState !== WebSocket.OPEN) return closeBoth();

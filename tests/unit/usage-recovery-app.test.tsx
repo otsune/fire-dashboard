@@ -5,6 +5,7 @@ import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import { App } from "../../apps/dashboard/src/App";
 import { emptyDashboard } from "../../packages/contracts/src/index";
 import { usageEnvelope } from "../helpers/usage";
+import { loadDashboard } from "../../apps/dashboard/src/data/cache";
 
 const client = vi.hoisted(() => ({
   connected: true,
@@ -59,5 +60,48 @@ it("keeps MQTT alive when an unavailable usage backend has not supplied its firs
       "value",
       "30",
     ),
+  );
+});
+
+it("resumes MQTT after a legacy metadata-free HTTP response and uses its current values", async () => {
+  window.history.replaceState({}, "", "/?usageMqtt=1");
+  let legacy = true;
+  vi.stubGlobal("fetch", async (url: string) => {
+    if (url.includes("manifest"))
+      return Response.json({ hours: {}, chime: null });
+    return Response.json({
+      ...emptyDashboard(),
+      usage: [usageEnvelope(1, "desk", 40).payload],
+      ...(legacy
+        ? {}
+        : {
+            usageDelivery: {
+              schemaVersion: 1,
+              streamId: "new",
+              revision: "1",
+              publishedAt: new Date().toISOString(),
+            },
+          }),
+    });
+  });
+  render(<App />);
+  await screen.findByText("集約サービス接続済み");
+  await waitFor(() =>
+    expect(screen.getAllByRole("progressbar")[0]).toHaveAttribute(
+      "value",
+      "40",
+    ),
+  );
+  await waitFor(async () =>
+    expect(
+      (await loadDashboard())?.usage[0].buckets[0].windows[0].usedPercent,
+    ).toBe(40),
+  );
+  legacy = false;
+  await act(async () => {
+    window.dispatchEvent(new Event("online"));
+  });
+  await waitFor(() =>
+    expect(screen.getByText(/MQTT 接続済み/)).toBeInTheDocument(),
   );
 });

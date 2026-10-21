@@ -1,11 +1,11 @@
 import { expect, it, vi } from "vitest";
-import { chmod, mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { chmod, mkdtemp, open, symlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 
 vi.mock("node:fs/promises", async (importOriginal) => {
   const actual = await importOriginal<typeof import("node:fs/promises")>();
-  return { ...actual, readFile: vi.fn(actual.readFile) };
+  return { ...actual, open: vi.fn(actual.open) };
 });
 import { readMqttCredentials } from "../../services/usage/src/mqtt/credentials";
 import { usageConfigSchema as configSchema } from "../../services/usage/src/config";
@@ -52,11 +52,26 @@ it("classifies an unreadable MQTT credentials file as a permission error", async
     JSON.stringify({ username: "publisher", password: "test-only" }),
     { mode: 0o600 },
   );
-  vi.mocked(readFile).mockRejectedValueOnce(
+  vi.mocked(open).mockRejectedValueOnce(
     Object.assign(new Error("permission denied"), { code: "EACCES" }),
   );
 
   await expect(readMqttCredentials(path)).rejects.toThrow(
+    "mqtt_credentials_permissions",
+  );
+});
+
+it("rejects symlinked credentials instead of checking and reading different file identities", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "mqtt-symlink-"));
+  const path = join(dir, "secret.json"),
+    alias = join(dir, "alias.json");
+  await writeFile(
+    path,
+    JSON.stringify({ username: "test", password: "test-only" }),
+    { mode: 0o600 },
+  );
+  await symlink(path, alias);
+  await expect(readMqttCredentials(alias)).rejects.toThrow(
     "mqtt_credentials_permissions",
   );
 });

@@ -7,7 +7,7 @@ import {
 import type { IClientOptions } from "mqtt";
 
 export type UsageStreamStatus =
-  "disconnected" | "connecting" | "connected" | "stale" | "error";
+  "disconnected" | "connecting" | "connected" | "stale" | "error" | "syncing";
 export type UsageStreamOptions = {
   enabled?: boolean;
   url?: string;
@@ -71,6 +71,7 @@ export function createUsageStream(
   let stopped = false;
   let client: UsageMqttClient | null = null;
   let connecting = false;
+  let generation = 0;
   let retryTimer: ReturnType<typeof setTimeout> | undefined;
   let heartbeatWatch: ReturnType<typeof setInterval> | undefined;
   let lastHeartbeat = 0;
@@ -90,6 +91,7 @@ export function createUsageStream(
   const connect = () => {
     if (stopped || client || connecting) return;
     connecting = true;
+    const run = ++generation;
     emit("connecting");
     const clientOptions: IClientOptions = {
       protocolVersion: 4,
@@ -111,8 +113,7 @@ export function createUsageStream(
     void Promise.resolve()
       .then(createClient)
       .then((next) => {
-        connecting = false;
-        if (stopped) {
+        if (stopped || run !== generation) {
           next.end(true);
           return;
         }
@@ -121,6 +122,7 @@ export function createUsageStream(
         const announceConnected = () => {
           if (announcedConnected || next !== client) return;
           announcedConnected = true;
+          connecting = false;
           retry = 0;
           lastHeartbeat = Date.now();
           emit("connected");
@@ -137,9 +139,11 @@ export function createUsageStream(
           try {
             // Bound bytes before materializing the text; keep the decoding pass
             // as the authoritative check for string payloads.
-            if (raw instanceof Uint8Array && raw.byteLength > maxBytes) return;
+            if (raw instanceof Uint8Array && raw.byteLength > maxBytes)
+              throw Error("too_large");
             const text = decode(raw);
-            if (new TextEncoder().encode(text).byteLength > maxBytes) return;
+            if (new TextEncoder().encode(text).byteLength > maxBytes)
+              throw Error("too_large");
             const parsed = JSON.parse(text);
             if (topic === topics.state) {
               const delivery = usageDeliverySchema.parse(parsed);
@@ -154,12 +158,14 @@ export function createUsageStream(
             } else
               options.onAvailability?.(usageAvailabilitySchema.parse(parsed));
           } catch {
-            // Keep the last valid value for malformed, stale, or oversized data.
+            emit("error");
+            // Keep the last valid value for malformed or oversized data.
           }
         });
         next.on("close", () => {
           if (next !== client) return;
           client = null;
+          connecting = false;
           emit("disconnected");
           schedule();
         });
@@ -172,6 +178,7 @@ export function createUsageStream(
         if (next.connected) announceConnected();
       })
       .catch(() => {
+        if (stopped || run !== generation) return;
         connecting = false;
         emit("error");
         schedule();
@@ -179,6 +186,8 @@ export function createUsageStream(
   };
   const reconnect = () => {
     if (stopped) return;
+    generation++;
+    connecting = false;
     if (retryTimer) clearTimeout(retryTimer);
     retryTimer = undefined;
     const active = client;
@@ -194,7 +203,16 @@ export function createUsageStream(
     connect();
   };
   const resume = () => {
-    if (!document.hidden && navigator.onLine) reconnect();
+    if (
+      document.hidden ||
+      !navigator.onLine ||
+      stopped ||
+      connecting ||
+      retryTimer
+    )
+      return;
+    if (client?.connected && Date.now() - lastHeartbeat <= 180_000) return;
+    reconnect();
   };
   document.addEventListener("visibilitychange", resume);
   window.addEventListener("online", resume);
@@ -211,7 +229,9 @@ export function createUsageStream(
   return {
     reconnect,
     stop: () => {
+      if (stopped) return;
       stopped = true;
+      generation++;
       connecting = false;
       document.removeEventListener("visibilitychange", resume);
       window.removeEventListener("online", resume);

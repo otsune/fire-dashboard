@@ -24,6 +24,7 @@ import {
   loadDashboard,
   mergeDashboard,
   saveDashboard,
+  saveUsage,
 } from "./data/cache";
 import { loadManifest } from "./audio/manifest";
 import { createAudioController } from "./audio/controller";
@@ -48,6 +49,7 @@ const mqttStatusLabels: Record<UsageStreamStatus, string> = {
   connected: "接続済み",
   stale: "停止検知",
   error: "エラー",
+  syncing: "同期中",
 };
 export function App() {
   const [initial] = useState(loadSettings);
@@ -65,6 +67,7 @@ export function App() {
   const [connection, setConnection] = useState("集約サービスに接続中");
   const [mqttConnection, setMqttConnection] =
     useState<UsageStreamStatus>("disconnected");
+  const [usageStreaming, setUsageStreaming] = useState(true);
   const [cardNow, setCardNow] = useState(Date.now());
   const [offline, setOffline] = useState("オフライン準備中");
   const [waiting, setWaiting] = useState<ServiceWorker | null>(null);
@@ -120,7 +123,7 @@ export function App() {
     };
   }, []);
   useEffect(() => {
-    if (!isUsageMqttEnabled(location.search)) {
+    if (!usageStreaming || !isUsageMqttEnabled(location.search)) {
       setMqttConnection("disconnected");
       return;
     }
@@ -142,7 +145,7 @@ export function App() {
         };
         setData(current.current);
         setCardNow(Date.now());
-        void saveDashboard(current.current)
+        void saveUsage(current.current)
           .then(() => setWarning(null))
           .catch(() => {
             setWarning("カードを保存できません。通信中の表示は続けます");
@@ -151,7 +154,9 @@ export function App() {
       onHeartbeat: (heartbeat) => {
         mqttPublisherInstance.current = heartbeat.instanceId;
         if (shouldRefreshUsageForHeartbeat(current.current, heartbeat)) {
-          setMqttConnection("error");
+          setMqttConnection(
+            heartbeat.deliveryStatus === "too_large" ? "error" : "syncing",
+          );
           void refreshDashboard.current();
           return;
         }
@@ -170,7 +175,7 @@ export function App() {
       usageStreamRef.current = null;
       stream.stop();
     };
-  }, []);
+  }, [usageStreaming]);
   useEffect(() => {
     if (!audio) return;
     previousAudioTick.current = null;
@@ -231,11 +236,8 @@ export function App() {
         if (!active()) return;
         hydratedFromNetwork = true;
         liveUsage.current = true;
-        if (!next.usageDelivery && next.usageConnection !== "unavailable") {
-          usageStreamRef.current?.stop();
-          usageStreamRef.current = null;
-          setMqttConnection("disconnected");
-        }
+        if (next.usageConnection !== "unavailable")
+          setUsageStreaming(!!next.usageDelivery);
         current.current = mergeDashboard(current.current, next);
         setData(current.current);
         setConnection(
@@ -523,7 +525,10 @@ export function App() {
       <footer>
         <span>{offline}</span>
         <span>
-          Fire HD 10 Plus · 前面表示用 · MQTT {mqttStatusLabels[mqttConnection]}
+          Fire HD 10 Plus · 前面表示用 ·{" "}
+          {isUsageMqttEnabled(location.search)
+            ? `MQTT ${mqttStatusLabels[mqttConnection]}`
+            : "HTTP"}
         </span>
       </footer>
     </main>

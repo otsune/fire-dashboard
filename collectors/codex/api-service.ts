@@ -24,7 +24,7 @@ export function startCodexApiService(
   if (!path || !alias || !endpoint || !tokenFile) throw Error("unconfigured");
   if (!/^[a-zA-Z0-9_-]{1,64}$/.test(alias)) throw Error("invalid_alias");
   const poll = env.FIRE_POLL_SECONDS ?? "60";
-  if (!/^\d+$/.test(poll) || +poll < 30 || +poll > 280)
+  if (!/^\d+$/.test(poll) || +poll < 30 || +poll > 240)
     throw Error("invalid_poll_seconds");
 
   const credentialsPath =
@@ -60,7 +60,7 @@ if (
     process.on("SIGTERM", stop);
   } catch {
     process.stderr.write(
-      "Fire Dashboard codex API collector: check FIRE_SNAPSHOT_PATH, FIRE_SOURCE_ALIAS (letters, digits, - or _, 1-64 chars), FIRE_ENDPOINT, FIRE_COLLECTOR_TOKEN_FILE and FIRE_POLL_SECONDS (30-280)\n",
+      "Fire Dashboard codex API collector: check FIRE_SNAPSHOT_PATH, FIRE_SOURCE_ALIAS (letters, digits, - or _, 1-64 chars), FIRE_ENDPOINT, FIRE_COLLECTOR_TOKEN_FILE and FIRE_POLL_SECONDS (30-240)\n",
     );
     process.exitCode = 1;
   }

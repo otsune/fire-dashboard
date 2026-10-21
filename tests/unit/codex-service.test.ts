@@ -32,7 +32,7 @@ const read = async () => ({
 it("refuses to start without its configuration", () => {
   expect(() => startCodexService({})).toThrow("unconfigured");
 });
-it("refuses to start with a read interval outside 30-280 seconds", async () => {
+it("refuses to start with a read interval outside 30-240 seconds", async () => {
   const env = await setup("t".repeat(43));
   for (const poll of ["29", "281", "0", "1.5", "abc", ""])
     expect(() =>
