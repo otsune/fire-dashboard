@@ -3,7 +3,7 @@ import {
   emptyCommon,
   usageSchema,
   type Usage,
-} from "../../packages/contracts/src/index";
+} from "../../packages/usage-contracts/src/index";
 import { record, finitePercent, epoch } from "../claude/extract";
 export function normalizeCodex(raw: unknown, capturedAt: string): Usage {
   const root = record(raw);

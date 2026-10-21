@@ -4,7 +4,7 @@ import { pathToFileURL } from "node:url";
 import { fetchCodexUsage } from "./api";
 import { startCodexCollector } from "./monitor";
 import { bearerFromFile, createHttpSender } from "../shared/sender";
-import type { Usage } from "../../packages/contracts/src/index";
+import type { Usage } from "../../packages/usage-contracts/src/index";
 
 /**
  * Long-running Codex API collector. Keep its snapshot path separate from the

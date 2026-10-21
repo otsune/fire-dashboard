@@ -7,7 +7,7 @@ import {
   usageSchema,
   type Common,
   type Usage,
-} from "../../packages/contracts/src/index";
+} from "../../packages/usage-contracts/src/index";
 import { finitePercent, record } from "../claude/extract";
 import { MAX_INPUT_BYTES } from "../shared/input";
 

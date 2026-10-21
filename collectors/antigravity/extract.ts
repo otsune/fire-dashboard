@@ -3,7 +3,7 @@ import {
   emptyUsage,
   usageSchema,
   type Usage,
-} from "../../packages/contracts/src/index";
+} from "../../packages/usage-contracts/src/index";
 import { record } from "../claude/extract";
 import { isoInstant } from "../shared/input";
 

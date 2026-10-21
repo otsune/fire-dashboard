@@ -7,7 +7,7 @@ import {
   usageSchema,
   type Common,
   type Usage,
-} from "../../packages/contracts/src/index";
+} from "../../packages/usage-contracts/src/index";
 import { MAX_INPUT_BYTES } from "../shared/input";
 
 /** The endpoint used by Settings → Usage on grok.com. It is undocumented. */

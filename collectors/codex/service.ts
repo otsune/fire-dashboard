@@ -12,7 +12,7 @@
 import { pathToFileURL } from "node:url";
 import { startCodexCollector } from "./monitor";
 import { bearerFromFile, createHttpSender } from "../shared/sender";
-import type { Usage } from "../../packages/contracts/src/index";
+import type { Usage } from "../../packages/usage-contracts/src/index";
 export function startCodexService(
   env: Record<string, string | undefined>,
   deps: {

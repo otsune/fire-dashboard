@@ -5,7 +5,7 @@ import {
   envelopeSchema,
   type Usage,
   type UsageEnvelope,
-} from "../../packages/contracts/src/index";
+} from "../../packages/usage-contracts/src/index";
 import { atomicJson } from "../../services/aggregator/src/store";
 /**
  * A holder killed hard (kill -9, OOM) between lock and unlock would otherwise

@@ -3,7 +3,7 @@ import {
   emptyCommon,
   usageSchema,
   type Usage,
-} from "../../packages/contracts/src/index";
+} from "../../packages/usage-contracts/src/index";
 export function finitePercent(v: unknown): number | null {
   return typeof v === "number" && Number.isFinite(v) && v >= 0 && v <= 100
     ? v

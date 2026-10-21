@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { captureSnapshot } from "../shared/snapshot";
 import { bearerFromFile, createHttpSender } from "../shared/sender";
-import type { Usage } from "../../packages/contracts/src/index";
+import type { Usage } from "../../packages/usage-contracts/src/index";
 import { fetchClaudeUsage } from "./api";
 
 export function startClaudeApiService(

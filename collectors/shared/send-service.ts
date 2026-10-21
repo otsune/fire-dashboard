@@ -11,7 +11,7 @@ import { readFile } from "node:fs/promises";
 import { delimiter } from "node:path";
 import { pathToFileURL } from "node:url";
 import { bearerFromFile, createHttpSender } from "./sender";
-import { envelopeSchema } from "../../packages/contracts/src/index";
+import { envelopeSchema } from "../../packages/usage-contracts/src/index";
 const POLL_MS = 15000;
 export function startSnapshotSender(
   env: Record<string, string | undefined>,

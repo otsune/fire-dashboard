@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import {
   envelopeSchema,
   type UsageEnvelope,
-} from "../../packages/contracts/src/index";
+} from "../../packages/usage-contracts/src/index";
 /**
  * Bearer header from a token file. The token never comes from the process
  * environment or unit files, and is re-read on each send to allow rotation.
