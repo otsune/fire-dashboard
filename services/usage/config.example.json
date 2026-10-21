@@ -1,0 +1,5 @@
+{
+  "mqtt": { "enabled": false, "url": "mqtt://127.0.0.1:1883", "topicPrefix": "ai-usage/v1/main" },
+  "gateway": { "enabled": false, "url": "ws://127.0.0.1:9001/mqtt" },
+  "preferredSources": { "claude": ["desk"], "codex": ["desk"] }
+}

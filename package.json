@@ -18,7 +18,9 @@
     "test:e2e": "playwright test",
     "build:collectors": "node scripts/build-collectors.mjs",
     "build:api": "node scripts/build-api.mjs",
-    "build:private-audio": "node --import tsx scripts/build-private-audio.ts"
+    "build:private-audio": "node --import tsx scripts/build-private-audio.ts",
+    "build:usage": "node scripts/build-usage.mjs",
+    "start:usage": "tsx services/usage/src/start.ts"
   },
   "dependencies": {
     "@fastify/websocket": "11.3.4",
