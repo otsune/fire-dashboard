@@ -1,5 +1,17 @@
 # 検証記録とFire実機チェック
 
+## GMKtec本番適用（2026-10-22）
+
+`77ffd79` のusage分離と監査修正を08:43 JSTに適用しました。独立 `ai-usage.service` は `127.0.0.1:18788`、Fire APIは既存 `127.0.0.1:18787` で天気・RSS・usage中継を提供します。brokerとTailscale Serveの設定、HTTPS URL、トピック `fire-dashboard/v1/main` は維持しています。collectorは既存のFire HTTPS中継へ送信し、usageサービスへの直接外部入口は追加していません。
+
+- 最終停止後のstateから、全7 sourceのsequence・保持値・観測時刻と6 providerの選択usageを保持して移行。起動時のstreamId更新とrevision保持を確認。
+- 独立HTTP、broker直接WS、usage直接WS、実HTTPS経由Fire WSSで配信系列とrevisionを照合。publisherはready／connected、PUBACK済み、deliveryStatus=ok、lastError=null。
+- 両APIと全収集器がactive、両APIのNRestarts=0、移行後に全7 sourceのreceivedAt更新を確認。実HTTPSのindex.html／sw.jsは配信元とバイト一致。
+- 未認証GETは401、readerのPOSTとcollectorのGETは403。18787／18788／1883／9001はloopbackのみで、Tailscale IPへの直結は拒否。
+- 最新usageと最新Fire stateを使う逆移行を退避先で実行し、usage・天気・RSSの保持を確認。全体の切り戻しとFire実機の画面・音声確認は未実施。
+
+ホスト構成の正本は `/home/otsune/docs/services.md`、配備記録は `/home/otsune/docs/notes/fire-dashboard-deployment.md`。退避・検証証拠・具体的な切り戻し手順は `/home/otsune/backups/fire-dashboard-usage-split-20261022_084137/README.md` と同ディレクトリの `verification.json` に保存しました。
+
 ## 独立コード監査への対応（2026-10-22）
 
 `0c52872` の[監査記録§8](plans/2026-10-22-gmktec-mqtt-code-audit.md)へ指摘ごとの検討・修正・検証を記録しました。Codexの枠・ラベル、バックアップ復元とMQTTライフサイクル、購読専用packet検査、Grokのフィールド限定、collectorの周期・停止、送信body解放、天気表示・cache・資格情報読取を修正しています。
@@ -10,11 +22,11 @@
 - 型検査、usage API／Fire API／collectorビルド：成功。
 - 別コンテキストの最終レビュー：重要・重大な追加指摘なし。互換性のため残したGrok parserの時計引数には説明を追加。
 
-元の指摘に対して25件の単体・統合テストを追加しました。サービス起動時の配信系列更新、稼働中の保存ファイル巻き戻し、publisher再start、旧APIからのMQTT復帰、backoff・async client解放、異常payload、usageだけのcache更新、4つのAPI常駐loopとcapture入口、秘密ファイルのsymlink拒否を含みます。実アカウント取得・本番配備・Fire実機長時間試験は行っていません。WindowsバックエンドACL対応、footerの字体・配置変更は保留です。
+元の指摘に対して25件の単体・統合テストを追加しました。サービス起動時の配信系列更新、稼働中の保存ファイル巻き戻し、publisher再start、旧APIからのMQTT復帰、backoff・async client解放、異常payload、usageだけのcache更新、4つのAPI常駐loopとcapture入口、秘密ファイルのsymlink拒否を含みます。監査修正の検証段階では実アカウント取得・本番配備・Fire実機長時間試験は行っていません。本番適用の結果は冒頭に記録しています。WindowsバックエンドACL対応、footerの字体・配置変更は保留です。
 
 ## AI usageバックエンドの独立化（2026-10-22）
 
-usage収集・集約・永続化・HTTP／MQTT提供を `services/usage` に分離しました。Fire向けAPIは天気・RSSとusageサービスの利用側です。[起動・購読・移行手順](usage-service.md)、[設計](plans/2026-10-22-usage-service-separation-design.md)、[実装計画](superpowers/plans/2026-10-22-usage-service-separation.md)を参照してください。本番切替・systemd・Serve・brokerの変更、Fire実機試験は今回未実施です。
+usage収集・集約・永続化・HTTP／MQTT提供を `services/usage` に分離しました。Fire向けAPIは天気・RSSとusageサービスの利用側です。[起動・購読・移行手順](usage-service.md)、[設計](plans/2026-10-22-usage-service-separation-design.md)、[実装計画](superpowers/plans/2026-10-22-usage-service-separation.md)を参照してください。実装検証段階では本番切替・systemd・Serve・brokerの変更、Fire実機試験は未実施でした。本番適用の結果は冒頭に記録しています。
 
 - `rtk npm test`：742件成功、実broker用1件は通常実行でskip。Playwrightとの同時実行時に既存の `weather-startup` 起動検証が5秒上限へ一度達しましたが、単独の全体再実行では全件成功（39.22秒）。
 - `rtk npm run typecheck`：成功。
