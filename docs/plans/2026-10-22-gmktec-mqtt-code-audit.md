@@ -203,3 +203,65 @@ close→backoff、stop の冪等性とタイマー解放、malformed/oversized�
 ### 対応後の検証
 
 `rtk npm test` は767件成功・隔離broker用1件skip、`rtk npm run test:e2e` は69件成功。`rtk npm run test:usage:broker` を別実行し、実Mosquittoで1件成功。型検査、usage／Fire API／collectorビルドも成功。独立した最終レビューで重要・重大な追加指摘は無かった。今回も本番設定・稼働サービス・実アカウントは変更していない。
+
+## 9. 第2回再監査 — `ae92654`（2026-10-22）
+
+§8 の各主張を、記録ではなく実装・テスト・実行結果で独立に照合した。対象は HEAD `ae92654`（`77ffd79` の修正、配備記録、音声修正を含む）。
+
+### 9.1 実行結果
+
+サンドボックスの都合で Vite の `net use` 探索だけを無効化する一時シムと `--pool=threads` を使用（監査後に削除）。`build:usage` と `build:collectors` は esbuild が子プロセスを起動できず実行不可（環境要因）。
+
+| 検証 | 結果 |
+| --- | --- |
+| `tsc --noEmit` | 成功 |
+| 全テスト | 770 件中 746 成功・22 失敗・2 skip。失敗はすべて環境要因: spawn 禁止 16 件（startup／offline-build／private-audio／provider-collectors／usage-build／validate-mqtt）、Windows の POSIX mode 3 件（mqtt-credentials）、プロセス kill 1 件（claude の stale lock）、CLI 2 件 |
+| `vite build` + `build-sw` | 成功。`assets/mqtt.esm-DkNHgOmp.js` 335.6 kB（gzip 99.9 kB）、precache 59 件から除外 |
+
+Windows では資格情報試験が platform gate されておらず suite が赤になる（9.3 N2）。Linux 前提のため §8 の「767 件成功」とは差が出る。
+
+### 9.2 指摘の判定
+
+| 指摘 | 判定 | 根拠 |
+| --- | --- | --- |
+| H1 Codex 枠 | 修正 | `collectors/codex/api.ts:53-62` が `limit_window_seconds`（18000／604800）で分類し、欠損時だけ位置へ fallback、未知は「利用枠」／null。枠入れ替え fixture あり |
+| H2 巻き戻し | 修正 | `beginUsageSession`（`services/usage/src/store.ts:100`）を起動時に実行（`start.ts:58`）、稼働中の巻き戻しも検出（`store.ts:140-160`）。publisher は heartbeat で系列変化を検出し再配信（`publisher.ts:146`）。端末側の HTTP 交代規則は従来どおり |
+| M1 永久停止 | 修正 | `usageStreaming` state と effect 依存配列（`App.tsx:70,126,178`）、`setUsageStreaming(!!next.usageDelivery)`（`:240`）。cache は `unavailable` のときだけ旧値保持（`cache.ts:100`）。legacy→復帰の App 試験あり。metadata を返さない API が続く間は休止のままで、footer は未接続表示 |
+| M2 topic 認可 | 強化 | `reader-filter.ts`（CONNECT 制約、3 topic 完全一致、PUBLISH／Will／username・password／wildcard 拒否、分割再構成、上限）を usage gateway に適用（`gateway.ts:237-239,270-289`）。Fire relay は素通しだが内側で検査。broker ACL は引き続き必須 |
+| M3 publisher 再起動 | 修正 | stop 冪等・完了後 `stopping=false`（`publisher.ts:467,493`）、generation で旧 run の非同期結果を破棄（`:438-439`） |
+| M4 Grok 走査 | 修正 | 固定パス 1.1／1.5.1、一意性・period marker・範囲検査（`grok/api.ts:240-261`）。曖昧なら `invalid_data` |
+| M5 sender body | 修正 | 成功・失敗とも `body.cancel()`（`sender.ts:57`） |
+| M6 poll 周期 | 修正 | `shared/poll.ts`（開始基準・burst 無し・stop 後送信抑止）、上限 240 秒 |
+| M7 Codex label | 修正 | `id === "codex"` 以外は `additional-N`／「追加利用枠 N」に匿名化（`adapter.ts:17-24`） |
+| M8 resume churn | 修正 | 正常接続・接続試行中・backoff 中は切断しない（`usage-stream.ts:205-216`）、generation で遅延 factory を破棄 |
+| M9 テスト空白 | 補完 | usage-stream 6 件、recovery、cache、loops、capture 等を追加 |
+| L1〜L9 | 修正（L6 一部、L7・L8 は仕様維持＋文書化） | 雪／欠測記号、`error` 通知、`reset_at` 優先、fd 固定＋`O_NOFOLLOW`、metadata 分離、同期中表示、15 分寿命の明記、usage のみ cache 書き込み |
+
+主要 3 件（H1・H2・M1）を含め、§8 の主張はコード上確認できた。テストも修正前の実装では落ちる内容になっている（例: `codex-api.test.ts` の枠入れ替え、`usage-publisher.test.ts` の start→stop→start、`sender-cleanup.test.ts`、`mqtt-reader-filter.test.ts`）。
+
+### 9.3 新規の指摘
+
+| # | 重大度 | 内容 |
+| --- | --- | --- |
+| N1 | Medium | **既定の topic prefix が同梱 dashboard と一致しない。** usage サービスの既定は `ai-usage/v1/main`（`services/usage/src/config.ts:32`、`config.example.json`）だが、browser は `fire-dashboard/v1/main` 固定（`usage-stream.ts:61`）。旧 prefix を明示する移行手順は docs にあるが、既定 config のまま MQTT を有効にすると、新 filter が購読を拒否して接続を切るため「無音」ではなく 60 秒間隔の再接続ループになる。prefix を API 応答で渡すか、example を旧 prefix に合わせるか、起動時に不一致を検出して落とす |
+| N2 | Low | **Windows の資格情報分類。** `process.platform === "win32"` を `EPERM` に写像するため（`credentials.ts:33-34`）、未対応プラットフォームが `mqtt_credentials_permissions` と表示される。tests も `skipIf(win32)` が無く Windows で suite が赤。専用コード（`mqtt_credentials_unsupported`）と platform gate を |
+| N3 | Low | **poll loop の未捕捉例外。** `startPollLoop` は `task` を try/finally で包むが catch が無く（`poll.ts:9-21`）、想定外の throw は unhandled rejection となり Node が終了する。旧ループは catch していた。最後の砦として catch を追加 |
+| N4 | Low | **`FIRE_POLL_SECONDS` 241〜280 の起動失敗。** 上限 240 へ下げたため、旧 unit が 280 だと `invalid_poll_seconds` で起動しない（docs は 240 に更新済み）。clamp するか移行注意を unit 手順へ |
+| N5 | Low | **Codex reset の基準。** `reset_after_seconds` は要求前の `capturedAt` 基準（`codex/api-service.ts:37`）で、受信時刻ではない（誤差 ≤10 秒）。`reset_at` の下限が 0 なので 1970 年も通る。下限 1e9 を |
+| N6 | Low | **Grok の過剰拒否リスク。** 複数 data frame、reset 欠落、field 6/8 の wire 不一致を拒否するため、実応答の形が変わるとカードが `invalid_data` で止まる（誤値よりは安全）。sanitize 済み実応答 fixture が無い。また `getFloat32` は uint32 の bit パターンを微小値として通しうる（0〜100 検査のみ） |
+| N7 | Low | **reader filter の e2e 試験が無い。** `usage-gateway.test.ts` は filter 経路（`readerTopicPrefix`）を通らず、PUBACK／PINGREQ／複数 topic の通過も未検証。実 broker 試験は手動スクリプト依存 |
+| N8 | Medium | **稼働中の state 消失と read の書き込み依存。** `lastDelivery` 設定後に ENOENT になると `storage` エラーで固定（`store.ts:157-161`）。また load() 内で巻き戻しを検出すると save するため、読み取り専用マウントやディスク満杯では復元後の GET /api/v1/usage が 400 になる。ENOENT は新系列で再初期化し、巻き戻しの永続化は best-effort に |
+| N9 | Medium | **起動失敗でも stream を交代する。** `beginUsageSession` が listen 前に走るため（`start.ts:58,77`）、port 競合などで起動に失敗しても state の streamId を書き換える。稼働中インスタンスの系列を無効化し、端末に余計な交代を強いる。listen 成功後に交代するか、最初の書き込みまで遅延させる |
+| N10 | Medium | **online 復帰が backoff 待ちになる。** `resume` は `retryTimer` があると即 return するため（`usage-stream.ts:205-216`）、回線復帰後も最大 60 秒待つ。online では timer を破棄して即 connect する（健全接続の guard は維持） |
+| N11 | Low | **接続試行が固まると再試行しない。** CONNACK も close も来ないまま factory が hung すると `connecting` が立ったままになり、resume も watchdog（client 前提）も動かない。20〜30 秒の connect timeout を |
+| N12 | Low | **catch の範囲が広い。** `usage-stream.ts:139-163` は onDelivery／onHeartbeat の例外も transport error として扱うため、アプリ側の不具合が「エラー」表示になる。decode＋parse に限定する |
+| N13 | Low | **「同期中」の解除が次 heartbeat 依存。** refresh 成功で delivery を適用しても、次の heartbeat（≤60 秒）まで表示が戻らない（`App.tsx:156-159`） |
+| N14 | Low | MQTT だけでは stream 交代に追随できない（HTTP が正本）。aggregator と usage は同一ホストなので通常は同時に落ちるが、HTTP 認証だけ壊れた場合は古い系列のまま「接続済み」表示で固定される（`usage-state.ts:76-79`、`App.tsx:140`） |
+
+### 9.4 判定
+
+§8 の修正は実装どおりで、主要な表示正確性（H1・H2）とライフサイクル（M1・M3・M8）は解消した。残るのは (a) 実応答・実機での確証（Grok の実 fixture、wham の実 shape、POSIX 資格情報の実機）、(b) 新規導入時に踏む既定 config の prefix 不一致（N1）、(c) 起動・復旧系の状態機械（N8〜N10）、(d) 分類と試験の小さな穴（N2〜N7、N11〜N13）。N1・N8・N9・N10 は次の配備前に直す価値がある。
+
+テストの質は概ね良好だが、`usage-stream.test.ts:150-172` の oversized  assertion は直前の malformed で既に `error` になっているため vacuous、`usage-recovery-app.test.tsx:66-107` は「一時停止して復帰する」中間状態を検証しておらず、180 秒 stale watchdog の試験も無い。
+
+本節も実 broker・Fire 実機・実アカウント・長時間稼働の独立再現は行っていない。§8 が記録する本番配備（08:43 JST）と Fire 実機確認は、こちらでは検証していない。
