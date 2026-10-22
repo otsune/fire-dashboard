@@ -146,6 +146,36 @@ async function finish(asset: HeldAudio) {
     ).toBeEnabled(),
   );
 }
+it("explains a silent quiet-hours preview and plays after quiet hours are disabled", async () => {
+  localStorage.setItem(
+    "fire-dashboard-settings-v1",
+    JSON.stringify(
+      parseSettings({
+        timeZone: "UTC",
+        quiet: { enabled: true, start: "10:00", end: "12:00" },
+      }),
+    ),
+  );
+  await mount();
+  fireEvent.click(screen.getByRole("button", { name: "試聴" }));
+  await waitFor(() =>
+    expect(
+      screen.getByText(
+        "静音時間なので音を出しません。音を出したい場合は、設定から「静音時間を使う」をオフにしてください。",
+      ),
+    ).toBeInTheDocument(),
+  );
+  await tick();
+  expect(assets).toHaveLength(0);
+  expect(
+    screen.getByRole("button", { name: "音声を有効にする" }),
+  ).toBeEnabled();
+  await edit(() => fireEvent.click(screen.getByLabelText("静音時間を使う")));
+  fireEvent.click(screen.getByRole("button", { name: "試聴" }));
+  await waitFor(() => expect(assets[0]?.playing).toBe(true));
+  expect(assets[0].requested).toBe("/audio/hour-10.mp3");
+  await act(async () => assets[0].finish());
+});
 const changes = [
   [
     "audio mode",

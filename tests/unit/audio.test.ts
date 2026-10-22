@@ -152,3 +152,32 @@ it("repeated enable actions cannot overlap playback", async () => {
   expect(max).toBe(1);
   c.dispose();
 });
+it("keeps audio enabled when a quiet-hours preview is suppressed and resumes after the window", async () => {
+  let time = Date.parse("2026-10-22T02:59:00Z");
+  const played: string[] = [];
+  const settings = parseSettings({
+    timeZone: "UTC",
+    hour12: true,
+    quiet: { enabled: true, start: "03:00", end: "09:00" },
+  });
+  const c = createAudioController(() => settings, manifest, {
+    now: () => time,
+    play: async (url) => {
+      played.push(url);
+    },
+  });
+  try {
+    expect(await c.enable()).toBe(true);
+    time = Date.parse("2026-10-22T08:00:00Z");
+    await c.preview(10);
+    expect(played).toEqual(["/audio/0.mp3"]);
+    expect(c.state().enabled).toBe(true);
+    expect(c.state().message).toContain("「静音時間を使う」をオフ");
+    time = Date.parse("2026-10-22T09:00:00Z");
+    await c.preview(10);
+    expect(played).toEqual(["/audio/0.mp3", "/audio/10.mp3"]);
+    expect(c.state().message).toBe("音声有効");
+  } finally {
+    c.dispose();
+  }
+});

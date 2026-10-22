@@ -211,8 +211,14 @@ export function createAudioController(
   }
   async function preview(hour: number) {
     if (!ready()) return;
+    if (isQuiet(now(), settings())) {
+      message =
+        "静音時間なので音を出しません。音を出したい場合は、設定から「静音時間を使う」をオフにしてください。";
+      return;
+    }
     try {
-      await run(hour, "preview");
+      if (await run(hour, "preview"))
+        message = enabled ? "音声有効" : "音声無効";
     } catch {
       enabled = false;
       message = "音声を再生できません。もう一度タップしてください";

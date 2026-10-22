@@ -193,6 +193,42 @@ test.describe("synthetic audio arbitration", () => {
   // off that cache path; production offline and real chime tests keep workers.
   test.use({ serviceWorkers: "block" });
 
+  test("quiet-hours preview stays silent and explains how to turn quiet hours off", async ({
+    context,
+    page,
+  }) => {
+    const playback = await installHeldAudio(context);
+    await page.setViewportSize({ width: 1280, height: 799 });
+    await page.clock.install({ time: new Date("2026-10-22T08:30:00+09:00") });
+    await page.goto("/");
+    await page.getByRole("button", { name: "設定", exact: true }).click();
+    await page.getByLabel("静音時間を使う").check();
+    await page.getByLabel("静音開始").fill("03:00");
+    await page.getByLabel("静音終了").fill("09:00");
+    await page.getByRole("button", { name: "時計に戻る" }).click();
+    await page.getByRole("button", { name: "試聴", exact: true }).click();
+    await expect(
+      page.getByText(
+        "静音時間なので音を出しません。音を出したい場合は、設定から「静音時間を使う」をオフにしてください。",
+        { exact: true },
+      ),
+    ).toBeVisible();
+    await page.clock.runFor(1000);
+    expect(playback.urls).toEqual([]);
+    expect(
+      await page.evaluate(() => ({
+        width: document.documentElement.scrollWidth,
+        height: document.documentElement.scrollHeight,
+      })),
+    ).toEqual({ width: 1280, height: 799 });
+    await page.getByRole("button", { name: "設定", exact: true }).click();
+    await page.getByLabel("静音時間を使う").uncheck();
+    await page.getByRole("button", { name: "時計に戻る" }).click();
+    await page.getByRole("button", { name: "試聴", exact: true }).click();
+    await expect.poll(() => playback.urls).toEqual(["/audio/10.mp3"]);
+    await finishAudio(page);
+  });
+
   test("production controller claims one hour across two enabled tabs and reload", async ({
     context,
   }) => {
