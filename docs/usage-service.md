@@ -4,7 +4,7 @@ AIサービスの利用状況を収集・集約し、HTTPとMQTTで数値を提�
 
 ## 独立ソフトウェア
 
-収集器・usage API・MQTT配信・Mosquitto構成を独立プロジェクト `ai-usage-mqtt` に切り出しました。ホスト上の配置は `/home/otsune/projects/ai-usage-mqtt` です。独自のpackage.json、lockfile、設定生成、ビルド、テスト、Compose構成を持ち、Fireのソースやnode_modulesを必要としません。起動と利用契約は同プロジェクトのREADMEを参照してください。
+収集器・usage API・MQTT配信・Mosquitto構成を独立プロジェクト [ai-usage-mqtt](https://github.com/otsune/ai-usage-mqtt) に切り出しました。ホスト上の配置は `/home/otsune/projects/ai-usage-mqtt` です。独自のpackage.json、lockfile、設定生成、ビルド、テスト、Compose構成を持ち、Fireのソースやnode_modulesを必要としません。起動と利用契約は同プロジェクトのREADMEを参照してください。
 
 FireはHTTP／MQTTの利用側です。本番の実行ファイル参照やcollector送信先の切替は、ソース切り出しとは別に移行します。この切り出しだけでは既存本番サービスの配置を変更しません。
 
