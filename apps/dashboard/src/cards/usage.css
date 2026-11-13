@@ -73,6 +73,12 @@
   height: 4px;
   margin-top: 3px;
 }
+.model-group-overview .window-label > span {
+  white-space: normal;
+}
+.model-group-overview .usage-value {
+  font-size: 20px;
+}
 .usage-reset {
   margin: 3px 0 0;
   color: #91a893;

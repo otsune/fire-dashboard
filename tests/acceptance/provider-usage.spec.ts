@@ -4,6 +4,75 @@ import {
   emptyCommon,
   usageProviders,
 } from "../../packages/contracts/src/index";
+import { extractAntigravity } from "../../collectors/antigravity/extract";
+import { antigravityGroups } from "../helpers/antigravity";
+
+test("Antigravity keeps the three model groups visible and distinguishes a disabled five-hour quota", async ({
+  page,
+}) => {
+  const data = emptyDashboard();
+  const at = new Date().toISOString();
+  data.usage = data.usage.map((u) => ({
+    ...u,
+    ...emptyCommon("missing"),
+    sourceAlias: "fixture",
+    receivedAt: at,
+  }));
+  Object.assign(
+    data.usage.find((u) => u.provider === "antigravity")!,
+    extractAntigravity(antigravityGroups, at),
+    { receivedAt: at },
+  );
+  await page.route("**/api/v1/dashboard", (route) =>
+    route.fulfill({ json: data }),
+  );
+  await page.goto("/");
+  const card = page.locator('[data-provider="antigravity"]');
+  for (const [width, height] of [
+    [1280, 799],
+    [1280, 752],
+    [960, 600],
+    [800, 1280],
+    [360, 800],
+  ]) {
+    await page.setViewportSize({ width, height });
+    for (const name of [
+      "Gemini Models",
+      "Claude and GPT Models",
+      "Gemini 4 Argon",
+    ])
+      await expect(
+        card.locator(".usage-overview").getByText(name, { exact: true }),
+      ).toBeVisible();
+    await expect(card.locator(".usage-overview progress")).toHaveCount(3);
+    expect(await card.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(
+      true,
+    );
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= innerWidth,
+      ),
+    ).toBe(true);
+    if (width > height)
+      expect(
+        await page.evaluate(
+          () => document.documentElement.scrollHeight <= innerHeight + 1,
+        ),
+      ).toBe(true);
+    if (width === 1280 && height === 799)
+      await page.screenshot({ path: "/tmp/fire-antigravity-overview.png" });
+  }
+  await card.getByLabel("Antigravity 利用状況の詳細").click();
+  await expect(
+    card.getByText("5時間枠（週間上限到達で無効）", { exact: true }),
+  ).toBeVisible();
+  await expect(card.locator(".usage-bucket")).toHaveCount(3);
+  await expect(card.locator(".usage-window")).toHaveCount(5);
+  await page.screenshot({
+    path: "/tmp/fire-antigravity-groups-desktop.png",
+    fullPage: true,
+  });
+});
 
 test("shows a usage backend outage while retaining values and running the clock", async ({
   page,

@@ -77,6 +77,21 @@ export function UsageCard({
   const windows = value.buckets.flatMap((bucket) =>
     bucket.windows.map((window) => ({ bucket, window })),
   );
+  const modelGroups =
+    value.provider === "antigravity"
+      ? value.buckets.filter((bucket) =>
+          ["gemini-models", "claude-gpt-models", "gemini-4-argon"].includes(
+            bucket.id,
+          ),
+        )
+      : [];
+  const overviewWindows = modelGroups.length
+    ? modelGroups.flatMap((bucket) => {
+        const window =
+          bucket.windows.find((w) => w.id === "weekly") ?? bucket.windows[0];
+        return window ? [{ bucket, window }] : [];
+      })
+    : windows.slice(0, 2);
   // A USD balance is authoritative for Nous, including an explicitly zero balance.
   const showBalance =
     !!balance && (value.provider === "hermes_nous" || !windows.length);
@@ -99,7 +114,9 @@ export function UsageCard({
         </h2>
         <span className="status">{status.label}</span>
       </div>
-      <div className="usage-overview">
+      <div
+        className={`usage-overview${modelGroups.length ? " model-group-overview" : ""}`}
+      >
         {showBalance ? (
           <div className="usage-total">
             <span className="usage-total-label">USD 合計残高</span>
@@ -111,22 +128,28 @@ export function UsageCard({
             </p>
           </div>
         ) : windows.length ? (
-          windows.slice(0, 2).map(({ bucket, window }) => (
+          overviewWindows.map(({ bucket, window }) => (
             <div
               key={`${bucket.id}:${window.id}`}
               className="usage-primary-window"
             >
               <div className="window-label">
                 <span title={`${bucket.label} · ${window.label}`}>
-                  {showBucketLabel(value, bucket.label)
-                    ? `${bucket.label} · `
-                    : ""}
-                  {windowLabel(window)}
+                  {modelGroups.length && window.id === "weekly" ? (
+                    bucket.label
+                  ) : (
+                    <>
+                      {showBucketLabel(value, bucket.label)
+                        ? `${bucket.label} · `
+                        : ""}
+                      {windowLabel(window)}
+                    </>
+                  )}
                 </span>
                 <strong className="usage-value">
                   {window.usedPercent === null
                     ? "未取得"
-                    : `${window.usedPercent}%`}
+                    : `${modelGroups.length ? Math.round(window.usedPercent * 100) / 100 : window.usedPercent}%`}
                 </strong>
               </div>
               {window.usedPercent !== null && (

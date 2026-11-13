@@ -5,6 +5,7 @@ import { build } from "esbuild";
 const entries = {
   "claude-statusline": "collectors/claude/statusline.ts",
   "claude-api-service": "collectors/claude/api-service.ts",
+  "antigravity-statusline": "collectors/antigravity/statusline.ts",
   "codex-service": "collectors/codex/service.ts",
   "codex-api-service": "collectors/codex/api-service.ts",
   "hermes-nous-api-service": "collectors/hermes-nous/api-service.ts",

@@ -6,6 +6,7 @@ import { pathToFileURL } from "node:url";
 import { Readable } from "node:stream";
 import { spawnSync } from "node:child_process";
 import { extractAntigravity } from "../../collectors/antigravity/extract";
+import { antigravityGroups } from "../helpers/antigravity";
 import { captureAntigravity } from "../../collectors/antigravity/statusline";
 import { extractHermesNous } from "../../collectors/hermes-nous/extract";
 import { captureHermesNous } from "../../collectors/hermes-nous/capture";
@@ -84,6 +85,70 @@ function noPrivate(value: unknown) {
 }
 
 describe("Antigravity statusline collector", () => {
+  it("preserves the three model groups and their weekly/five-hour quotas from /usage", () => {
+    const value = extractAntigravity(antigravityGroups, at);
+    expect(value.buckets.map((b) => b.label)).toEqual([
+      "Gemini Models",
+      "Claude and GPT Models",
+      "Gemini 4 Argon",
+    ]);
+    expect(
+      value.buckets.map((b) => b.windows.map((w) => w.usedPercent)),
+    ).toEqual([[100, null], [52.63876543, 0], [0]]);
+    expect(value.buckets[0].windows[1].label).toContain("週間上限到達で無効");
+    expect(value.buckets[0].windows[1].resetsAt).toBeNull();
+    expect(value.buckets[1].windows.map((w) => w.windowMinutes)).toEqual([
+      10080, 300,
+    ]);
+    expect(value.sourceObservedAt).toBeNull();
+  });
+  it("groups flat statusline quotas by exact IDs regardless of input order", () => {
+    const buckets = antigravityGroups.command.data.groups.flatMap(
+      (g) => g.buckets,
+    );
+    const quota = Object.fromEntries(
+      [...buckets].reverse().map((b) => [b.id, b]),
+    );
+    expect(extractAntigravity({ quota }, at).buckets).toEqual(
+      extractAntigravity(antigravityGroups, at).buckets,
+    );
+  });
+  it("does not expose names from structured groups or unknown bucket IDs", () => {
+    const value = extractAntigravity(
+      {
+        command: {
+          data: {
+            groups: [
+              {
+                name: "private@example.test",
+                models: ["/private/repo"],
+                buckets: [
+                  { id: "PRIVATE", name: "SECRET", remaining_fraction: 0.5 },
+                  {
+                    id: "gemini-5h",
+                    remaining_fraction: 1,
+                    disabled: true,
+                    reset_time: reset,
+                  },
+                ],
+              },
+            ],
+          },
+        },
+      },
+      at,
+    );
+    noPrivate(value);
+    expect(value.buckets[0].windows[0]).toMatchObject({
+      label: "5時間枠（無効）",
+      usedPercent: null,
+      resetsAt: null,
+    });
+    expect(value.buckets[1]).toMatchObject({
+      id: "quota-1",
+      label: "利用枠 1",
+    });
+  });
   it("converts remaining quota only and keeps unknown durations unknown", () => {
     const value = extractAntigravity(antigravity, at);
     expect(value.provider).toBe("antigravity");
@@ -93,7 +158,7 @@ describe("Antigravity statusline collector", () => {
     ]);
     expect(value.buckets[0].windows[0]).toMatchObject({
       resetsAt: reset,
-      windowMinutes: null,
+      windowMinutes: 10080,
     });
     expect(value.buckets[1].windows[0].resetsAt).toBeNull();
     expect(value.capturedAt).toBe(at);
@@ -152,9 +217,9 @@ describe("Antigravity statusline collector", () => {
       at,
     );
     expect(value.buckets.map((b) => b.windows[0].usedPercent)).toEqual([
-      20, 40, 60, 80,
+      80, 20, 40, 60,
     ]);
-    expect(value.buckets[3].id).toBe("gemini-weekly");
+    expect(value.buckets[0].id).toBe("gemini-models");
     noPrivate(value);
   });
   it("bounds the number and size of source bucket identifiers", () => {

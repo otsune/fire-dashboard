@@ -4,9 +4,32 @@ import { afterEach, expect, it } from "vitest";
 import { cleanup, render, within } from "@testing-library/react";
 import { emptyUsage, type Usage } from "../../packages/contracts/src/index";
 import { UsageCard } from "../../apps/dashboard/src/cards/UsageCard";
+import { extractAntigravity } from "../../collectors/antigravity/extract";
+import { antigravityGroups } from "../helpers/antigravity";
 
 const now = Date.parse("2026-10-02T00:00:00Z");
 afterEach(cleanup);
+
+it("shows all three Antigravity weekly groups above the fold and disabled five-hour quota in details", () => {
+  const value = extractAntigravity(
+    antigravityGroups,
+    new Date(now).toISOString(),
+  );
+  const { overview, details } = renderQuota(value);
+  for (const label of [
+    "Gemini Models",
+    "Claude and GPT Models",
+    "Gemini 4 Argon",
+  ])
+    expect(overview.getByText(label)).toBeVisible();
+  expect(
+    overview.getAllByRole("progressbar").map((e) => e.getAttribute("value")),
+  ).toEqual(["100", "52.63876543", "0"]);
+  expect(overview.getByText("52.64%")).toBeVisible();
+  expect(
+    details.getByText("5時間枠（週間上限到達で無効）"),
+  ).toBeInTheDocument();
+});
 
 function quota(
   windowMinutes: number | null,

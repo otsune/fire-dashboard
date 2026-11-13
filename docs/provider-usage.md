@@ -25,11 +25,19 @@ Claude、Codexに、Antigravity、OpenCode Go、Hermes / Nous、Grokを加えた
 
 ### 出典と対応範囲
 
-2026-10-02に確認した[公式statusline仕様](https://antigravity.google/docs/cli/statusline)の、トップレベル `quota` だけを読みます。各区分の `remaining_fraction`（0〜1）を `(1 - remaining_fraction) * 100` で消費率に変換し、有効な絶対時刻の `reset_time` だけをリセット予定に使います。`reset_in_seconds` しかない場合、真の観測時刻が分からないためリセット予定は `null`／未取得です。相対秒数を収集時刻へ足すと、古い入力の再描画でも予定が延びてしまうため、その補完は行いません。`context_window` の使用率は契約枠に流用しません。区分名だけから枠の長さを推定しません。
+2026-10-02に確認した[公式statusline仕様](https://antigravity.google/docs/cli/statusline)のトップレベル `quota` と、2026-11-13に既存CLI 1.5.1で実出力を確認した読取専用 `/usage` の `command.data.groups[].buckets[]` を読みます。各枠の `remaining_fraction`（0〜1）を `(1 - remaining_fraction) * 100` で使用率に変換し、有効な絶対時刻の `reset_time` だけをリセット予定に使います。画像・CLIは残量表示、ダッシュボードは使用率表示なので、残量47.36%は使用率52.64%です。相対秒数だけの場合はリセット予定を補完しません。`context_window` の使用率は契約枠に流用しません。
 
-区分キー自体に個人情報が含まれる場合に備え、公式例で確認できた `gemini-weekly` だけを既知の名前として扱います。他のキーは `quota-N`／`利用枠 N` に置き換え、元のキーを転送しません。受け付ける区分は最大32件です。
+実出力と提供画像で確認した次の5つのIDを、3つのモデル区分へまとめます。概要には区分ごとの週間使用率を3件、詳細には5時間枠も表示します。表示パーセントは小数2桁までで、保存値の精度は維持します。
 
-このアダプターは、公式statuslineがstdinへ渡すJSONの受け口です。CLIのprint出力を解析するものではなく、`agy` を起動しません。[公式変更履歴](https://antigravity.google/docs/changelog)で、読み取り専用スラッシュコマンドのprintモード対応は1.1.11からです。それ以前で同様のコマンドを試すと、通常のプロンプトとして利用枠を消費するおそれがあります。printモードJSONの入れ子構造もこの実装では未検証のため、確認目的でも実行しません。
+| モデル区分            | 週間枠ID                  | 5時間枠ID   |
+| --------------------- | ------------------------- | ----------- |
+| Gemini Models         | `gemini-weekly`           | `gemini-5h` |
+| Claude and GPT Models | `3p-weekly`               | `3p-5h`     |
+| Gemini 4 Argon        | `gemini-argon-wtu-weekly` | なし        |
+
+既知IDの期間は週間枠10080分・5時間枠300分。`disabled: true` の枠は使用率・リセットを `null` にし、無効と明記します。週間残量が0で5時間枠が無効なら「週間上限到達で無効」と表示し、`remaining_fraction: 1` を0%使用と誤認しません。モデルは区分内で枠を共有するため、モデルごとの足し合わせは行いません。任意のgroup名・model名・未知IDは転送せず、未知枠は従来どおり `quota-N`／`利用枠 N` と期間不明で保持します。入力枠は最大32件です。
+
+アダプター自身はstdinのJSONだけを読み、`agy` やネットワークを起動しません。既存のGMKtecラッパーは `AGY_CLI_DISABLE_AUTO_UPDATE=1 agy --output-format json -p /usage` のJSONを直接アダプターへ渡します。以前のjqによる平坦化は `disabled` を失うため使いません。[公式変更履歴](https://antigravity.google/docs/changelog)で、読取専用スラッシュコマンドのprintモード対応は1.1.11からです。それ以前のバージョンでは実行しないでください。これはCLIの実出力で検証した経路であり、新しい公開usage APIを意味しません。
 
 ### ローカルでの接続
 
