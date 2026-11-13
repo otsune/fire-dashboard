@@ -1,4 +1,11 @@
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import {
+  mkdir,
+  readFile,
+  rename,
+  rm,
+  unlink,
+  writeFile,
+} from "node:fs/promises";
 import { dirname } from "node:path";
 import { randomUUID } from "node:crypto";
 import {
@@ -6,7 +13,16 @@ import {
   type Usage,
   type UsageEnvelope,
 } from "../../packages/usage-contracts/src/index";
-import { atomicJson } from "../../services/aggregator/src/store";
+// Collector persistence must remain usable without the Fire API or its schemas.
+async function atomicJson(path: string, value: UsageEnvelope) {
+  const temp = `${path}.${randomUUID()}.tmp`;
+  try {
+    await writeFile(temp, JSON.stringify(value), { mode: 0o600, flag: "wx" });
+    await rename(temp, path);
+  } finally {
+    await unlink(temp).catch(() => {});
+  }
+}
 /**
  * A holder killed hard (kill -9, OOM) between lock and unlock would otherwise
  * wedge every later capture forever. The lock records its owning PID; a later
